@@ -1,0 +1,34 @@
+openapi: 3.0.3
+info:
+  title: TalentMatchIA API
+  version: 1.0.0
+servers:
+  - url: http://localhost:4000/api
+paths:
+  /auth/login:
+    post:
+      summary: Login
+      responses:
+        '200': { description: OK }
+  /auth/registrar:
+    post:
+      summary: Registrar usuário
+      responses:
+        '200': { description: OK }
+  /vagas:
+    get: { summary: Listar vagas, responses: { '200': { description: OK } } }
+    post: { summary: Criar vaga, responses: { '201': { description: Criada } } }
+  /curriculos/upload:
+    post: { summary: Upload de currículo, responses: { '200': { description: OK } } }
+  /entrevistas/{id}:
+    get: { summary: Detalhes da entrevista, parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { '200': { description: OK } } }
+  /entrevistas/{id}/perguntas:
+    post: { summary: Gerar perguntas, parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { '200': { description: OK } } }
+  /entrevistas/{id}/relatorio:
+    post: { summary: Gerar relatório, parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { '200': { description: OK } } }
+  /dashboard:
+    get: { summary: Resumo, responses: { '200': { description: OK } } }
+  /candidatos:
+    get: { summary: Listar candidatos, responses: { '200': { description: OK } } }
+  /historico:
+    get: { summary: Histórico entrevistas, responses: { '200': { description: OK } } }
