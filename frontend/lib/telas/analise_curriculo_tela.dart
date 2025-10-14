@@ -87,7 +87,7 @@ class AnaliseCurriculoTela extends StatelessWidget {
               padding: const EdgeInsets.all(20),
               child: Row(
                 children: [
-                  BadgePontuacao(pontuacao: pontuacao, tamanho: 80),
+                  const BadgePontuacao(pontuacao: pontuacao, tamanho: 80),
                   const SizedBox(width: 24),
                   Expanded(
                     child: Column(

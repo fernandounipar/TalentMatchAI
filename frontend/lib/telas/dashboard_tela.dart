@@ -1,249 +1,679 @@
 import 'package:flutter/material.dart';
-import '../componentes/widgets.dart';
 
+/// Dashboard - Implementação seguindo layout React
+/// Grid responsivo de 12 colunas com estatísticas, tabelas e insights
 class DashboardTela extends StatelessWidget {
   const DashboardTela({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Dados mockados para o dashboard
-    final estatisticas = [
-      {'titulo': 'Vagas Abertas', 'valor': '8', 'icone': Icons.work_outline, 'cor': Colors.indigo, 'subtitulo': '+2 esta semana'},
-      {'titulo': 'Candidatos', 'valor': '142', 'icone': Icons.people_outline, 'cor': Colors.purple, 'subtitulo': '+15 novos'},
-      {'titulo': 'Entrevistas', 'valor': '23', 'icone': Icons.calendar_today, 'cor': Colors.orange, 'subtitulo': '5 hoje'},
-      {'titulo': 'Aprovados', 'valor': '12', 'icone': Icons.check_circle_outline, 'cor': Colors.green, 'subtitulo': '52% taxa'},
-    ];
-
-    final atividadesRecentes = [
-      {'tipo': 'curriculo', 'candidato': 'João Silva', 'acao': 'enviou currículo para', 'vaga': 'Desenvolvedor Full Stack', 'tempo': '5 min atrás'},
-      {'tipo': 'entrevista', 'candidato': 'Maria Santos', 'acao': 'entrevista concluída para', 'vaga': 'UX Designer', 'tempo': '1 hora atrás'},
-      {'tipo': 'aprovacao', 'candidato': 'Carlos Oliveira', 'acao': 'foi aprovado para', 'vaga': 'DevOps Engineer', 'tempo': '2 horas atrás'},
-      {'tipo': 'vaga', 'candidato': 'Sistema', 'acao': 'nova vaga criada:', 'vaga': 'Product Manager', 'tempo': '3 horas atrás'},
-      {'tipo': 'curriculo', 'candidato': 'Ana Paula', 'acao': 'enviou currículo para', 'vaga': 'Data Scientist', 'tempo': '4 horas atrás'},
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Cabeçalho
-        const Text(
-          'Dashboard',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF3730A3)),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Visão geral do processo seletivo',
-          style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-        ),
-        const SizedBox(height: 24),
-
-        // Cards de Estatísticas
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final crossAxisCount = constraints.maxWidth > 900 ? 4 : 2;
-            return GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: crossAxisCount,
-                childAspectRatio: 1.8,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-              ),
-              itemCount: estatisticas.length,
-              itemBuilder: (context, i) {
-                final est = estatisticas[i];
-                return CardEstatistica(
-                  titulo: est['titulo'] as String,
-                  valor: est['valor'] as String,
-                  icone: est['icone'] as IconData,
-                  cor: est['cor'] as Color,
-                  subtitulo: est['subtitulo'] as String?,
-                );
-              },
-            );
-          },
-        ),
-
-        const SizedBox(height: 32),
-
-        // Gráfico de Conversão (Mockado)
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              flex: 2,
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Funil de Seleção',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 20),
-                      _buildBarraFunil('Currículos Recebidos', 142, Colors.indigo),
-                      _buildBarraFunil('Triagem Inicial', 68, Colors.purple),
-                      _buildBarraFunil('Entrevistas Realizadas', 23, Colors.orange),
-                      _buildBarraFunil('Aprovados', 12, Colors.green),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Metas do Mês',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 20),
-                      _buildMetaItem('Entrevistas', 23, 30, Colors.orange),
-                      const SizedBox(height: 16),
-                      _buildMetaItem('Contratações', 12, 15, Colors.green),
-                      const SizedBox(height: 16),
-                      _buildMetaItem('Vagas Fechadas', 5, 10, Colors.indigo),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 32),
-
-        // Atividades Recentes
-        const Text(
-          'Atividades Recentes',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.black87),
-        ),
-        const SizedBox(height: 16),
-
-        Card(
-          child: ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: atividadesRecentes.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (context, i) {
-              final ativ = atividadesRecentes[i];
-              return ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: _corAtividade(ativ['tipo'] as String).withOpacity(0.1),
-                  child: Icon(_iconeAtividade(ativ['tipo'] as String), color: _corAtividade(ativ['tipo'] as String), size: 20),
-                ),
-                title: RichText(
-                  text: TextSpan(
-                    style: const TextStyle(fontSize: 14, color: Colors.black87),
-                    children: [
-                      TextSpan(text: '${ativ['candidato']} ', style: const TextStyle(fontWeight: FontWeight.w600)),
-                      TextSpan(text: '${ativ['acao']} '),
-                      TextSpan(text: ativ['vaga'] as String, style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF4F46E5))),
-                    ],
-                  ),
-                ),
-                trailing: Text(
-                  ativ['tempo'] as String,
-                  style: const TextStyle(fontSize: 12, color: Colors.black54),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBarraFunil(String label, int valor, Color cor) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+    return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-              Text('$valor', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: cor)),
-            ],
+          // Header com título e botões de ação
+          _buildHeader(context),
+          const SizedBox(height: 24),
+          
+          // Grid de 4 cards de estatísticas
+          _buildStatsGrid(),
+          const SizedBox(height: 24),
+          
+          // Row: Minhas Vagas (7 cols) + Entrevistas Recentes (5 cols)
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth < 1024) {
+                return Column(
+                  children: [
+                    _buildMinhasVagas(context),
+                    const SizedBox(height: 16),
+                    _buildEntrevistasRecentes(context),
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 7,
+                    child: _buildMinhasVagas(context),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    flex: 5,
+                    child: _buildEntrevistasRecentes(context),
+                  ),
+                ],
+              );
+            },
           ),
-          const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: valor / 142,
-              backgroundColor: Colors.grey.shade200,
-              color: cor,
-              minHeight: 8,
-            ),
+          const SizedBox(height: 16),
+          
+          // Row: Relatórios Recentes (7 cols) + Insights da IA (5 cols)
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth < 1024) {
+                return Column(
+                  children: [
+                    _buildRelatoriosRecentes(),
+                    const SizedBox(height: 16),
+                    _buildInsightsIA(),
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 7,
+                    child: _buildRelatoriosRecentes(),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    flex: 5,
+                    child: _buildInsightsIA(),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
     );
   }
 
-  Widget _buildMetaItem(String label, int atual, int meta, Color cor) {
-    final progresso = atual / meta;
-    return Column(
+  Widget _buildHeader(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-            Text('$atual/$meta', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: cor)),
+            const Text(
+              'Bem-vinda! 👋',
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Resumo do seu dia. Domingo, 12 de outubro de 2025',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[500],
+              ),
+            ),
           ],
         ),
-        const SizedBox(height: 6),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: progresso,
-            backgroundColor: Colors.grey.shade200,
-            color: cor,
-            minHeight: 6,
+        if (MediaQuery.of(context).size.width >= 768)
+          Row(
+            children: [
+              ElevatedButton.icon(
+                onPressed: () {},
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Nova Vaga'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4F46E5),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: () {},
+                icon: const Icon(Icons.upload, size: 18),
+                label: const Text('Upload Currículo'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  Widget _buildStatsGrid() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        int columns = 4;
+        if (constraints.maxWidth < 1200) columns = 2;
+        if (constraints.maxWidth < 640) columns = 1;
+
+        return GridView.count(
+          crossAxisCount: columns,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: 2.5,
+          children: const [
+            _StatCard(
+              title: 'Vagas abertas',
+              value: '12',
+              subtitle: '+2 esta semana',
+            ),
+            _StatCard(
+              title: 'Currículos recebidos',
+              value: '87',
+              subtitle: '+18 hoje',
+            ),
+            _StatCard(
+              title: 'Entrevistas agendadas',
+              value: '5',
+              subtitle: '2 nas próximas 24h',
+            ),
+            _StatCard(
+              title: 'Relatórios gerados',
+              value: '3',
+              subtitle: '1 pendente',
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildMinhasVagas(BuildContext context) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Minhas Vagas',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                OutlinedButton(
+                  onPressed: () {},
+                  child: const Text('Ver todas'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildTableVagas(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTableVagas() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: DataTable(
+        headingTextStyle: TextStyle(
+          fontSize: 14,
+          color: Colors.grey[500],
+          fontWeight: FontWeight.w500,
+        ),
+        dataTextStyle: const TextStyle(
+          fontSize: 14,
+          color: Colors.black87,
+        ),
+        columns: const [
+          DataColumn(label: Text('Título')),
+          DataColumn(label: Text('Candidatos')),
+          DataColumn(label: Text('Status')),
+          DataColumn(label: Text('Última atualização')),
+          DataColumn(label: Text('')),
+        ],
+        rows: [
+          _buildRowVaga('Desenvolvedor Full Stack', 21, 'Em análise', '12/10/2025'),
+          _buildRowVaga('Analista de Dados', 14, 'Entrevistas', '11/10/2025'),
+          _buildRowVaga('UX/UI Designer', 9, 'Triagem', '10/10/2025'),
+          _buildRowVaga('DevOps Engineer', 7, 'Aguardando gestor', '09/10/2025'),
+        ],
+      ),
+    );
+  }
+
+  DataRow _buildRowVaga(String titulo, int candidatos, String status, String data) {
+    return DataRow(
+      cells: [
+        DataCell(Text(titulo, style: const TextStyle(fontWeight: FontWeight.w500))),
+        DataCell(Text('$candidatos')),
+        DataCell(
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              status,
+              style: const TextStyle(fontSize: 12),
+            ),
+          ),
+        ),
+        DataCell(Text(data, style: TextStyle(color: Colors.grey[500]))),
+        DataCell(
+          TextButton.icon(
+            onPressed: () {},
+            icon: const Icon(Icons.chevron_right, size: 16),
+            label: const Text('Detalhes', style: TextStyle(fontSize: 13)),
           ),
         ),
       ],
     );
   }
 
-  Color _corAtividade(String tipo) {
-    switch (tipo) {
-      case 'curriculo':
-        return Colors.blue;
-      case 'entrevista':
-        return Colors.orange;
-      case 'aprovacao':
-        return Colors.green;
-      case 'vaga':
-        return Colors.purple;
-      default:
-        return Colors.grey;
-    }
+  Widget _buildEntrevistasRecentes(BuildContext context) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Entrevistas Recentes',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () {},
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4F46E5),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                  child: const Text('Nova Entrevista', style: TextStyle(fontSize: 13)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildInterviewItem(
+              'João Silva',
+              'Desenvolvedor Python',
+              'Relatório disponível',
+              Icons.check_circle,
+              Colors.green,
+            ),
+            const SizedBox(height: 12),
+            _buildInterviewItem(
+              'Marina Alves',
+              'UX Designer',
+              'Análise em andamento',
+              Icons.warning_amber,
+              Colors.amber,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
-  IconData _iconeAtividade(String tipo) {
-    switch (tipo) {
-      case 'curriculo':
-        return Icons.description;
-      case 'entrevista':
-        return Icons.mic;
-      case 'aprovacao':
-        return Icons.check_circle;
-      case 'vaga':
-        return Icons.work;
-      default:
-        return Icons.info;
-    }
+  Widget _buildInterviewItem(
+    String nome,
+    String cargo,
+    String status,
+    IconData icon,
+    MaterialColor corIcone,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade200),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  nome,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  cargo,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey[500],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Row(
+            children: [
+              Icon(icon, size: 16, color: corIcone[600]),
+              const SizedBox(width: 6),
+              Text(
+                status,
+                style: const TextStyle(fontSize: 13),
+              ),
+              const SizedBox(width: 8),
+              TextButton.icon(
+                onPressed: () {},
+                icon: const Icon(Icons.chevron_right, size: 16),
+                label: const Text('Abrir', style: TextStyle(fontSize: 13)),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 0),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRelatoriosRecentes() {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Relatórios Recentes',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                OutlinedButton(
+                  onPressed: () {},
+                  child: const Text('Exportar'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildReportItem(
+              'Entrevista — João Silva (Python)',
+              '12/10/2025',
+              'Concluído',
+            ),
+            const SizedBox(height: 12),
+            _buildReportItem(
+              'Entrevista — Marina Alves (UX)',
+              '11/10/2025',
+              'Em revisão',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReportItem(String titulo, String data, String status) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade200),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  titulo,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  data,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[500],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  status,
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ),
+              const SizedBox(width: 8),
+              TextButton.icon(
+                onPressed: () {},
+                icon: const Icon(Icons.chevron_right, size: 16),
+                label: const Text('Ver', style: TextStyle(fontSize: 13)),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 0),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInsightsIA() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFFF0F3FF), Colors.white],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+        borderRadius: BorderRadius.all(Radius.circular(12)),
+      ),
+      child: Card(
+        elevation: 0,
+        color: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.grey.shade200),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Insights da IA',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 16),
+              _buildInsightItem(
+                Icons.search,
+                'Triagem',
+                '3 currículos com alta compatibilidade para Engenheiro de Dados.',
+              ),
+              const SizedBox(height: 12),
+              _buildInsightItem(
+                Icons.calendar_today,
+                'Agenda',
+                '2 entrevistas nas próximas 24h.',
+              ),
+              const SizedBox(height: 12),
+              _buildInsightItem(
+                Icons.bar_chart,
+                'Tendência',
+                'Tempo médio de triagem reduziu 15% nesta semana.',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInsightItem(IconData icon, String titulo, String texto) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: Colors.grey.shade200),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEEF2FF),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(
+              icon,
+              size: 16,
+              color: const Color(0xFF4F46E5),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  titulo,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  texto,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Card de Estatística
+class _StatCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final String subtitle;
+
+  const _StatCard({
+    required this.title,
+    required this.value,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[500],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0F3FF),
+                    border: Border.all(color: const Color(0xFFE0E7FF)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF4F46E5),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

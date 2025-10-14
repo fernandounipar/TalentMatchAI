@@ -311,7 +311,7 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
                             const Text('Modelo de IA', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                             const SizedBox(height: 8),
                             DropdownButtonFormField<String>(
-                              value: 'GPT-4',
+                              initialValue: 'GPT-4',
                               decoration: InputDecoration(
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                                 filled: true,

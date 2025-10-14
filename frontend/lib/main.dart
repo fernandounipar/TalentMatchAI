@@ -10,7 +10,7 @@ import 'telas/entrevista_assistida_tela.dart';
 import 'telas/relatorio_final_tela.dart';
 import 'telas/historico_tela.dart';
 import 'telas/configuracoes_tela.dart';
-import 'componentes/widgets.dart';
+import 'servicos/api_cliente.dart';
 
 void main() => runApp(const TalentMatchIA());
 
@@ -50,13 +50,22 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
     'titulo': '',
     'descricao': '',
     'requisitos': '',
-    'tecnologias': ''
+    'tecnologias': '',
   };
   String curriculoNome = '';
   Map<String, String> ctx = {
     'vagaSelecionada': 'Desenvolvedor Full Stack',
-    'candidato': 'João Silva'
+    'candidato': 'João Silva',
   };
+  
+  // ApiCliente simples para satisfazer os requisitos das telas
+  late final ApiCliente api;
+
+  @override
+  void initState() {
+    super.initState();
+    api = ApiCliente(baseUrl: 'http://localhost:3000');
+  }
 
   void go(RouteKey to) {
     setState(() {
@@ -86,6 +95,12 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
                 onNavigate: go,
                 route: route,
                 name: auth['name'] ?? 'Recrutadora',
+                onLogout: () {
+                  setState(() {
+                    auth = {'logged': false, 'name': null};
+                    route = RouteKey.landing;
+                  });
+                },
                 child: _buildContent(),
               )
             : route == RouteKey.landing
@@ -112,23 +127,15 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
   Widget _buildContent() {
     switch (route) {
       case RouteKey.dashboard:
-        return Dashboard(onNavigate: go);
+        return const DashboardTela();
       case RouteKey.vagas:
-        return Vagas(
-          onNavigate: go,
-          onNovaVaga: () => go(RouteKey.novaVaga),
-        );
+        return const VagasTela();
       case RouteKey.novaVaga:
-        return NovaVaga(
-          form: vagaForm,
-          onChange: (newForm) => setState(() => vagaForm = newForm),
-          onCancel: () => go(RouteKey.vagas),
-          onSave: () => go(RouteKey.vagas),
-        );
+        return _buildNovaVagaTela();
       case RouteKey.candidatos:
-        return Candidatos(onNavigate: go);
+        return CandidatosTela(api: api);
       case RouteKey.upload:
-        return UploadCurriculo(
+        return UploadCurriculoTela(
           curriculoNome: curriculoNome,
           onFile: (name) {
             setState(() {
@@ -139,33 +146,179 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
           onBack: () => go(RouteKey.dashboard),
         );
       case RouteKey.analise:
-        return AnaliseCurriculo(
+        return AnaliseCurriculoTela(
           vaga: ctx['vagaSelecionada']!,
           candidato: ctx['candidato']!,
           arquivo: curriculoNome.isEmpty ? 'curriculo_joao_silva.pdf' : curriculoNome,
-          onEntrevistar: () => go(RouteKey.entrevista),
           onVoltar: () => go(RouteKey.upload),
+          onEntrevistar: () => go(RouteKey.entrevista),
         );
       case RouteKey.entrevista:
-        return EntrevistaAssistida(
+        return EntrevistaAssistidaTela(
           candidato: ctx['candidato']!,
           vaga: ctx['vagaSelecionada']!,
           onFinalizar: () => go(RouteKey.relatorio),
           onCancelar: () => go(RouteKey.dashboard),
         );
       case RouteKey.relatorio:
-        return RelatorioFinal(
+        return RelatorioFinalTela(
           candidato: ctx['candidato']!,
           vaga: ctx['vagaSelecionada']!,
           onVoltar: () => go(RouteKey.dashboard),
         );
       case RouteKey.historico:
-        return Historico(onNavigate: go);
+        return HistoricoTela(api: api);
       case RouteKey.config:
-        return const Configuracoes();
+        return const ConfiguracoesTela();
       default:
         return const SizedBox.shrink();
     }
+  }
+
+  Widget _buildNovaVagaTela() {
+    final controllers = {
+      'titulo': TextEditingController(text: vagaForm['titulo']),
+      'descricao': TextEditingController(text: vagaForm['descricao']),
+      'requisitos': TextEditingController(text: vagaForm['requisitos']),
+      'tecnologias': TextEditingController(text: vagaForm['tecnologias']),
+    };
+
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              TextButton.icon(
+                onPressed: () => go(RouteKey.vagas),
+                icon: const Icon(Icons.chevron_left, size: 16),
+                label: const Text('Voltar'),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Nova Vaga',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Título',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: controllers['titulo'],
+                      decoration: const InputDecoration(
+                        hintText: 'Ex.: Desenvolvedor Full Stack',
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (value) => vagaForm['titulo'] = value,
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Descrição',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: controllers['descricao'],
+                      maxLines: 4,
+                      decoration: const InputDecoration(
+                        hintText: 'Resumo da vaga',
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (value) => vagaForm['descricao'] = value,
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Requisitos',
+                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                              ),
+                              const SizedBox(height: 6),
+                              TextField(
+                                controller: controllers['requisitos'],
+                                maxLines: 4,
+                                decoration: const InputDecoration(
+                                  hintText: 'Habilidades, experiências',
+                                  border: OutlineInputBorder(),
+                                ),
+                                onChanged: (value) => vagaForm['requisitos'] = value,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Tecnologias',
+                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                              ),
+                              const SizedBox(height: 6),
+                              TextField(
+                                controller: controllers['tecnologias'],
+                                maxLines: 4,
+                                decoration: const InputDecoration(
+                                  hintText: 'Ex.: React, Node.js, SQL',
+                                  border: OutlineInputBorder(),
+                                ),
+                                onChanged: (value) => vagaForm['tecnologias'] = value,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        OutlinedButton(
+                          onPressed: () => go(RouteKey.vagas),
+                          child: const Text('Cancelar'),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: () {
+                            // Salvar vaga e voltar
+                            go(RouteKey.vagas);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF4F46E5),
+                            foregroundColor: Colors.white,
+                          ),
+                          child: const Text('Salvar Vaga'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -175,6 +328,7 @@ class AppShell extends StatelessWidget {
   final Function(RouteKey) onNavigate;
   final RouteKey route;
   final String name;
+  final VoidCallback onLogout;
 
   const AppShell({
     super.key,
@@ -182,6 +336,7 @@ class AppShell extends StatelessWidget {
     required this.onNavigate,
     required this.route,
     required this.name,
+    required this.onLogout,
   });
 
   @override
@@ -388,9 +543,7 @@ class AppShell extends StatelessWidget {
                             ),
                             const SizedBox(width: 12),
                             OutlinedButton(
-                              onPressed: () {
-                                // Implementar logout
-                              },
+                              onPressed: onLogout,
                               style: OutlinedButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 12,
@@ -424,88 +577,5 @@ class AppShell extends StatelessWidget {
   }
 }
 
-class AppShell extends StatelessWidget {
-  final Widget child; final RouteKey route; final String name; final VoidCallback onLogout; final void Function(RouteKey) onNavigate;
-  const AppShell({super.key, required this.child, required this.route, required this.name, required this.onLogout, required this.onNavigate});
-  @override
-  Widget build(BuildContext context) {
-    final items = const [
-      (RouteKey.dashboard, Icons.home_outlined, 'Dashboard'),
-      (RouteKey.vagas, Icons.work_outline, 'Vagas'),
-      (RouteKey.candidatos, Icons.people_outline, 'Candidatos'),
-      (RouteKey.upload, Icons.upload_outlined, 'Upload'),
-      (RouteKey.historico, Icons.receipt_long_outlined, 'HistÃ³rico'),
-      (RouteKey.config, Icons.settings_outlined, 'ConfiguraÃ§Ãµes'),
-    ];
-    return Row(children: [
-      LayoutBuilder(builder: (_, c){
-        final wide = c.maxWidth > 900; if(!wide) return const SizedBox.shrink();
-        return Container(width: 230, color: Colors.white, child: Column(children: [
-          Container(height: 64, alignment: Alignment.centerLeft, padding: const EdgeInsets.symmetric(horizontal: 16), decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.shade200))), child: const Text('TalentMatchIA', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF4338CA)))),
-          Expanded(child: ListView(padding: const EdgeInsets.all(8), children: [
-            for (final it in items)
-              _SideButton(selected: route==it.$1, icon: it.$2, label: it.$3, onTap: () => onNavigate(it.$1)),
-          ])),
-        ]));
-      }),
-      Expanded(child: Column(children: [
-        Container(height: 64, color: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Expanded(child: Padding(padding: const EdgeInsets.only(right: 8), child: TextField(decoration: InputDecoration(prefixIcon: const Icon(Icons.search, size: 18), hintText: 'Buscar candidato, vaga ou relatÃ³rio', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))))),
-          Row(children: [
-            Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisAlignment: MainAxisAlignment.center, children: [Text(name, style: const TextStyle(fontWeight: FontWeight.w600)), const Text('Recrutadora', style: TextStyle(fontSize: 11, color: Colors.grey))]),
-            const SizedBox(width: 8), const CircleAvatar(radius: 16, backgroundColor: Colors.indigo), const SizedBox(width: 8),
-            OutlinedButton(onPressed: onLogout, child: const Text('Sair')),
-          ]),
-        ])),
-        Expanded(child: SingleChildScrollView(child: child)),
-      ])),
-    ]);
-  }
-}
 
-class _SideButton extends StatelessWidget {
-  final bool selected; final IconData icon; final String label; final VoidCallback onTap;
-  const _SideButton({required this.selected, required this.icon, required this.label, required this.onTap});
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4),
-    child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(10), child: Container(
-      height: 44, padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), gradient: selected ? const LinearGradient(colors: [Color(0xFF4F46E5), Color(0xFF6366F1)]) : null),
-      child: Row(children: [Icon(icon, size: 20, color: selected?Colors.white:Colors.black87), const SizedBox(width: 8), Text(label, style: TextStyle(color: selected?Colors.white:Colors.black87, fontWeight: FontWeight.w500))]),
-    )),
-  );
-}
-
-// Landing movida para telas/landing_tela.dart
-// Login
-class LoginTela extends StatefulWidget { final VoidCallback onBack; final void Function(String) onSubmit; const LoginTela({super.key, required this.onBack, required this.onSubmit});
-  @override State<LoginTela> createState() => _LoginTelaState(); }
-class _LoginTelaState extends State<LoginTela> { final _email=TextEditingController(); final _pwd=TextEditingController();
-  @override void dispose(){_email.dispose(); _pwd.dispose(); super.dispose();}
-  @override Widget build(BuildContext context)=>Scaffold(backgroundColor: const Color(0xFFF5F7FF), body: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 440), child: Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-    Align(alignment: Alignment.centerLeft, child: TextButton.icon(onPressed: widget.onBack, icon: const Icon(Icons.chevron_left), label: const Text('Voltar'))),
-    const SizedBox(height: 8), const Text('Acessar TalentMatchIA', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF3730A3))), const SizedBox(height: 10),
-    const Text('E-mail', style: TextStyle(fontSize: 12)), TextField(controller: _email, decoration: const InputDecoration(hintText: 'seu@email.com')),
-    const SizedBox(height: 10), const Text('Senha', style: TextStyle(fontSize: 12)), TextField(controller: _pwd, obscureText: true, decoration: const InputDecoration(hintText: 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢')),
-    const SizedBox(height: 14), ElevatedButton.icon(onPressed: ()=>widget.onSubmit(_email.text.trim()), icon: const Icon(Icons.login), label: const Text('Entrar'), style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4F46E5), foregroundColor: Colors.white)),
-  ]))))));
-}
-
-// Nova Vaga (simplificada)
-class NovaVagaTela extends StatefulWidget { final VoidCallback onCancel; final VoidCallback onSave; const NovaVagaTela({super.key, required this.onCancel, required this.onSave});
-  @override State<NovaVagaTela> createState()=>_NovaVagaTelaState(); }
-class _NovaVagaTelaState extends State<NovaVagaTela>{ final t=TextEditingController(), d=TextEditingController(), r=TextEditingController(), tec=TextEditingController();
-  @override void dispose(){t.dispose(); d.dispose(); r.dispose(); tec.dispose(); super.dispose();}
-  @override Widget build(BuildContext context)=>Column(crossAxisAlignment: CrossAxisAlignment.start, children:[
-    TextButton.icon(onPressed: widget.onCancel, icon: const Icon(Icons.chevron_left), label: const Text('Voltar')),
-    const Text('Nova Vaga', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)), const SizedBox(height: 8),
-    Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(children:[
-      TextField(controller:t, decoration: const InputDecoration(labelText:'TÃ­tulo')), const SizedBox(height:8),
-      TextField(controller:d, decoration: const InputDecoration(labelText:'DescriÃ§Ã£o'), maxLines:3), const SizedBox(height:8),
-      Row(children:[Expanded(child: TextField(controller:r, decoration: const InputDecoration(labelText:'Requisitos'), maxLines:3)), const SizedBox(width:8), Expanded(child: TextField(controller:tec, decoration: const InputDecoration(labelText:'Tecnologias'), maxLines:3))]), const SizedBox(height:8),
-      Row(mainAxisAlignment: MainAxisAlignment.end, children:[OutlinedButton(onPressed: widget.onCancel, child: const Text('Cancelar')), const SizedBox(width:8), ElevatedButton(onPressed: widget.onSave, child: const Text('Salvar Vaga'))])
-    ]))),
-  ]);
-}
 
