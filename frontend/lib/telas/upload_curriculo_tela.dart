@@ -66,7 +66,7 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
                 const Text('Selecione a vaga:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  value: _vagaSelecionada,
+                  initialValue: _vagaSelecionada,
                   decoration: InputDecoration(
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                     filled: true,
