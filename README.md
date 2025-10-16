@@ -54,14 +54,23 @@ O **TalentMatchIA** é uma ferramenta moderna de recrutamento que utiliza Inteli
 ### Backend (Node.js/Express + PostgreSQL)
   
 1. **Configure o `.env`** a partir de `backend/.env.example`
-   ```env
-   PORT=4000
-   DATABASE_URL=postgresql://usuario:senha@localhost:5432/talentmatch
-   JWT_SECRET=seu_secret_aqui
-   OPENAI_API_KEY=sk-... # Opcional
-   ```
+  ```env
+  PORT=4000
+  DB_HOST=localhost
+  DB_PORT=5432
+  DB_USER=postgres
+  DB_PASSWORD=postgres
+  DB_NAME=talentmatchia
+  JWT_SECRET=seu_secret_aqui
+  OPENAI_API_KEY=sk-... # Opcional
+  GITHUB_TOKEN=
+  ```
 
-2. **Crie banco no PostgreSQL** e ajuste `DATABASE_URL`
+2. **Crie banco no PostgreSQL** e ajuste as variáveis `DB_*`. Em seguida, aplique os scripts SQL:
+  ```bash
+  psql -h localhost -U postgres -d talentmatchia -f backend/scripts/sql/001_schema.sql
+  psql -h localhost -U postgres -d talentmatchia -f backend/scripts/sql/002_chat.sql
+  ```
 
 3. **No diretório `backend/`:**
    ```bash

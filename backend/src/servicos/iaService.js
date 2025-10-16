@@ -37,3 +37,37 @@ async function gerarPerguntasEntrevista({ resumo, skills = [], vaga = '', quanti
 
 module.exports = { gerarAnaliseCurriculo, gerarPerguntasEntrevista };
 
+// Chat da entrevista: gera resposta baseada no histórico e no contexto
+async function responderChatEntrevista({ historico = [], mensagemAtual = '', analise = {}, vagaDesc = '', textoCurriculo = '' }) {
+  if (!openai) {
+    // fallback simples
+    return 'OPENAI não configurado. (Resposta mock) Sugestão: aprofunde pedindo exemplos específicos e resultados mensuráveis.';
+  }
+
+  const system = [
+    'Você é um assistente de entrevistas técnicas que ajuda o recrutador.',
+    'Responda em português, de forma objetiva e prática.',
+    'Use o contexto do currículo e da vaga quando relevante.',
+    'Evite respostas longas; proponha follow-ups quando fizer sentido.',
+  ].join(' ');
+
+  const contexto = `Resumo: ${(analise.summary || '').slice(0, 800)}\nSkills: ${(analise.skills || []).join(', ')}\nKeywords: ${(analise.keywords || []).join(', ')}\nVaga: ${String(vagaDesc || '').slice(0, 1000)}\n`;
+  const extra = textoCurriculo ? `Trechos do currículo:\n${String(textoCurriculo).slice(0, 1500)}` : '';
+
+  const msgs = [
+    { role: 'system', content: system },
+    { role: 'system', content: contexto + extra },
+    ...historico.map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.conteudo || '') })),
+    { role: 'user', content: String(mensagemAtual) },
+  ];
+
+  const resp = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: msgs,
+    temperature: 0.3,
+  });
+  const content = resp.choices?.[0]?.message?.content || '';
+  return content.trim();
+}
+
+module.exports = { gerarAnaliseCurriculo, gerarPerguntasEntrevista, responderChatEntrevista };

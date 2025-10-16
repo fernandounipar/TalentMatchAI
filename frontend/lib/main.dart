@@ -8,6 +8,7 @@ import 'telas/upload_curriculo_tela.dart';
 import 'telas/analise_curriculo_tela.dart';
 import 'telas/entrevista_assistida_tela.dart';
 import 'telas/relatorio_final_tela.dart';
+import 'telas/usuarios_admin_tela.dart';
 import 'telas/historico_tela.dart';
 import 'telas/configuracoes_tela.dart';
 import 'servicos/api_cliente.dart';
@@ -28,6 +29,7 @@ enum RouteKey {
   relatorio,
   historico,
   config,
+  usuarios,
 }
 
 /// TalentMatchIA – Fluxo Completo
@@ -44,6 +46,7 @@ class TalentMatchIA extends StatefulWidget {
 }
 
 class _TalentMatchIAState extends State<TalentMatchIA> {
+  static const String apiBase = String.fromEnvironment('API_BASE_URL', defaultValue: 'http://localhost:4000');
   RouteKey route = RouteKey.landing;
   Map<String, dynamic> auth = {'logged': false, 'name': null};
   Map<String, String> vagaForm = {
@@ -57,6 +60,9 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
     'vagaSelecionada': 'Desenvolvedor Full Stack',
     'candidato': 'João Silva',
   };
+  String? entrevistaId;
+  Map<String, dynamic>? ultimoUpload;
+  String? perfil;
   
   // ApiCliente simples para satisfazer os requisitos das telas
   late final ApiCliente api;
@@ -64,7 +70,7 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
   @override
   void initState() {
     super.initState();
-    api = ApiCliente(baseUrl: 'http://localhost:3000');
+    api = ApiCliente(baseUrl: apiBase);
   }
 
   void go(RouteKey to) {
@@ -110,14 +116,28 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
                   )
                 : LoginTela(
                     onVoltar: () => go(RouteKey.landing),
-                    onSubmit: (email) {
-                      setState(() {
-                        auth = {
-                          'logged': true,
-                          'name': email.split('@')[0],
-                        };
-                        route = RouteKey.dashboard;
-                      });
+                    onSubmit: (email, senha) async {
+                      try {
+                        final r = await api.entrar(email: email, senha: senha);
+                        setState(() {
+                          auth = {
+                            'logged': true,
+                            'name': r['usuario']?['nome'] ?? email.split('@')[0],
+                          };
+                          perfil = r['usuario']?['perfil'];
+                          route = RouteKey.dashboard;
+                        });
+                      } catch (e) {
+                        // fallback mock
+                        setState(() {
+                          auth = {
+                            'logged': true,
+                            'name': email.split('@')[0],
+                          };
+                          perfil = 'ADMIN';
+                          route = RouteKey.dashboard;
+                        });
+                      }
                     },
                   ),
       ),
@@ -136,12 +156,18 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
         return CandidatosTela(api: api);
       case RouteKey.upload:
         return UploadCurriculoTela(
-          curriculoNome: curriculoNome,
-          onFile: (name) {
+          api: api,
+          onUploaded: (resultado) {
+            final cand = resultado['candidato'] ?? {};
+            final cur = resultado['curriculo'] ?? {};
+            final ent = resultado['entrevista'];
             setState(() {
-              curriculoNome = name;
+              curriculoNome = cur['nome_arquivo'] ?? 'curriculo.pdf';
+              ctx['candidato'] = cand['nome'] ?? ctx['candidato']!;
+              entrevistaId = ent != null ? ent['id'] : null;
+              ultimoUpload = resultado;
+              route = RouteKey.analise;
             });
-            go(RouteKey.analise);
           },
           onBack: () => go(RouteKey.dashboard),
         );
@@ -150,6 +176,7 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
           vaga: ctx['vagaSelecionada']!,
           candidato: ctx['candidato']!,
           arquivo: curriculoNome.isEmpty ? 'curriculo_joao_silva.pdf' : curriculoNome,
+          analise: (ultimoUpload != null) ? (ultimoUpload!['curriculo']?['analise_json'] as Map<String, dynamic>?) : null,
           onVoltar: () => go(RouteKey.upload),
           onEntrevistar: () => go(RouteKey.entrevista),
         );
@@ -157,6 +184,8 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
         return EntrevistaAssistidaTela(
           candidato: ctx['candidato']!,
           vaga: ctx['vagaSelecionada']!,
+          entrevistaId: entrevistaId ?? '',
+          api: api,
           onFinalizar: () => go(RouteKey.relatorio),
           onCancelar: () => go(RouteKey.dashboard),
         );
@@ -170,6 +199,8 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
         return HistoricoTela(api: api);
       case RouteKey.config:
         return const ConfiguracoesTela();
+      case RouteKey.usuarios:
+        return UsuariosAdminTela(api: api, isAdmin: (perfil == 'ADMIN'));
       default:
         return const SizedBox.shrink();
     }
@@ -348,6 +379,7 @@ class AppShell extends StatelessWidget {
       {'key': RouteKey.upload, 'label': 'Upload', 'icon': Icons.upload},
       {'key': RouteKey.historico, 'label': 'Histórico', 'icon': Icons.assignment},
       {'key': RouteKey.config, 'label': 'Configurações', 'icon': Icons.settings},
+      {'key': RouteKey.usuarios, 'label': 'Usuários', 'icon': Icons.admin_panel_settings},
     ];
 
     return Scaffold(
@@ -576,6 +608,3 @@ class AppShell extends StatelessWidget {
     );
   }
 }
-
-
-

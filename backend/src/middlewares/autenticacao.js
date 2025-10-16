@@ -15,3 +15,14 @@ function exigirAutenticacao(req, res, next) {
 
 module.exports = { exigirAutenticacao };
 
+function exigirAdmin(req, res, next) {
+  try {
+    const perfil = req.usuario?.perfil || '';
+    if (perfil !== 'ADMIN') return res.status(403).json({ erro: 'Acesso restrito a administradores' });
+    return next();
+  } catch (e) {
+    return res.status(403).json({ erro: 'Acesso restrito a administradores' });
+  }
+}
+
+module.exports = { exigirAutenticacao, exigirAdmin };

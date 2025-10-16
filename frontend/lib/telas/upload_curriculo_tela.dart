@@ -1,16 +1,18 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../componentes/widgets.dart';
+import '../servicos/api_cliente.dart';
 
 /// Tela de Upload de Currículo
 class UploadCurriculoTela extends StatefulWidget {
-  final String curriculoNome;
-  final void Function(String) onFile;
+  final ApiCliente api;
+  final void Function(Map<String, dynamic> resultado) onUploaded;
   final VoidCallback onBack;
 
   const UploadCurriculoTela({
     super.key,
-    required this.curriculoNome,
-    required this.onFile,
+    required this.api,
+    required this.onUploaded,
     required this.onBack,
   });
 
@@ -19,16 +21,62 @@ class UploadCurriculoTela extends StatefulWidget {
 }
 
 class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
-  String? _arquivoSelecionado;
-  String _vagaSelecionada = 'Desenvolvedor Full Stack';
-  
-  final List<String> _vagas = [
-    'Desenvolvedor Full Stack',
-    'UX/UI Designer',
-    'DevOps Engineer',
-    'Data Scientist',
-    'Product Manager',
-  ];
+  PlatformFile? _arquivo;
+  bool _enviando = false;
+  String? _vagaSelecionadaId;
+  List<Map<String, dynamic>> _vagas = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _carregarVagas();
+  }
+
+  Future<void> _carregarVagas() async {
+    try {
+      final lista = await widget.api.vagas();
+      setState(() {
+        _vagas = List<Map<String, dynamic>>.from(lista);
+        if (_vagas.isNotEmpty) _vagaSelecionadaId = _vagas.first['id'];
+      });
+    } catch (_) {
+      // mantém lista vazia em caso de erro
+    }
+  }
+
+  Future<void> _selecionarArquivo() async {
+    final res = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      withData: true,
+      allowedExtensions: const ['pdf', 'txt', 'docx'],
+    );
+    if (res != null && res.files.isNotEmpty) {
+      setState(() => _arquivo = res.files.first);
+    }
+  }
+
+  Future<void> _enviar() async {
+    if (_arquivo == null) return;
+    setState(() => _enviando = true);
+    try {
+      final bytes = _arquivo!.bytes;
+      if (bytes == null) throw Exception('Arquivo sem bytes');
+      final resultado = await widget.api.uploadCurriculoBytes(
+        bytes: bytes,
+        filename: _arquivo!.name,
+        candidato: {'nome': 'Candidato'},
+        vagaId: _vagaSelecionadaId,
+      );
+      widget.onUploaded(resultado);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Falha no upload: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _enviando = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,14 +114,19 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
                 const Text('Selecione a vaga:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  initialValue: _vagaSelecionada,
+                  value: _vagaSelecionadaId,
                   decoration: InputDecoration(
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                     filled: true,
                     fillColor: Colors.grey.shade50,
                   ),
-                  items: _vagas.map((vaga) => DropdownMenuItem(value: vaga, child: Text(vaga))).toList(),
-                  onChanged: (value) => setState(() => _vagaSelecionada = value!),
+                  items: _vagas
+                      .map((v) => DropdownMenuItem(
+                            value: v['id'] as String,
+                            child: Text(v['titulo'] as String),
+                          ))
+                      .toList(),
+                  onChanged: (value) => setState(() => _vagaSelecionadaId = value),
                 ),
                 const SizedBox(height: 24),
 
@@ -95,24 +148,19 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Formatos aceitos: PDF, DOCX, TXT (máx. 10MB)',
+                        'Formatos aceitos: PDF, TXT, DOCX (máx. 10MB)',
                         style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
                       ),
                       const SizedBox(height: 16),
                       OutlinedButton.icon(
-                        onPressed: () {
-                          // Simular seleção de arquivo
-                          setState(() {
-                            _arquivoSelecionado = 'curriculo_joao_silva.pdf';
-                          });
-                        },
+                        onPressed: _selecionarArquivo,
                         icon: const Icon(Icons.folder_open),
                         label: const Text('Selecionar Arquivo'),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                         ),
                       ),
-                      if (_arquivoSelecionado != null) ...[
+                      if (_arquivo != null) ...[
                         const SizedBox(height: 16),
                         Container(
                           padding: const EdgeInsets.all(12),
@@ -127,13 +175,13 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  _arquivoSelecionado!,
+                                  _arquivo!.name,
                                   style: TextStyle(color: Colors.green.shade900, fontWeight: FontWeight.w500),
                                 ),
                               ),
                               IconButton(
                                 icon: const Icon(Icons.close, size: 18),
-                                onPressed: () => setState(() => _arquivoSelecionado = null),
+                                onPressed: () => setState(() => _arquivo = null),
                               ),
                             ],
                           ),
@@ -178,11 +226,9 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
                     ),
                     const SizedBox(width: 12),
                     BotaoPrimario(
-                      texto: 'Analisar com IA',
+                      texto: _enviando ? 'Enviando...' : 'Analisar com IA',
                       icone: Icons.psychology,
-                      onPressed: _arquivoSelecionado != null
-                          ? () => widget.onFile(_arquivoSelecionado!)
-                          : null,
+                      onPressed: !_enviando && _arquivo != null ? _enviar : null,
                     ),
                   ],
                 ),

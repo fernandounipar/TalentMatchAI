@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import '../componentes/widgets.dart';
+import '../servicos/api_cliente.dart';
 
-/// Tela de Entrevista Assistida por IA
+/// Tela de Entrevista Assistida por IA (com chat ao backend)
 class EntrevistaAssistidaTela extends StatefulWidget {
   final String candidato;
   final String vaga;
+  final String entrevistaId;
+  final ApiCliente api;
   final VoidCallback onFinalizar;
   final VoidCallback onCancelar;
 
@@ -12,6 +15,8 @@ class EntrevistaAssistidaTela extends StatefulWidget {
     super.key,
     required this.candidato,
     required this.vaga,
+    required this.entrevistaId,
+    required this.api,
     required this.onFinalizar,
     required this.onCancelar,
   });
@@ -23,57 +28,16 @@ class EntrevistaAssistidaTela extends StatefulWidget {
 class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
   final TextEditingController _controlador = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  bool _gravando = false;
-  
-  final List<Map<String, dynamic>> _mensagens = [
-    {
-      'remetente': 'IA',
-      'texto': 'Olá! Vou auxiliar você nesta entrevista. Vamos começar?',
-      'timestamp': DateTime.now().subtract(const Duration(minutes: 5)),
-    },
-    {
-      'remetente': 'IA',
-      'texto': 'Primeira pergunta técnica: Você pode explicar o conceito de idempotência em APIs RESTful e dar exemplos práticos?',
-      'timestamp': DateTime.now().subtract(const Duration(minutes: 4)),
-      'categoria': 'técnica',
-    },
-    {
-      'remetente': 'Candidato',
-      'texto': 'Sim, idempotência significa que uma operação pode ser repetida múltiplas vezes sem causar efeitos colaterais adicionais. Por exemplo, um GET ou DELETE devem ser idempotentes.',
-      'timestamp': DateTime.now().subtract(const Duration(minutes: 3)),
-    },
-    {
-      'remetente': 'IA',
-      'texto': '✓ Resposta boa! O candidato demonstra conhecimento sólido sobre idempotência.',
-      'timestamp': DateTime.now().subtract(const Duration(minutes: 3)),
-      'insight': true,
-      'pontuacao': 8,
-    },
-    {
-      'remetente': 'IA',
-      'texto': 'Próxima pergunta: Como você estrutura testes automatizados em aplicações Node.js?',
-      'timestamp': DateTime.now().subtract(const Duration(minutes: 2)),
-      'categoria': 'técnica',
-    },
-    {
-      'remetente': 'Candidato',
-      'texto': 'Utilizo Jest para testes unitários e de integração. Estruturo com describe/it, mocks para dependências externas, e sempre busco cobertura acima de 80%.',
-      'timestamp': DateTime.now().subtract(const Duration(minutes: 1)),
-    },
-    {
-      'remetente': 'IA',
-      'texto': '✓ Excelente! Mencionou ferramentas adequadas e boas práticas de cobertura.',
-      'timestamp': DateTime.now().subtract(const Duration(seconds: 45)),
-      'insight': true,
-      'pontuacao': 9,
-    },
-  ];
+  bool _enviando = false;
+  final List<Map<String, dynamic>> _mensagens = [];
+  List<String> _sugeridas = const [];
+  bool _gerandoPerguntas = false;
 
-  final List<Map<String, String>> _perguntasSugeridas = [
-    {'texto': 'Conte sobre um projeto desafiador que você liderou.', 'categoria': 'comportamental'},
-    {'texto': 'Como você lidaria com um bug crítico em produção?', 'categoria': 'situacional'},
-    {'texto': 'Descreva sua experiência com otimização de queries SQL.', 'categoria': 'técnica'},
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _carregarMensagens();
+  }
 
   @override
   void dispose() {
@@ -82,43 +46,52 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
     super.dispose();
   }
 
-  void _enviarMensagem(String texto) {
-    if (texto.trim().isEmpty) return;
-
-    setState(() {
-      _mensagens.add({
-        'remetente': 'Recrutador',
-        'texto': texto,
-        'timestamp': DateTime.now(),
+  Future<void> _carregarMensagens() async {
+    try {
+      final msgs = await widget.api.listarMensagens(widget.entrevistaId);
+      setState(() {
+        _mensagens
+          ..clear()
+          ..addAll(msgs.map((m) => _fromApiMsg(m)));
       });
-    });
+    } catch (_) {}
+  }
 
+  Map<String, dynamic> _fromApiMsg(Map m) {
+    final role = (m['role'] ?? 'assistant') as String;
+    final remetente = role == 'assistant' ? 'IA' : 'Recrutador';
+    return {
+      'remetente': remetente,
+      'texto': m['conteudo'] ?? '',
+      'timestamp': DateTime.tryParse(m['criado_em']?.toString() ?? '') ?? DateTime.now(),
+    };
+  }
+
+  Future<void> _enviarMensagem(String texto) async {
+    if (texto.trim().isEmpty || _enviando) return;
+    setState(() {
+      _mensagens.add({'remetente': 'Recrutador', 'texto': texto, 'timestamp': DateTime.now()});
+      _enviando = true;
+    });
     _controlador.clear();
-    
-    // Simular resposta da IA após 2 segundos
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() {
-          _mensagens.add({
-            'remetente': 'IA',
-            'texto': 'Sugestão: Você pode aprofundar perguntando sobre experiências específicas relacionadas a esta resposta.',
-            'timestamp': DateTime.now(),
-            'insight': true,
-          });
-        });
-      }
-    });
-
-    // Auto scroll
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
+    try {
+      final r = await widget.api.enviarMensagem(widget.entrevistaId, texto);
+      final resp = r['resposta'] ?? {};
+      setState(() => _mensagens.add(_fromApiMsg(resp)));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Falha ao enviar: $e')));
+    } finally {
+      if (mounted) setState(() => _enviando = false);
+    }
+    await Future.delayed(const Duration(milliseconds: 100));
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
   }
 
   @override
@@ -142,17 +115,11 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                         children: [
                           Icon(Icons.mic, color: Colors.white),
                           SizedBox(width: 8),
-                          Text(
-                            'Entrevista em Andamento',
-                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white),
-                          ),
+                          Text('Entrevista em Andamento', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white)),
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        'Candidato: ${widget.candidato} • Vaga: ${widget.vaga}',
-                        style: const TextStyle(color: Colors.white70, fontSize: 14),
-                      ),
+                      Text('Candidato: ${widget.candidato} • Vaga: ${widget.vaga}', style: const TextStyle(color: Colors.white70, fontSize: 14)),
                     ],
                   ),
                 ),
@@ -162,41 +129,14 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                       onPressed: widget.onCancelar,
                       icon: const Icon(Icons.close),
                       label: const Text('Cancelar'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: const BorderSide(color: Colors.white),
-                      ),
+                      style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: const BorderSide(color: Colors.white)),
                     ),
                     const SizedBox(width: 12),
                     ElevatedButton.icon(
-                      onPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text('Finalizar Entrevista'),
-                            content: const Text('Deseja finalizar a entrevista e gerar o relatório?'),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: const Text('Cancelar'),
-                              ),
-                              ElevatedButton(
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                  widget.onFinalizar();
-                                },
-                                child: const Text('Finalizar'),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
+                      onPressed: () => widget.onFinalizar(),
                       icon: const Icon(Icons.check),
                       label: const Text('Finalizar & Gerar Relatório'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: const Color(0xFF4F46E5),
-                      ),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: const Color(0xFF4F46E5)),
                     ),
                   ],
                 ),
@@ -207,66 +147,50 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
 
         const SizedBox(height: 16),
 
-        // Conteúdo Principal
+        // Corpo: Chat + Lateral
         Expanded(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Chat Principal
+              // Chat principal
               Expanded(
-                flex: 2,
                 child: Card(
                   child: Column(
                     children: [
-                      // Área de mensagens
                       Expanded(
-                        child: ListView.builder(
-                          controller: _scrollController,
+                        child: Padding(
                           padding: const EdgeInsets.all(16),
-                          itemCount: _mensagens.length,
-                          itemBuilder: (context, i) {
-                            final msg = _mensagens[i];
-                            return _BolhaMensagem(mensagem: msg);
-                          },
+                          child: ListView.builder(
+                            controller: _scrollController,
+                            itemCount: _mensagens.length,
+                            itemBuilder: (context, index) => _BolhaMensagem(mensagem: _mensagens[index]),
+                          ),
                         ),
                       ),
-
-                      // Campo de entrada
                       Container(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          border: Border(top: BorderSide(color: Colors.grey.shade300)),
+                          color: Colors.grey.shade50,
+                          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
                         ),
                         child: Row(
                           children: [
-                            IconButton(
-                              onPressed: () {
-                                setState(() => _gravando = !_gravando);
-                              },
-                              icon: Icon(_gravando ? Icons.mic : Icons.mic_none),
-                              color: _gravando ? Colors.red : Colors.grey,
-                              tooltip: 'Gravar áudio',
-                            ),
-                            const SizedBox(width: 8),
                             Expanded(
                               child: TextField(
                                 controller: _controlador,
-                                decoration: InputDecoration(
-                                  hintText: 'Digite uma pergunta ou observação...',
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(24)),
-                                  filled: true,
-                                  fillColor: Colors.grey.shade50,
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                minLines: 1,
+                                maxLines: 4,
+                                decoration: const InputDecoration(
+                                  hintText: 'Digite sua pergunta/comentário...',
+                                  border: OutlineInputBorder(),
                                 ),
-                                onSubmitted: _enviarMensagem,
                               ),
                             ),
                             const SizedBox(width: 8),
-                            IconButton(
-                              onPressed: () => _enviarMensagem(_controlador.text),
-                              icon: const Icon(Icons.send),
-                              color: const Color(0xFF4F46E5),
-                              tooltip: 'Enviar',
+                            ElevatedButton.icon(
+                              onPressed: _enviando ? null : () => _enviarMensagem(_controlador.text),
+                              icon: const Icon(Icons.send, size: 18),
+                              label: Text(_enviando ? 'Enviando...' : 'Enviar'),
                             ),
                           ],
                         ),
@@ -278,79 +202,76 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
 
               const SizedBox(width: 16),
 
-              // Painel Lateral
+              // Painel lateral com perguntas sugeridas
               SizedBox(
                 width: 320,
-                child: Column(
-                  children: [
-                    // Perguntas Sugeridas
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
                           children: [
-                            const Row(
-                              children: [
-                                Icon(Icons.lightbulb_outline, color: Color(0xFF4F46E5)),
-                                SizedBox(width: 8),
-                                Text('Perguntas Sugeridas', style: TextStyle(fontWeight: FontWeight.w600)),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            ..._perguntasSugeridas.map((pergunta) => Container(
-                                  margin: const EdgeInsets.only(bottom: 8),
-                                  child: OutlinedButton(
-                                    onPressed: () {
-                                      _controlador.text = pergunta['texto']!;
-                                    },
-                                    style: OutlinedButton.styleFrom(
-                                      alignment: Alignment.centerLeft,
-                                      padding: const EdgeInsets.all(12),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          pergunta['categoria']!.toUpperCase(),
-                                          style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          pergunta['texto']!,
-                                          style: const TextStyle(fontSize: 12),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                )),
+                            Icon(Icons.lightbulb_outline, color: Color(0xFF4F46E5)),
+                            SizedBox(width: 8),
+                            Text('Perguntas Sugeridas', style: TextStyle(fontWeight: FontWeight.w600)),
                           ],
                         ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Pontuação Atual
-                    Card(
-                      color: Colors.green.shade50,
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          children: [
-                            const Text('Pontuação Atual', style: TextStyle(fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 12),
-                            const BadgePontuacao(pontuacao: 82, tamanho: 70),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Baseado em ${_mensagens.where((m) => m['pontuacao'] != null).length} respostas',
-                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                            ),
-                          ],
+                        const SizedBox(height: 12),
+                        if (_sugeridas.isEmpty)
+                          Text(
+                            'Nenhuma pergunta gerada ainda. Clique no botão abaixo para gerar.',
+                            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                          )
+                        else
+                          ..._sugeridas.map((q) => Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Text('• $q'),
+                              )),
+                        const SizedBox(height: 12),
+                        ElevatedButton.icon(
+                          onPressed: _gerandoPerguntas
+                              ? null
+                              : () async {
+                                  setState(() => _gerandoPerguntas = true);
+                                  try {
+                                    final qs = await widget.api.gerarPerguntas(widget.entrevistaId);
+                                    setState(() => _sugeridas = qs.map<String>((e) => e.toString()).toList());
+                                  } catch (e) {
+                                    if (!mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Falha ao gerar perguntas: $e')),
+                                    );
+                                  } finally {
+                                    if (mounted) setState(() => _gerandoPerguntas = false);
+                                  }
+                                },
+                          icon: const Icon(Icons.psychology),
+                          label: Text(_gerandoPerguntas ? 'Gerando...' : 'Gerar perguntas (IA)'),
                         ),
-                      ),
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            try {
+                              await widget.api.gerarRelatorio(widget.entrevistaId);
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Relatório gerado/atualizado.')),
+                              );
+                            } catch (e) {
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Falha ao gerar relatório: $e')),
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.description_outlined),
+                          label: const Text('Gerar relatório'),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ],
@@ -369,97 +290,40 @@ class _BolhaMensagem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isIA = mensagem['remetente'] == 'IA';
-    final isCandidato = mensagem['remetente'] == 'Candidato';
-    final isInsight = mensagem['insight'] == true;
-
     return Align(
       alignment: isIA ? Alignment.centerLeft : Alignment.centerRight,
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
-        constraints: const BoxConstraints(maxWidth: 500),
-        child: Column(
-          crossAxisAlignment: isIA ? CrossAxisAlignment.start : CrossAxisAlignment.end,
-          children: [
-            if (mensagem['categoria'] != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: _corCategoria(mensagem['categoria'] as String),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    (mensagem['categoria'] as String).toUpperCase(),
-                    style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w700),
-                  ),
+        constraints: const BoxConstraints(maxWidth: 600),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: isIA ? Colors.grey.shade100 : const Color(0xFF4F46E5),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                mensagem['remetente'] as String,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: isIA ? Colors.grey.shade700 : Colors.white70,
                 ),
               ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: isInsight
-                    ? Colors.amber.shade50
-                    : isIA
-                        ? Colors.grey.shade100
-                        : isCandidato
-                            ? Colors.blue.shade50
-                            : const Color(0xFF4F46E5),
-                borderRadius: BorderRadius.circular(16),
-                border: isInsight ? Border.all(color: Colors.amber.shade300) : null,
+              const SizedBox(height: 4),
+              Text(
+                mensagem['texto'] as String,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isIA ? Colors.black87 : Colors.white,
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    mensagem['remetente'] as String,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: isIA || isCandidato || isInsight ? Colors.grey.shade700 : Colors.white70,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    mensagem['texto'] as String,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: isIA || isCandidato || isInsight ? Colors.black87 : Colors.white,
-                    ),
-                  ),
-                  if (mensagem['pontuacao'] != null) ...[
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.star, size: 16, color: Colors.amber),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Pontuação: ${mensagem['pontuacao']}/10',
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
-  }
-
-  Color _corCategoria(String categoria) {
-    switch (categoria) {
-      case 'técnica':
-        return Colors.blue;
-      case 'comportamental':
-        return Colors.purple;
-      case 'situacional':
-        return Colors.orange;
-      default:
-        return Colors.grey;
-    }
   }
 }
