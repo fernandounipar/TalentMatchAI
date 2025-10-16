@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 class LoginTela extends StatefulWidget {
   final VoidCallback onVoltar;
-  final Function(String email) onSubmit;
+  final Function(String email, String senha) onSubmit;
 
   const LoginTela({
     super.key,
@@ -151,10 +151,13 @@ class _LoginTelaState extends State<LoginTela> {
                             const SizedBox(height: 24),
                             ElevatedButton.icon(
                               onPressed: () {
-                                final email = _emailController.text.isEmpty 
-                                  ? 'usuario@email.com' 
-                                  : _emailController.text;
-                                widget.onSubmit(email);
+                                final email = _emailController.text.isEmpty
+                                    ? 'admin@talentmatch.local'
+                                    : _emailController.text;
+                                final senha = _senhaController.text.isEmpty
+                                    ? '123456'
+                                    : _senhaController.text;
+                                widget.onSubmit(email, senha);
                               },
                               icon: const Icon(Icons.login, size: 18),
                               label: const Text('Entrar'),

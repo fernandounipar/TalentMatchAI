@@ -6,11 +6,11 @@ const dadosMockados = require('../../servicos/dadosMockados');
 
 router.use(exigirAutenticacao);
 
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   try {
     // Tentar buscar do banco, se falhar, usar dados mockados
     try {
-      const r = await db.query('SELECT * FROM vagas ORDER BY criado_em DESC');
+      const r = await db.query('SELECT * FROM vagas WHERE company_id=$1 ORDER BY criado_em DESC', [req.usuario.companyId]);
       res.json(r.rows);
     } catch (dbError) {
       console.log('Usando dados mockados para vagas:', dbError.message);
@@ -30,8 +30,8 @@ router.post('/', async (req, res) => {
 
     try {
       const r = await db.query(
-        'INSERT INTO vagas (titulo, descricao, requisitos, status, tecnologias, nivel) VALUES ($1,$2,$3,COALESCE($4,\'aberta\'),$5,$6) RETURNING *',
-        [titulo, descricao, requisitos, status, tecnologias, nivel]
+        'INSERT INTO vagas (titulo, descricao, requisitos, status, tecnologias, nivel, company_id) VALUES ($1,$2,$3,COALESCE($4,\'aberta\'),$5,$6,$7) RETURNING *',
+        [titulo, descricao, requisitos, status, tecnologias, nivel, req.usuario.companyId]
       );
       res.status(201).json(r.rows[0]);
     } catch (dbError) {
@@ -57,7 +57,7 @@ router.post('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     try {
-      const r = await db.query('SELECT * FROM vagas WHERE id=$1', [req.params.id]);
+      const r = await db.query('SELECT * FROM vagas WHERE id=$1 AND company_id=$2', [req.params.id, req.usuario.companyId]);
       if (!r.rows[0]) return res.status(404).json({ erro: 'Vaga não encontrada' });
       res.json(r.rows[0]);
     } catch (dbError) {
@@ -83,8 +83,8 @@ router.put('/:id', async (req, res) => {
          status=COALESCE($5, status),
          tecnologias=COALESCE($6, tecnologias),
          nivel=COALESCE($7, nivel)
-       WHERE id=$1 RETURNING *`,
-        [req.params.id, titulo, descricao, requisitos, status, tecnologias, nivel]
+       WHERE id=$1 AND company_id=$8 RETURNING *`,
+        [req.params.id, titulo, descricao, requisitos, status, tecnologias, nivel, req.usuario.companyId]
       );
       if (!r.rows[0]) return res.status(404).json({ erro: 'Vaga não encontrada' });
       res.json(r.rows[0]);
@@ -103,7 +103,7 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     try {
-      await db.query('DELETE FROM vagas WHERE id=$1', [req.params.id]);
+      await db.query('DELETE FROM vagas WHERE id=$1 AND company_id=$2', [req.params.id, req.usuario.companyId]);
       res.status(204).send();
     } catch (dbError) {
       console.log('Usando dados mockados para deletar vaga:', dbError.message);

@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS vagas (
   descricao TEXT NOT NULL,
   requisitos TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'aberta',
+  tecnologias TEXT,
+  nivel TEXT,
   criado_em TIMESTAMP NOT NULL DEFAULT now()
 );
 
@@ -34,7 +36,7 @@ CREATE TABLE IF NOT EXISTS curriculos (
   nome_arquivo TEXT NOT NULL,
   mimetype TEXT NOT NULL,
   tamanho INTEGER NOT NULL,
-  texto LONGTEXT,
+  texto TEXT,
   analise_json JSONB,
   criado_em TIMESTAMP NOT NULL DEFAULT now()
 );
@@ -65,3 +67,4 @@ CREATE TABLE IF NOT EXISTS relatorios (
 CREATE INDEX IF NOT EXISTS idx_curriculos_candidato ON curriculos(candidato_id);
 CREATE INDEX IF NOT EXISTS idx_entrevistas_vaga ON entrevistas(vaga_id);
 CREATE INDEX IF NOT EXISTS idx_entrevistas_candidato ON entrevistas(candidato_id);
+CREATE INDEX IF NOT EXISTS idx_perguntas_entrevista ON perguntas(entrevista_id, criado_em);

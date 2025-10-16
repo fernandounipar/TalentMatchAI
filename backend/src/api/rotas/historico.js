@@ -6,7 +6,7 @@ const dadosMockados = require('../../servicos/dadosMockados');
 
 router.use(exigirAutenticacao);
 
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   try {
     // Tentar buscar do banco, se falhar, usar dados mockados
     try {
@@ -16,7 +16,9 @@ router.get('/', async (_req, res) => {
          FROM entrevistas e
          JOIN vagas v ON v.id = e.vaga_id
          JOIN candidatos c ON c.id = e.candidato_id
-         ORDER BY e.criado_em DESC LIMIT 50`);
+         WHERE e.company_id=$1
+         ORDER BY e.criado_em DESC LIMIT 50`,
+         [req.usuario.companyId]);
       res.json(r.rows);
     } catch (dbError) {
       console.log('Usando dados mockados para histórico:', dbError.message);
@@ -28,4 +30,3 @@ router.get('/', async (_req, res) => {
 });
 
 module.exports = router;
-

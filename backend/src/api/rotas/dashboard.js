@@ -6,14 +6,14 @@ const dadosMockados = require('../../servicos/dadosMockados');
 
 router.use(exigirAutenticacao);
 
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   try {
     // Tentar buscar do banco, se falhar, usar dados mockados
     try {
       const [v, c, e] = await Promise.all([
-        db.query('SELECT COUNT(*)::int AS total FROM vagas'),
-        db.query('SELECT COUNT(*)::int AS total FROM candidatos'),
-        db.query('SELECT COUNT(*)::int AS total FROM entrevistas'),
+        db.query('SELECT COUNT(*)::int AS total FROM vagas WHERE company_id=$1', [req.usuario.companyId]),
+        db.query('SELECT COUNT(*)::int AS total FROM candidatos WHERE company_id=$1', [req.usuario.companyId]),
+        db.query('SELECT COUNT(*)::int AS total FROM entrevistas WHERE company_id=$1', [req.usuario.companyId]),
       ]);
       res.json({ 
         vagas: v.rows[0].total, 
@@ -30,5 +30,4 @@ router.get('/', async (_req, res) => {
 });
 
 module.exports = router;
-
 
