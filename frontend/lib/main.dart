@@ -63,14 +63,16 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
   String? entrevistaId;
   Map<String, dynamic>? ultimoUpload;
   String? perfil;
-  
+  Map<String, dynamic>? relatorioFinal;
+
   // ApiCliente simples para satisfazer os requisitos das telas
   late final ApiCliente api;
+  static const bool useMockApi = bool.fromEnvironment('USE_MOCK_API', defaultValue: true);
 
   @override
   void initState() {
     super.initState();
-    api = ApiCliente(baseUrl: apiBase);
+    api = ApiCliente(baseUrl: apiBase, usarMock: useMockApi);
   }
 
   void go(RouteKey to) {
@@ -147,7 +149,7 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
   Widget _buildContent() {
     switch (route) {
       case RouteKey.dashboard:
-        return const DashboardTela();
+        return DashboardTela(api: api);
       case RouteKey.vagas:
         return const VagasTela();
       case RouteKey.novaVaga:
@@ -161,9 +163,13 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
             final cand = resultado['candidato'] ?? {};
             final cur = resultado['curriculo'] ?? {};
             final ent = resultado['entrevista'];
+            final vaga = resultado['vaga'];
             setState(() {
               curriculoNome = cur['nome_arquivo'] ?? 'curriculo.pdf';
               ctx['candidato'] = cand['nome'] ?? ctx['candidato']!;
+              if (vaga is Map) {
+                ctx['vagaSelecionada'] = vaga['titulo']?.toString() ?? ctx['vagaSelecionada']!;
+              }
               entrevistaId = ent != null ? ent['id'] : null;
               ultimoUpload = resultado;
               route = RouteKey.analise;
@@ -186,13 +192,19 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
           vaga: ctx['vagaSelecionada']!,
           entrevistaId: entrevistaId ?? '',
           api: api,
-          onFinalizar: () => go(RouteKey.relatorio),
+          onFinalizar: (relatorio) {
+            setState(() {
+              relatorioFinal = relatorio;
+              route = RouteKey.relatorio;
+            });
+          },
           onCancelar: () => go(RouteKey.dashboard),
         );
       case RouteKey.relatorio:
         return RelatorioFinalTela(
           candidato: ctx['candidato']!,
           vaga: ctx['vagaSelecionada']!,
+          relatorio: relatorioFinal,
           onVoltar: () => go(RouteKey.dashboard),
         );
       case RouteKey.historico:

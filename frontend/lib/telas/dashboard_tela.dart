@@ -1,83 +1,128 @@
 import 'package:flutter/material.dart';
 
+import '../servicos/api_cliente.dart';
+
 /// Dashboard - Implementação seguindo layout React
 /// Grid responsivo de 12 colunas com estatísticas, tabelas e insights
-class DashboardTela extends StatelessWidget {
-  const DashboardTela({super.key});
+class DashboardTela extends StatefulWidget {
+  final ApiCliente api;
+  const DashboardTela({super.key, required this.api});
+
+  @override
+  State<DashboardTela> createState() => _DashboardTelaState();
+}
+
+class _DashboardTelaState extends State<DashboardTela> {
+  Map<String, dynamic>? _stats;
+  bool _carregando = false;
+  List<Map<String, dynamic>> _vagas = const [];
+  List<Map<String, dynamic>> _historico = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _carregarDados();
+  }
+
+  Future<void> _carregarDados() async {
+    setState(() => _carregando = true);
+    try {
+      final stats = await widget.api.dashboard();
+      final vagas = await widget.api.vagas();
+      final historico = await widget.api.historico();
+      if (!mounted) return;
+      setState(() {
+        _stats = stats;
+        _vagas = vagas.cast<Map<String, dynamic>>();
+        _historico = historico.cast<Map<String, dynamic>>();
+      });
+    } finally {
+      if (mounted) setState(() => _carregando = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header com título e botões de ação
-          _buildHeader(context),
-          const SizedBox(height: 24),
-          
-          // Grid de 4 cards de estatísticas
-          _buildStatsGrid(),
-          const SizedBox(height: 24),
-          
-          // Row: Minhas Vagas (7 cols) + Entrevistas Recentes (5 cols)
-          LayoutBuilder(
-            builder: (context, constraints) {
-              if (constraints.maxWidth < 1024) {
-                return Column(
+    return RefreshIndicator(
+      onRefresh: _carregarDados,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header com título e botões de ação
+            _buildHeader(context),
+            const SizedBox(height: 24),
+
+            if (_carregando)
+              const LinearProgressIndicator(minHeight: 2),
+
+            const SizedBox(height: 12),
+
+            // Grid de 4 cards de estatísticas
+            _buildStatsGrid(),
+            const SizedBox(height: 24),
+
+            // Row: Minhas Vagas (7 cols) + Entrevistas Recentes (5 cols)
+            LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth < 1024) {
+                  return Column(
+                    children: [
+                      _buildMinhasVagas(context),
+                      const SizedBox(height: 16),
+                      _buildEntrevistasRecentes(context),
+                    ],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildMinhasVagas(context),
-                    const SizedBox(height: 16),
-                    _buildEntrevistasRecentes(context),
+                    Expanded(
+                      flex: 7,
+                      child: _buildMinhasVagas(context),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      flex: 5,
+                      child: _buildEntrevistasRecentes(context),
+                    ),
                   ],
                 );
-              }
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 7,
-                    child: _buildMinhasVagas(context),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    flex: 5,
-                    child: _buildEntrevistasRecentes(context),
-                  ),
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 16),
-          
-          // Row: Relatórios Recentes (7 cols) + Insights da IA (5 cols)
-          LayoutBuilder(
-            builder: (context, constraints) {
-              if (constraints.maxWidth < 1024) {
-                return Column(
+              },
+            ),
+            const SizedBox(height: 16),
+
+            // Row: Relatórios Recentes (7 cols) + Insights da IA (5 cols)
+            LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth < 1024) {
+                  return Column(
+                    children: [
+                      _buildRelatoriosRecentes(),
+                      const SizedBox(height: 16),
+                      _buildInsightsIA(),
+                    ],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildRelatoriosRecentes(),
-                    const SizedBox(height: 16),
-                    _buildInsightsIA(),
+                    Expanded(
+                      flex: 7,
+                      child: _buildRelatoriosRecentes(),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      flex: 5,
+                      child: _buildInsightsIA(),
+                    ),
                   ],
                 );
-              }
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 7,
-                    child: _buildRelatoriosRecentes(),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    flex: 5,
-                    child: _buildInsightsIA(),
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -137,6 +182,11 @@ class DashboardTela extends StatelessWidget {
   }
 
   Widget _buildStatsGrid() {
+    final vagas = _stats?['vagas'] ?? 12;
+    final curriculos = _stats?['curriculos'] ?? 87;
+    final entrevistas = _stats?['entrevistas'] ?? 5;
+    final relatorios = _stats?['relatorios'] ?? 3;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         int columns = 4;
@@ -150,26 +200,26 @@ class DashboardTela extends StatelessWidget {
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
           childAspectRatio: 2.5,
-          children: const [
+          children: [
             _StatCard(
               title: 'Vagas abertas',
-              value: '12',
-              subtitle: '+2 esta semana',
+              value: '$vagas',
+              subtitle: 'Dados atualizados',
             ),
             _StatCard(
               title: 'Currículos recebidos',
-              value: '87',
-              subtitle: '+18 hoje',
+              value: '$curriculos',
+              subtitle: 'Últimas 24 horas',
             ),
             _StatCard(
-              title: 'Entrevistas agendadas',
-              value: '5',
-              subtitle: '2 nas próximas 24h',
+              title: 'Entrevistas registradas',
+              value: '$entrevistas',
+              subtitle: 'No histórico',
             ),
             _StatCard(
               title: 'Relatórios gerados',
-              value: '3',
-              subtitle: '1 pendente',
+              value: '$relatorios',
+              subtitle: 'Com IA',
             ),
           ],
         );
@@ -214,6 +264,47 @@ class DashboardTela extends StatelessWidget {
   }
 
   Widget _buildTableVagas() {
+    final linhas = _vagas.take(5).map((vaga) {
+      final titulo = vaga['titulo']?.toString() ?? 'Vaga';
+      final candidatos = vaga['candidatos']?.toString() ?? '-';
+      final status = vaga['status']?.toString() ?? 'aberta';
+      final atualizado = vaga['atualizado_em']?.toString() ?? 'Recente';
+      return DataRow(
+        cells: [
+          DataCell(Text(titulo, style: const TextStyle(fontWeight: FontWeight.w500))),
+          DataCell(Text(candidatos)),
+          DataCell(
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(status, style: const TextStyle(fontSize: 12)),
+            ),
+          ),
+          DataCell(Text(atualizado, style: TextStyle(color: Colors.grey[500]))),
+          DataCell(
+            TextButton.icon(
+              onPressed: () {},
+              icon: const Icon(Icons.chevron_right, size: 16),
+              label: const Text('Detalhes', style: TextStyle(fontSize: 13)),
+            ),
+          ),
+        ],
+      );
+    }).toList();
+
+    if (linhas.isEmpty) {
+      linhas.add(DataRow(cells: const [
+        DataCell(Text('Nenhuma vaga cadastrada')),
+        DataCell(Text('-')),
+        DataCell(Text('-')),
+        DataCell(Text('-')),
+        DataCell(Text('-')),
+      ]));
+    }
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: DataTable(
@@ -233,47 +324,13 @@ class DashboardTela extends StatelessWidget {
           DataColumn(label: Text('Última atualização')),
           DataColumn(label: Text('')),
         ],
-        rows: [
-          _buildRowVaga('Desenvolvedor Full Stack', 21, 'Em análise', '12/10/2025'),
-          _buildRowVaga('Analista de Dados', 14, 'Entrevistas', '11/10/2025'),
-          _buildRowVaga('UX/UI Designer', 9, 'Triagem', '10/10/2025'),
-          _buildRowVaga('DevOps Engineer', 7, 'Aguardando gestor', '09/10/2025'),
-        ],
+        rows: linhas,
       ),
     );
   }
 
-  DataRow _buildRowVaga(String titulo, int candidatos, String status, String data) {
-    return DataRow(
-      cells: [
-        DataCell(Text(titulo, style: const TextStyle(fontWeight: FontWeight.w500))),
-        DataCell(Text('$candidatos')),
-        DataCell(
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade300),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              status,
-              style: const TextStyle(fontSize: 12),
-            ),
-          ),
-        ),
-        DataCell(Text(data, style: TextStyle(color: Colors.grey[500]))),
-        DataCell(
-          TextButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.chevron_right, size: 16),
-            label: const Text('Detalhes', style: TextStyle(fontSize: 13)),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildEntrevistasRecentes(BuildContext context) {
+    final entrevistas = _historico.take(3).toList();
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -307,21 +364,31 @@ class DashboardTela extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            _buildInterviewItem(
-              'João Silva',
-              'Desenvolvedor Python',
-              'Relatório disponível',
-              Icons.check_circle,
-              Colors.green,
-            ),
-            const SizedBox(height: 12),
-            _buildInterviewItem(
-              'Marina Alves',
-              'UX Designer',
-              'Análise em andamento',
-              Icons.warning_amber,
-              Colors.amber,
-            ),
+            if (entrevistas.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade200),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text('Nenhuma entrevista registrada ainda.'),
+              )
+            else
+              ...entrevistas.map((ent) {
+                final status = ent['tem_relatorio'] == true ? 'Relatório disponível' : 'Em análise';
+                final icone = ent['tem_relatorio'] == true ? Icons.check_circle : Icons.timelapse;
+                final cor = ent['tem_relatorio'] == true ? Colors.green : Colors.amber;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _buildInterviewItem(
+                    ent['candidato']?.toString() ?? '-',
+                    ent['vaga']?.toString() ?? '-',
+                    status,
+                    icone,
+                    cor,
+                  ),
+                );
+              }),
           ],
         ),
       ),
@@ -333,7 +400,7 @@ class DashboardTela extends StatelessWidget {
     String cargo,
     String status,
     IconData icon,
-    MaterialColor corIcone,
+    Color corIcone,
   ) {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -368,7 +435,7 @@ class DashboardTela extends StatelessWidget {
           ),
           Row(
             children: [
-              Icon(icon, size: 16, color: corIcone[600]),
+              Icon(icon, size: 16, color: corIcone),
               const SizedBox(width: 6),
               Text(
                 status,
@@ -393,6 +460,7 @@ class DashboardTela extends StatelessWidget {
   }
 
   Widget _buildRelatoriosRecentes() {
+    final relatorios = _historico.where((e) => e['tem_relatorio'] == true).take(4).toList();
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -421,17 +489,28 @@ class DashboardTela extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            _buildReportItem(
-              'Entrevista — João Silva (Python)',
-              '12/10/2025',
-              'Concluído',
-            ),
-            const SizedBox(height: 12),
-            _buildReportItem(
-              'Entrevista — Marina Alves (UX)',
-              '11/10/2025',
-              'Em revisão',
-            ),
+            if (relatorios.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade200),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text('Nenhum relatório finalizado ainda.'),
+              )
+            else
+              ...relatorios.map((rel) {
+                final titulo = 'Entrevista — ${rel['candidato']} (${rel['vaga']})';
+                final data = DateTime.tryParse(rel['criado_em']?.toString() ?? '');
+                final status = rel['tem_relatorio'] == true ? 'Concluído' : 'Em andamento';
+                final dataFormatada = data != null
+                    ? '${data.day.toString().padLeft(2, '0')}/${data.month.toString().padLeft(2, '0')}/${data.year}'
+                    : 'Recente';
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _buildReportItem(titulo, dataFormatada, status),
+                );
+              }),
           ],
         ),
       ),
@@ -502,6 +581,7 @@ class DashboardTela extends StatelessWidget {
   }
 
   Widget _buildInsightsIA() {
+    final tendencias = (_stats?['tendencias'] as List?)?.whereType<Map>().toList() ?? [];
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -531,23 +611,22 @@ class DashboardTela extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              _buildInsightItem(
-                Icons.search,
-                'Triagem',
-                '3 currículos com alta compatibilidade para Engenheiro de Dados.',
-              ),
-              const SizedBox(height: 12),
-              _buildInsightItem(
-                Icons.calendar_today,
-                'Agenda',
-                '2 entrevistas nas próximas 24h.',
-              ),
-              const SizedBox(height: 12),
-              _buildInsightItem(
-                Icons.bar_chart,
-                'Tendência',
-                'Tempo médio de triagem reduziu 15% nesta semana.',
-              ),
+              if (tendencias.isEmpty) ...[
+                _buildInsightItem(
+                  Icons.lightbulb_outline,
+                  'Fique de olho',
+                  'Ative o upload de currículos para gerar novos insights em tempo real.',
+                ),
+              ] else ...[
+                for (final insight in tendencias) ...[
+                  _buildInsightItem(
+                    Icons.bar_chart,
+                    insight['label']?.toString() ?? 'Insight',
+                    '${insight['valor']}% dos candidatos nessa categoria.',
+                  ),
+                  const SizedBox(height: 12),
+                ]
+              ],
             ],
           ),
         ),
