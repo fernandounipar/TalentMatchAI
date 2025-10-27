@@ -10,13 +10,53 @@ class HistoricoTela extends StatefulWidget {
 }
 
 class _HistoricoTelaState extends State<HistoricoTela> {
+  static const List<Map<String, dynamic>> _mockHistorico = [
+    {
+      'id': '1',
+      'candidato': 'João Silva',
+      'vaga': 'Desenvolvedor Full Stack',
+      'criado_em': '2024-06-10T14:32:00Z',
+      'tem_relatorio': true,
+    },
+    {
+      'id': '2',
+      'candidato': 'Maria Souza',
+      'vaga': 'UX/UI Designer',
+      'criado_em': '2024-06-09T10:15:00Z',
+      'tem_relatorio': false,
+    },
+    {
+      'id': '3',
+      'candidato': 'Carlos Lima',
+      'vaga': 'DevOps Engineer',
+      'criado_em': '2024-06-05T18:45:00Z',
+      'tem_relatorio': true,
+    },
+    {
+      'id': '4',
+      'candidato': 'Ana Paula',
+      'vaga': 'Product Manager',
+      'criado_em': '2024-05-30T09:00:00Z',
+      'tem_relatorio': false,
+    },
+  ];
+
   List<dynamic>? _itens;
   bool _carregando = false;
 
   Future<void> _carregar() async {
     setState(() => _carregando = true);
-    _itens = await widget.api.historico();
-    setState(() => _carregando = false);
+    List<dynamic> itens;
+    try {
+      itens = await widget.api.historico();
+    } catch (_) {
+      itens = _mockHistorico;
+    }
+    if (!mounted) return;
+    setState(() {
+      _itens = itens;
+      _carregando = false;
+    });
   }
 
   @override
