@@ -10,13 +10,53 @@ class CandidatosTela extends StatefulWidget {
 }
 
 class _CandidatosTelaState extends State<CandidatosTela> {
+  static const List<Map<String, dynamic>> _mockCandidatos = [
+    {
+      'id': '1',
+      'nome': 'João Silva',
+      'email': 'joao.silva@talentmatch.com',
+      'qtd_curriculos': 3,
+      'qtd_entrevistas': 1,
+    },
+    {
+      'id': '2',
+      'nome': 'Maria Souza',
+      'email': 'maria.souza@talentmatch.com',
+      'qtd_curriculos': 2,
+      'qtd_entrevistas': 2,
+    },
+    {
+      'id': '3',
+      'nome': 'Carlos Lima',
+      'email': 'carlos.lima@talentmatch.com',
+      'qtd_curriculos': 1,
+      'qtd_entrevistas': 0,
+    },
+    {
+      'id': '4',
+      'nome': 'Ana Paula',
+      'email': 'ana.paula@talentmatch.com',
+      'qtd_curriculos': 4,
+      'qtd_entrevistas': 3,
+    },
+  ];
+
   List<dynamic>? _itens;
   bool _carregando = false;
 
   Future<void> _carregar() async {
     setState(() => _carregando = true);
-    _itens = await widget.api.candidatos();
-    setState(() => _carregando = false);
+    List<dynamic> itens;
+    try {
+      itens = await widget.api.candidatos();
+    } catch (_) {
+      itens = _mockCandidatos;
+    }
+    if (!mounted) return;
+    setState(() {
+      _itens = itens;
+      _carregando = false;
+    });
   }
 
   @override
