@@ -6,29 +6,38 @@ class RelatorioFinalTela extends StatelessWidget {
   final String candidato;
   final String vaga;
   final VoidCallback onVoltar;
+  final Map<String, dynamic>? relatorio;
 
   const RelatorioFinalTela({
     super.key,
     required this.candidato,
     required this.vaga,
     required this.onVoltar,
+    this.relatorio,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Dados mockados do relatório
-    const pontuacaoGeral = 85.0;
-    const recomendacao = 'Contratar';
+    final pontuacaoGeral = (relatorio?['pontuacao_geral'] as num?)?.toDouble() ?? 85.0;
+    final recomendacao = relatorio?['recomendacao']?.toString() ?? 'Contratar';
+    final resumo = relatorio?['resumo']?.toString() ??
+        'O candidato $candidato demonstrou excelente adequação à vaga de $vaga, apresentando sólido conhecimento técnico e boa capacidade de comunicação.';
 
-    final analiseDetalhada = {
-      'Conhecimento Técnico': 88,
-      'Experiência Prática': 85,
-      'Comunicação': 82,
-      'Resolução de Problemas': 90,
-      'Fit Cultural': 78,
+    final analiseDetalhada = <String, num>{
+      if (relatorio?['competencias'] is List)
+        for (final item in relatorio!['competencias'] as List)
+          if (item is Map && item['nome'] != null && item['nota'] != null)
+            item['nome'].toString(): (item['nota'] as num),
+      if (relatorio == null) ...{
+        'Conhecimento Técnico': 88,
+        'Experiência Prática': 85,
+        'Comunicação': 82,
+        'Resolução de Problemas': 90,
+        'Fit Cultural': 78,
+      },
     };
 
-    final pontosFortes = [
+    final pontosFortes = (relatorio?['pontos_fortes'] as List?)?.cast<String>() ?? [
       'Excelente domínio de tecnologias do stack (React, Node.js, PostgreSQL)',
       'Demonstrou raciocínio lógico sólido na resolução de problemas técnicos',
       'Boa comunicação e capacidade de explicar conceitos complexos',
@@ -36,32 +45,35 @@ class RelatorioFinalTela extends StatelessWidget {
       'Perfil proativo com contribuições open source no GitHub',
     ];
 
-    final pontosMelhoria = [
+    final pontosMelhoria = (relatorio?['pontos_melhoria'] as List?)?.cast<String>() ?? [
       'Poderia aprofundar conhecimento em otimização de queries SQL',
       'Experiência com metodologias ágeis poderia ser mais aprofundada',
       'Considerar certificações em cloud computing (AWS, Azure)',
     ];
 
-    final respostasDestaque = [
-      {
-        'pergunta': 'Explique o conceito de idempotência em APIs RESTful',
-        'categoria': 'técnica',
-        'pontuacao': 8,
-        'feedback': 'Resposta clara e objetiva, demonstrando conhecimento sólido sobre o conceito.',
-      },
-      {
-        'pergunta': 'Como você estrutura testes automatizados?',
-        'categoria': 'técnica',
-        'pontuacao': 9,
-        'feedback': 'Excelente! Mencionou ferramentas adequadas e boas práticas de cobertura.',
-      },
-      {
-        'pergunta': 'Conte sobre um projeto desafiador que você liderou',
-        'categoria': 'comportamental',
-        'pontuacao': 8,
-        'feedback': 'Demonstrou liderança e capacidade de resolver conflitos em equipe.',
-      },
-    ];
+    final respostasDestaque = (relatorio?['respostas_destaque'] as List?)
+            ?.whereType<Map<String, dynamic>>()
+            .toList() ??
+        [
+          {
+            'pergunta': 'Explique o conceito de idempotência em APIs RESTful',
+            'categoria': 'técnica',
+            'nota': 8,
+            'feedback': 'Resposta clara e objetiva, demonstrando conhecimento sólido sobre o conceito.',
+          },
+          {
+            'pergunta': 'Como você estrutura testes automatizados?',
+            'categoria': 'técnica',
+            'nota': 9,
+            'feedback': 'Excelente! Mencionou ferramentas adequadas e boas práticas de cobertura.',
+          },
+          {
+            'pergunta': 'Conte sobre um projeto desafiador que você liderou',
+            'categoria': 'comportamental',
+            'nota': 8,
+            'feedback': 'Demonstrou liderança e capacidade de resolver conflitos em equipe.',
+          },
+        ];
 
     return SingleChildScrollView(
       child: Column(
@@ -94,12 +106,12 @@ class RelatorioFinalTela extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Candidato: $candidato • Vaga: $vaga',
+                          'Candidato: ${relatorio?['candidato'] ?? candidato} • Vaga: ${relatorio?['vaga'] ?? vaga}',
                           style: const TextStyle(color: Colors.white70, fontSize: 14),
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Gerado em: ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}',
+                          'Gerado em: ${_formatarData(relatorio?['gerado_em'])}',
                           style: const TextStyle(color: Colors.white60, fontSize: 12),
                         ),
                       ],
@@ -196,8 +208,7 @@ class RelatorioFinalTela extends StatelessWidget {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'O candidato $candidato demonstrou excelente adequação à vaga de $vaga, apresentando sólido conhecimento técnico e boa capacidade de comunicação. '
-                          'Com pontuação geral de ${pontuacaoGeral.toInt()}%, recomendamos a contratação.',
+                          resumo,
                           style: const TextStyle(fontSize: 14, height: 1.6),
                         ),
                         const SizedBox(height: 16),
@@ -330,66 +341,14 @@ class RelatorioFinalTela extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
-          ...respostasDestaque.map((resposta) => Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              resposta['pergunta'] as String,
-                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: _corCategoria(resposta['categoria'] as String).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              (resposta['categoria'] as String).toUpperCase(),
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: _corCategoria(resposta['categoria'] as String),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          ...List.generate(
-                            10,
-                            (i) => Icon(
-                              i < (resposta['pontuacao'] as int) ? Icons.star : Icons.star_border,
-                              size: 18,
-                              color: Colors.amber,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${resposta['pontuacao']}/10',
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        resposta['feedback'] as String,
-                        style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
-                      ),
-                    ],
-                  ),
-                ),
-              )),
+          ...respostasDestaque.map(
+            (resposta) => _cardResposta(
+              pergunta: resposta['pergunta']?.toString() ?? '',
+              categoria: resposta['categoria']?.toString() ?? '',
+              pontuacao: (resposta['nota'] ?? resposta['pontuacao'] ?? 0) as num,
+              feedback: resposta['feedback']?.toString() ?? '',
+            ),
+          ),
 
           const SizedBox(height: 24),
 
@@ -483,6 +442,93 @@ class RelatorioFinalTela extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _cardResposta({
+    required String pergunta,
+    required String categoria,
+    required num pontuacao,
+    required String feedback,
+  }) {
+    final corCategoria = _corCategoria(categoria.toLowerCase());
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    pergunta,
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: corCategoria.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    categoria.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: corCategoria,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                ...List.generate(
+                  10,
+                  (i) => Icon(
+                    i < pontuacao.round()
+                        ? Icons.star
+                        : Icons.star_border,
+                    size: 18,
+                    color: Colors.amber,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${pontuacao.toStringAsFixed(1)}/10',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              feedback,
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatarData(dynamic valor) {
+    if (valor == null) {
+      final now = DateTime.now();
+      return '${now.day}/${now.month}/${now.year}';
+    }
+    if (valor is DateTime) {
+      return '${valor.day}/${valor.month}/${valor.year}';
+    }
+    final parsed = DateTime.tryParse(valor.toString());
+    if (parsed == null) {
+      final now = DateTime.now();
+      return '${now.day}/${now.month}/${now.year}';
+    }
+    return '${parsed.day}/${parsed.month}/${parsed.year}';
   }
 
   Widget _buildProximoPasso(String numero, String descricao) {
