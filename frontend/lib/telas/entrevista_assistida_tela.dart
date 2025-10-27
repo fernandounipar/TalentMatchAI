@@ -8,7 +8,7 @@ class EntrevistaAssistidaTela extends StatefulWidget {
   final String vaga;
   final String entrevistaId;
   final ApiCliente api;
-  final VoidCallback onFinalizar;
+  final void Function(Map<String, dynamic> relatorio) onFinalizar;
   final VoidCallback onCancelar;
 
   const EntrevistaAssistidaTela({
@@ -32,6 +32,7 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
   final List<Map<String, dynamic>> _mensagens = [];
   List<String> _sugeridas = const [];
   bool _gerandoPerguntas = false;
+  bool _finalizando = false;
 
   @override
   void initState() {
@@ -133,9 +134,23 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                     ),
                     const SizedBox(width: 12),
                     ElevatedButton.icon(
-                      onPressed: () => widget.onFinalizar(),
+                      onPressed: _finalizando
+                          ? null
+                          : () async {
+                              setState(() => _finalizando = true);
+                              try {
+                                final relatorio = await widget.api.gerarRelatorio(widget.entrevistaId);
+                                widget.onFinalizar(relatorio);
+                              } catch (e) {
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(context)
+                                    .showSnackBar(SnackBar(content: Text('Falha ao gerar relatório: $e')));
+                              } finally {
+                                if (mounted) setState(() => _finalizando = false);
+                              }
+                            },
                       icon: const Icon(Icons.check),
-                      label: const Text('Finalizar & Gerar Relatório'),
+                      label: Text(_finalizando ? 'Gerando...' : 'Finalizar & Gerar Relatório'),
                       style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: const Color(0xFF4F46E5)),
                     ),
                   ],
