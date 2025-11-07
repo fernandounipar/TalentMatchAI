@@ -1,9 +1,10 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import '../componentes/widgets.dart';
 import '../servicos/api_cliente.dart';
 
-/// Tela de Upload de Currículo
+enum UploadStatus { idle, uploading, parsing, analyzing, complete, error }
+
+/// Tela de Upload de Currículo com análise por IA
 class UploadCurriculoTela extends StatefulWidget {
   final ApiCliente api;
   final void Function(Map<String, dynamic> resultado) onUploaded;
@@ -22,9 +23,12 @@ class UploadCurriculoTela extends StatefulWidget {
 
 class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
   PlatformFile? _arquivo;
-  bool _enviando = false;
+  UploadStatus _uploadStatus = UploadStatus.idle;
+  double _uploadProgress = 0.0;
   String? _vagaSelecionadaId;
   List<Map<String, dynamic>> _vagas = [];
+  Map<String, dynamic>? _analise;
+  bool _dragActive = false;
 
   @override
   void initState() {
@@ -35,208 +39,950 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
   Future<void> _carregarVagas() async {
     try {
       final lista = await widget.api.vagas();
-      setState(() {
-        _vagas = List<Map<String, dynamic>>.from(lista);
-        if (_vagas.isNotEmpty) _vagaSelecionadaId = _vagas.first['id'];
-      });
+      if (mounted) {
+        setState(() {
+          _vagas = List<Map<String, dynamic>>.from(lista);
+          if (_vagas.isNotEmpty) {
+            _vagaSelecionadaId = _vagas.first['id']?.toString();
+          }
+        });
+      }
     } catch (_) {
       // mantém lista vazia em caso de erro
     }
   }
 
   Future<void> _selecionarArquivo() async {
+    if (_uploadStatus != UploadStatus.idle) return;
+
     final res = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       withData: true,
       allowedExtensions: const ['pdf', 'txt', 'docx'],
     );
+    
     if (res != null && res.files.isNotEmpty) {
-      setState(() => _arquivo = res.files.first);
+      final file = res.files.first;
+      // Validar tipo de arquivo
+      final validTypes = ['pdf', 'txt', 'docx'];
+      final extension = file.extension?.toLowerCase();
+      
+      if (extension == null || !validTypes.contains(extension)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Por favor, envie um arquivo PDF, DOCX ou TXT'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      setState(() => _arquivo = file);
     }
   }
 
-  Future<void> _enviar() async {
-    if (_arquivo == null) return;
-    setState(() => _enviando = true);
-    try {
-      final bytes = _arquivo!.bytes;
-      if (bytes == null) throw Exception('Arquivo sem bytes');
-      final resultado = await widget.api.uploadCurriculoBytes(
-        bytes: bytes,
-        filename: _arquivo!.name,
-        candidato: {'nome': 'Candidato'},
-        vagaId: _vagaSelecionadaId,
-      );
-      widget.onUploaded(resultado);
-    } catch (e) {
+  Future<void> _simularUploadEAnalise() async {
+    if (_arquivo == null || _vagaSelecionadaId == null) return;
+
+    // Upload
+    setState(() {
+      _uploadStatus = UploadStatus.uploading;
+      _uploadProgress = 0.0;
+    });
+
+    await _animarProgresso(100, 10, 100);
+
+    // Parsing
+    if (!mounted) return;
+    setState(() {
+      _uploadStatus = UploadStatus.parsing;
+      _uploadProgress = 0.0;
+    });
+
+    await _animarProgresso(100, 20, 150);
+
+    // Analyzing
+    if (!mounted) return;
+    setState(() {
+      _uploadStatus = UploadStatus.analyzing;
+      _uploadProgress = 0.0;
+    });
+
+    await _animarProgresso(100, 5, 200);
+
+    // Complete
+    if (!mounted) return;
+    
+    // Simular análise mockada
+    final analiseMock = {
+      'matchingScore': 92,
+      'recomendacao': 'Forte Recomendação',
+      'resumo':
+          'Candidato altamente qualificado com 6+ anos de experiência em desenvolvimento full stack. Forte expertise em React, Node.js e arquitetura cloud. Experiência comprovada em liderança técnica.',
+      'pontosFortes': [
+        'Sólida experiência com stack MERN e TypeScript',
+        'Conhecimento profundo de arquitetura de microsserviços',
+        'Certificações AWS Solutions Architect',
+        'Histórico de liderança técnica',
+        'Contribuições open-source relevantes'
+      ],
+      'pontosAtencao': [
+        'Pouca experiência com testes automatizados mencionada',
+        'Falta detalhamento sobre práticas de CI/CD'
+      ],
+      'aderenciaRequisitos': [
+        {
+          'requisito': 'React e TypeScript avançado',
+          'score': 95,
+          'evidencias': [
+            'Tech Lead em projeto React/TypeScript por 3 anos',
+            'Criação de biblioteca de componentes compartilhados',
+            'Implementação de arquitetura micro-frontend'
+          ]
+        },
+        {
+          'requisito': 'Node.js e Express',
+          'score': 90,
+          'evidencias': [
+            'Desenvolvimento de APIs REST em Node.js',
+            'Implementação de autenticação JWT',
+            'Otimização de performance em endpoints críticos'
+          ]
+        },
+        {
+          'requisito': 'PostgreSQL e MongoDB',
+          'score': 85,
+          'evidencias': [
+            'Modelagem de banco relacional',
+            'Experiência com MongoDB em produção'
+          ]
+        }
+      ]
+    };
+
+    setState(() {
+      _uploadStatus = UploadStatus.complete;
+      _analise = analiseMock;
+    });
+  }
+
+  Future<void> _animarProgresso(
+      int targetProgress, int increment, int delayMs) async {
+    while (_uploadProgress < targetProgress) {
+      await Future.delayed(Duration(milliseconds: delayMs));
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Falha no upload: $e')),
-      );
-    } finally {
-      if (mounted) setState(() => _enviando = false);
+      setState(() {
+        _uploadProgress = (_uploadProgress + increment).clamp(0, 100);
+      });
     }
+  }
+
+  void _resetarUpload() {
+    setState(() {
+      _arquivo = null;
+      _vagaSelecionadaId = _vagas.isNotEmpty ? _vagas.first['id']?.toString() : null;
+      _uploadStatus = UploadStatus.idle;
+      _uploadProgress = 0.0;
+      _analise = null;
+    });
+  }
+
+  Color _getRecomendacaoColor(String recomendacao) {
+    switch (recomendacao) {
+      case 'Forte Recomendação':
+        return Colors.green;
+      case 'Recomendado':
+        return Colors.blue;
+      case 'Considerar':
+        return Colors.orange;
+      case 'Não Recomendado':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  Color _getScoreColor(int score) {
+    if (score >= 85) return Colors.green.shade600;
+    if (score >= 70) return Colors.orange.shade600;
+    return Colors.red.shade600;
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Botão Voltar
-        TextButton.icon(
-          onPressed: widget.onBack,
-          icon: const Icon(Icons.chevron_left),
-          label: const Text('Voltar'),
-        ),
-        const SizedBox(height: 8),
+    // Se a análise estiver completa, mostra resultado
+    if (_uploadStatus == UploadStatus.complete && _analise != null) {
+      return _buildResultadoAnalise();
+    }
 
-        // Título
-        const Text(
-          'Upload de Currículo',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF3730A3)),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Envie o currículo do candidato para análise com IA',
-          style: TextStyle(fontSize: 14, color: Colors.black54),
-        ),
-        const SizedBox(height: 24),
+    // Senão, mostra formulário de upload
+    return _buildFormularioUpload();
+  }
 
-        // Card de Upload
-        Card(
-          child: Padding(
+  Widget _buildResultadoAnalise() {
+    final analise = _analise!;
+    final matchingScore = analise['matchingScore'] as int;
+    final recomendacao = analise['recomendacao'] as String;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Análise de Currículo',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF111827),
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Resultado da análise por IA',
+                    style: TextStyle(fontSize: 16, color: Color(0xFF6B7280)),
+                  ),
+                ],
+              ),
+              OutlinedButton.icon(
+                onPressed: _resetarUpload,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Analisar Novo Currículo'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Score Card
+          Container(
             padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFEFF6FF), Colors.white],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFF93C5FD), width: 2),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Seleção de Vaga
-                const Text('Selecione a vaga:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  value: _vagaSelecionadaId,
-                  decoration: InputDecoration(
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    filled: true,
-                    fillColor: Colors.grey.shade50,
-                  ),
-                  items: _vagas
-                      .map((v) => DropdownMenuItem(
-                            value: v['id'] as String,
-                            child: Text(v['titulo'] as String),
-                          ))
-                      .toList(),
-                  onChanged: (value) => setState(() => _vagaSelecionadaId = value),
-                ),
-                const SizedBox(height: 24),
-
-                // Área de Upload
-                Container(
-                  padding: const EdgeInsets.all(32),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.indigo.shade200, width: 2, style: BorderStyle.solid),
-                    borderRadius: BorderRadius.circular(12),
-                    color: Colors.indigo.shade50.withOpacity(0.3),
-                  ),
-                  child: Column(
-                    children: [
-                      Icon(Icons.cloud_upload_outlined, size: 64, color: Colors.indigo.shade300),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Arraste o arquivo ou clique para selecionar',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                Row(
+                  children: [
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Color(0xFF2563EB),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Formatos aceitos: PDF, TXT, DOCX (máx. 10MB)',
-                        style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                      ),
-                      const SizedBox(height: 16),
-                      OutlinedButton.icon(
-                        onPressed: _selecionarArquivo,
-                        icon: const Icon(Icons.folder_open),
-                        label: const Text('Selecionar Arquivo'),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      child: Center(
+                        child: Text(
+                          '$matchingScore',
+                          style: const TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
-                      if (_arquivo != null) ...[
-                        const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.green.shade50,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.green.shade200),
+                    ),
+                    const SizedBox(width: 16),
+                    const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Matching Score',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF111827),
                           ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.check_circle, color: Colors.green.shade700, size: 20),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  _arquivo!.name,
-                                  style: TextStyle(color: Colors.green.shade900, fontWeight: FontWeight.w500),
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.close, size: 18),
-                                onPressed: () => setState(() => _arquivo = null),
-                              ),
-                            ],
+                        ),
+                        Text(
+                          'Compatibilidade com a vaga',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF6B7280),
                           ),
                         ),
                       ],
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Informações adicionais
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, color: Colors.blue.shade700),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Text(
-                          'A IA analisará o currículo e identificará competências, experiências e compatibilidade com a vaga.',
-                          style: TextStyle(fontSize: 13),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Botões de Ação
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    OutlinedButton(
-                      onPressed: widget.onBack,
-                      child: const Text('Cancelar'),
-                    ),
-                    const SizedBox(width: 12),
-                    BotaoPrimario(
-                      texto: _enviando ? 'Enviando...' : 'Analisar com IA',
-                      icone: Icons.psychology,
-                      onPressed: !_enviando && _arquivo != null ? _enviar : null,
                     ),
                   ],
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: _getRecomendacaoColor(recomendacao).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    recomendacao,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: _getRecomendacaoColor(recomendacao),
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
+          const SizedBox(height: 24),
+
+          // Resumo
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.auto_awesome, color: Color(0xFF2563EB)),
+                      SizedBox(width: 8),
+                      Text(
+                        'Resumo da Análise',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    analise['resumo'] as String,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      height: 1.6,
+                      color: Color(0xFF374151),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Pontos Fortes e Atenção
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Pontos Fortes
+              Expanded(
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.trending_up,
+                                color: Colors.green.shade700),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Pontos Fortes',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green.shade700,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        ...(analise['pontosFortes'] as List).map((ponto) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(Icons.check_circle,
+                                    color: Colors.green.shade600, size: 20),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    ponto as String,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      color: Color(0xFF374151),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+
+              // Pontos de Atenção
+              Expanded(
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.warning_amber,
+                                color: Colors.orange.shade700),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Pontos de Atenção',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.orange.shade700,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        ...(analise['pontosAtencao'] as List).map((ponto) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(Icons.error_outline,
+                                    color: Colors.orange.shade600, size: 20),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    ponto as String,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      color: Color(0xFF374151),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Aderência aos Requisitos
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.track_changes, color: Color(0xFF2563EB)),
+                      SizedBox(width: 8),
+                      Text(
+                        'Aderência aos Requisitos',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Análise detalhada de cada requisito da vaga',
+                    style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+                  ),
+                  const SizedBox(height: 24),
+                  ...(analise['aderenciaRequisitos'] as List).map((item) {
+                    final req = item as Map<String, dynamic>;
+                    final requisito = req['requisito'] as String;
+                    final score = req['score'] as int;
+                    final evidencias = req['evidencias'] as List;
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  requisito,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF111827),
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                '$score%',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: _getScoreColor(score),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          LinearProgressIndicator(
+                            value: score / 100,
+                            backgroundColor: Colors.grey.shade200,
+                            color: _getScoreColor(score),
+                            minHeight: 8,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          if (evidencias.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            ...evidencias.map((evidencia) {
+                              return Padding(
+                                padding: const EdgeInsets.only(
+                                    left: 16, bottom: 6),
+                                child: Row(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      '•',
+                                      style: TextStyle(
+                                        color: Color(0xFF2563EB),
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        evidencia as String,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: Color(0xFF6B7280),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
+                          ],
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Ações
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.calendar_today),
+                  label: const Text('Agendar Entrevista'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563EB),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.check_circle_outline),
+                  label: const Text('Aprovar Candidato'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.cancel_outlined),
+                  label: const Text('Reprovar'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFormularioUpload() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Upload de Currículo',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF111827),
+                ),
+              ),
+              SizedBox(height: 4),
+              Text(
+                'Envie currículos para análise automática por IA',
+                style: TextStyle(fontSize: 16, color: Color(0xFF6B7280)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Seleção de Vaga
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Selecionar Vaga',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Escolha a vaga para qual está recrutando',
+                    style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    value: _vagaSelecionadaId,
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                    ),
+                    hint: const Text('Selecione uma vaga...'),
+                    items: _vagas.map((vaga) {
+                      final candidatos = vaga['candidatos'] ?? 0;
+                      return DropdownMenuItem<String>(
+                        value: vaga['id']?.toString(),
+                        child: Text(
+                          '${vaga['titulo']} ($candidatos candidatos)',
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() => _vagaSelecionadaId = value);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Área de Upload (Drag and Drop)
+          Card(
+            child: InkWell(
+              onTap: _uploadStatus == UploadStatus.idle
+                  ? _selecionarArquivo
+                  : null,
+              child: Container(
+                padding: const EdgeInsets.all(48),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: _dragActive
+                        ? const Color(0xFF2563EB)
+                        : const Color(0xFFD1D5DB),
+                    width: 2,
+                    style: BorderStyle.solid,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  color: _dragActive
+                      ? const Color(0xFFEFF6FF)
+                      : Colors.transparent,
+                ),
+                child: _arquivo != null
+                    ? _buildArquivoSelecionado()
+                    : _buildAreaUpload(),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Progresso do Upload
+          if (_uploadStatus != UploadStatus.idle &&
+              _uploadStatus != UploadStatus.complete)
+            _buildProgressoUpload(),
+
+          if (_uploadStatus != UploadStatus.idle &&
+              _uploadStatus != UploadStatus.complete)
+            const SizedBox(height: 24),
+
+          // Informações
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.info_outline, color: Color(0xFF2563EB)),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Como funciona:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Após o upload, nossa IA irá extrair as informações do currículo, analisar a experiência, habilidades e formação do candidato, e calcular um score de compatibilidade com os requisitos da vaga selecionada. O processo leva cerca de 10 segundos.',
+                        style: TextStyle(fontSize: 14, height: 1.5),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Botão de Ação
+          Align(
+            alignment: Alignment.centerRight,
+            child: ElevatedButton.icon(
+              onPressed: _arquivo != null &&
+                      _vagaSelecionadaId != null &&
+                      _uploadStatus == UploadStatus.idle
+                  ? _simularUploadEAnalise
+                  : null,
+              icon: const Icon(Icons.auto_awesome),
+              label: const Text('Analisar Currículo com IA'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                textStyle: const TextStyle(fontSize: 16),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildArquivoSelecionado() {
+    return Column(
+      children: [
+        const Icon(
+          Icons.description,
+          size: 64,
+          color: Color(0xFF2563EB),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          _arquivo!.name,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF111827),
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '${(_arquivo!.size / 1024).toStringAsFixed(2)} KB',
+          style: const TextStyle(
+            fontSize: 14,
+            color: Color(0xFF6B7280),
+          ),
+        ),
+        if (_uploadStatus == UploadStatus.idle) ...[
+          const SizedBox(height: 16),
+          TextButton.icon(
+            onPressed: () => setState(() => _arquivo = null),
+            icon: const Icon(Icons.close),
+            label: const Text('Remover arquivo'),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildAreaUpload() {
+    return Column(
+      children: [
+        Icon(
+          Icons.cloud_upload_outlined,
+          size: 64,
+          color: Colors.grey.shade400,
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'Arraste e solte o currículo aqui',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF111827),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'ou clique para selecionar',
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.grey.shade600,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Formatos aceitos: PDF, DOCX, TXT (máx. 10MB)',
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey.shade500,
+          ),
         ),
       ],
+    );
+  }
+
+  Widget _buildProgressoUpload() {
+    String statusTexto = '';
+    String statusDescricao = '';
+
+    switch (_uploadStatus) {
+      case UploadStatus.uploading:
+        statusTexto = 'Enviando arquivo...';
+        statusDescricao = 'Fazendo upload do currículo';
+        break;
+      case UploadStatus.parsing:
+        statusTexto = 'Extraindo informações...';
+        statusDescricao = 'Processando conteúdo do documento';
+        break;
+      case UploadStatus.analyzing:
+        statusTexto = 'Analisando com IA...';
+        statusDescricao = 'Avaliando compatibilidade com a vaga';
+        break;
+      default:
+        break;
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFFEFF6FF),
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.auto_awesome,
+                      color: Color(0xFF2563EB),
+                      size: 20,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        statusTexto,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF111827),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        statusDescricao,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF6B7280),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  '${_uploadProgress.toInt()}%',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            LinearProgressIndicator(
+              value: _uploadProgress / 100,
+              backgroundColor: Colors.grey.shade200,
+              color: const Color(0xFF2563EB),
+              minHeight: 8,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

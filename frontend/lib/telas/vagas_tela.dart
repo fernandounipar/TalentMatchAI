@@ -1,289 +1,753 @@
 import 'package:flutter/material.dart';
-import '../componentes/widgets.dart';
+import '../servicos/dados_mockados.dart';
+import '../modelos/vaga.dart';
 
+/// Tela de Gerenciamento de Vagas
 class VagasTela extends StatefulWidget {
-  final VoidCallback? onNovaVaga;
-  const VagasTela({super.key, this.onNovaVaga});
+  const VagasTela({super.key});
 
   @override
   State<VagasTela> createState() => _VagasTelaState();
 }
 
 class _VagasTelaState extends State<VagasTela> {
-  String _filtroStatus = 'todas';
-  String _buscaTexto = '';
+  List<Vaga> _vagas = [];
+  String _searchTerm = '';
+  String _filterStatus = 'all';
+  bool _carregando = true;
 
-  // Dados mockados de vagas
-  final List<Map<String, dynamic>> _vagas = [
-    {
-      'id': '1',
-      'titulo': 'Desenvolvedor Full Stack',
-      'descricao': 'Desenvolver e manter aplicações web usando React, Node.js e PostgreSQL. Experiência com APIs RESTful.',
-      'requisitos': 'React, Node.js, PostgreSQL, 3+ anos',
-      'status': 'aberta',
-      'nivel': 'Pleno',
-      'tecnologias': 'React, Node.js, PostgreSQL, Docker',
-      'candidatos': 25,
-    },
-    {
-      'id': '2',
-      'titulo': 'UX/UI Designer',
-      'descricao': 'Criar interfaces intuitivas e experiências de usuário excepcionais. Trabalhar com Figma e prototipação.',
-      'requisitos': 'Figma, Adobe XD, Portfólio, 2+ anos',
-      'status': 'aberta',
-      'nivel': 'Pleno',
-      'tecnologias': 'Figma, Adobe XD, Sketch',
-      'candidatos': 18,
-    },
-    {
-      'id': '3',
-      'titulo': 'DevOps Engineer',
-      'descricao': 'Gerenciar infraestrutura cloud, CI/CD pipelines e automação de processos.',
-      'requisitos': 'AWS, Docker, Kubernetes, Jenkins, 4+ anos',
-      'status': 'aberta',
-      'nivel': 'Senior',
-      'tecnologias': 'AWS, Docker, Kubernetes, Terraform',
-      'candidatos': 12,
-    },
-    {
-      'id': '4',
-      'titulo': 'Data Scientist',
-      'descricao': 'Analisar dados, criar modelos de ML e gerar insights para tomada de decisão.',
-      'requisitos': 'Python, Pandas, Scikit-learn, SQL, 3+ anos',
-      'status': 'pausada',
-      'nivel': 'Pleno',
-      'tecnologias': 'Python, TensorFlow, Pandas, SQL',
-      'candidatos': 8,
-    },
-    {
-      'id': '5',
-      'titulo': 'Product Manager',
-      'descricao': 'Liderar roadmap de produto, definir prioridades e trabalhar com times multidisciplinares.',
-      'requisitos': 'Gestão de produtos, Agile, 5+ anos',
-      'status': 'aberta',
-      'nivel': 'Senior',
-      'tecnologias': 'Jira, Miro, Analytics',
-      'candidatos': 15,
-    },
-    {
-      'id': '6',
-      'titulo': 'Desenvolvedor Mobile Flutter',
-      'descricao': 'Desenvolver aplicativos móveis multiplataforma com Flutter e Dart.',
-      'requisitos': 'Flutter, Dart, Firebase, 2+ anos',
-      'status': 'fechada',
-      'nivel': 'Pleno',
-      'tecnologias': 'Flutter, Dart, Firebase, REST API',
-      'candidatos': 30,
-    },
-  ];
+  // Form fields
+  final _formKey = GlobalKey<FormState>();
+  final _tituloController = TextEditingController();
+  final _descricaoController = TextEditingController();
+  final _requisitosController = TextEditingController();
+  final _localController = TextEditingController();
+  final _salarioController = TextEditingController();
+  final _tagsController = TextEditingController();
+  String _senioridade = 'Pleno';
+  String _regime = 'CLT';
+  Vaga? _editingVaga;
 
-  List<Map<String, dynamic>> get _vagasFiltradas {
-    return _vagas.where((vaga) {
-      final matchStatus = _filtroStatus == 'todas' || vaga['status'] == _filtroStatus;
-      final matchBusca = _buscaTexto.isEmpty ||
-          (vaga['titulo'] as String).toLowerCase().contains(_buscaTexto.toLowerCase()) ||
-          (vaga['descricao'] as String).toLowerCase().contains(_buscaTexto.toLowerCase());
-      return matchStatus && matchBusca;
-    }).toList();
+  @override
+  void initState() {
+    super.initState();
+    _carregarVagas();
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Cabeçalho
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Gerenciamento de Vagas',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF3730A3)),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Crie e gerencie as vagas abertas',
-                  style: TextStyle(fontSize: 14, color: Colors.black54),
-                ),
-              ],
-            ),
-            ElevatedButton.icon(
-              onPressed: () {
-                if (widget.onNovaVaga != null) widget.onNovaVaga!();
-              },
-              icon: const Icon(Icons.add),
-              label: const Text('Nova Vaga'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4F46E5),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
-
-        // Filtros
-        Row(
-          children: [
-            Expanded(
-              flex: 2,
-              child: TextField(
-                onChanged: (value) => setState(() => _buscaTexto = value),
-                decoration: InputDecoration(
-                  hintText: 'Buscar vagas...',
-                  prefixIcon: const Icon(Icons.search),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  filled: true,
-                  fillColor: Colors.white,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            DropdownButton<String>(
-              value: _filtroStatus,
-              items: const [
-                DropdownMenuItem(value: 'todas', child: Text('Todas')),
-                DropdownMenuItem(value: 'aberta', child: Text('Abertas')),
-                DropdownMenuItem(value: 'pausada', child: Text('Pausadas')),
-                DropdownMenuItem(value: 'fechada', child: Text('Fechadas')),
-              ],
-              onChanged: (value) => setState(() => _filtroStatus = value!),
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
-
-        // Contador de resultados
-        Text(
-          '${_vagasFiltradas.length} vagas encontradas',
-          style: const TextStyle(fontSize: 14, color: Colors.black54, fontWeight: FontWeight.w500),
-        ),
-        const SizedBox(height: 12),
-
-        // Lista de vagas
-        Expanded(
-          child: ListView.builder(
-            itemCount: _vagasFiltradas.length,
-            itemBuilder: (context, i) {
-              final vaga = _vagasFiltradas[i];
-              return CardVaga(
-                titulo: vaga['titulo'] as String,
-                descricao: vaga['descricao'] as String,
-                status: vaga['status'] as String,
-                nivel: vaga['nivel'] as String?,
-                onTap: () {
-                  _mostrarDetalhesVaga(vaga);
-                },
-                onEditar: () {
-                  // Editar vaga
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Editar: ${vaga['titulo']}')),
-                  );
-                },
-                onExcluir: () {
-                  _confirmarExclusao(vaga);
-                },
-              );
-            },
-          ),
-        ),
-      ],
-    );
+  void dispose() {
+    _tituloController.dispose();
+    _descricaoController.dispose();
+    _requisitosController.dispose();
+    _localController.dispose();
+    _salarioController.dispose();
+    _tagsController.dispose();
+    super.dispose();
   }
 
-  void _mostrarDetalhesVaga(Map<String, dynamic> vaga) {
+  Future<void> _carregarVagas() async {
+    setState(() => _carregando = true);
+    try {
+      // Usar dados mockados
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (mounted) {
+        setState(() {
+          _vagas = List.from(mockVagas);
+          _carregando = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _carregando = false);
+    }
+  }
+
+  List<Vaga> get _filteredVagas {
+    return _vagas.where((vaga) {
+      final matchesSearch = vaga.titulo.toLowerCase().contains(_searchTerm.toLowerCase()) ||
+          vaga.descricao.toLowerCase().contains(_searchTerm.toLowerCase());
+      final matchesStatus = _filterStatus == 'all' || vaga.status == _filterStatus;
+      return matchesSearch && matchesStatus;
+    }).toList();
+  }
+
+  void _openDialog([Vaga? vaga]) {
+    _editingVaga = vaga;
+    
+    if (vaga != null) {
+      _tituloController.text = vaga.titulo;
+      _descricaoController.text = vaga.descricao;
+      _requisitosController.text = (vaga.requisitosList ?? []).join('\n');
+      _localController.text = vaga.local ?? '';
+      _salarioController.text = vaga.salario ?? '';
+      _tagsController.text = (vaga.tags ?? []).join(', ');
+      _senioridade = vaga.senioridade ?? 'Pleno';
+      _regime = vaga.regime ?? 'CLT';
+    } else {
+      _tituloController.clear();
+      _descricaoController.clear();
+      _requisitosController.clear();
+      _localController.clear();
+      _salarioController.clear();
+      _tagsController.clear();
+      _senioridade = 'Pleno';
+      _regime = 'CLT';
+    }
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(vaga['titulo'] as String),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildInfoRow('Status', vaga['status'] as String),
-              _buildInfoRow('Nível', vaga['nivel'] as String),
-              _buildInfoRow('Candidatos', '${vaga['candidatos']}'),
-              const SizedBox(height: 12),
-              const Text('Descrição:', style: TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 4),
-              Text(vaga['descricao'] as String),
-              const SizedBox(height: 12),
-              const Text('Requisitos:', style: TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 4),
-              Text(vaga['requisitos'] as String),
-              const SizedBox(height: 12),
-              const Text('Tecnologias:', style: TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 4),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: (vaga['tecnologias'] as String)
-                    .split(', ')
-                    .map((tech) => Chip(label: Text(tech), backgroundColor: Colors.indigo.shade50))
-                    .toList(),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Fechar'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // Ver candidatos
-            },
-            child: const Text('Ver Candidatos'),
-          ),
-        ],
+      builder: (context) => _buildDialog(),
+    );
+  }
+
+  void _handleSave() {
+    if (!_formKey.currentState!.validate()) return;
+
+    final vagaData = Vaga(
+      id: _editingVaga?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      titulo: _tituloController.text,
+      descricao: _descricaoController.text,
+      requisitos: _requisitosController.text,
+      requisitosList: _requisitosController.text.split('\n').where((r) => r.trim().isNotEmpty).toList(),
+      senioridade: _senioridade,
+      regime: _regime,
+      local: _localController.text,
+      status: _editingVaga?.status ?? 'Aberta',
+      salario: _salarioController.text.isEmpty ? null : _salarioController.text,
+      tags: _tagsController.text.split(',').map((t) => t.trim()).where((t) => t.isNotEmpty).toList(),
+      criadoEm: _editingVaga?.criadoEm ?? DateTime.now(),
+      candidatos: _editingVaga?.candidatos ?? 0,
+    );
+
+    setState(() {
+      if (_editingVaga != null) {
+        final index = _vagas.indexWhere((v) => v.id == _editingVaga!.id);
+        if (index != -1) {
+          _vagas[index] = vagaData;
+        }
+      } else {
+        _vagas.insert(0, vagaData);
+      }
+    });
+
+    Navigator.of(context).pop();
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(_editingVaga != null ? 'Vaga atualizada com sucesso!' : 'Vaga criada com sucesso!'),
+        backgroundColor: Colors.green,
       ),
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Text('$label: ', style: const TextStyle(fontWeight: FontWeight.w600)),
-          Text(value),
-        ],
-      ),
-    );
-  }
-
-  void _confirmarExclusao(Map<String, dynamic> vaga) {
+  void _handleDelete(String id) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Confirmar Exclusão'),
-        content: Text('Deseja realmente excluir a vaga "${vaga['titulo']}"?'),
+        content: const Text('Tem certeza que deseja excluir esta vaga?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.of(context).pop(),
             child: const Text('Cancelar'),
           ),
           ElevatedButton(
             onPressed: () {
-              Navigator.pop(context);
               setState(() {
-                _vagas.removeWhere((v) => v['id'] == vaga['id']);
+                _vagas.removeWhere((v) => v.id == id);
               });
+              Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Vaga excluída com sucesso')),
+                const SnackBar(
+                  content: Text('Vaga excluída com sucesso!'),
+                  backgroundColor: Colors.red,
+                ),
               );
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Excluir'),
           ),
         ],
+      ),
+    );
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'Aberta':
+        return Colors.green;
+      case 'Pausada':
+        return Colors.orange;
+      case 'Fechada':
+        return Colors.grey;
+      default:
+        return Colors.blue;
+    }
+  }
+
+  Color _getStatusBgColor(String status) {
+    switch (status) {
+      case 'Aberta':
+        return Colors.green.shade50;
+      case 'Pausada':
+        return Colors.orange.shade50;
+      case 'Fechada':
+        return Colors.grey.shade50;
+      default:
+        return Colors.blue.shade50;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_carregando) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Vagas',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF111827),
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Gerencie as vagas abertas e seu pipeline',
+                    style: TextStyle(fontSize: 16, color: Color(0xFF6B7280)),
+                  ),
+                ],
+              ),
+              ElevatedButton.icon(
+                onPressed: () => _openDialog(),
+                icon: const Icon(Icons.add),
+                label: const Text('Nova Vaga'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Filters
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      decoration: InputDecoration(
+                        hintText: 'Buscar vagas...',
+                        prefixIcon: const Icon(Icons.search, color: Color(0xFF9CA3AF)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                      onChanged: (value) => setState(() => _searchTerm = value),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  SizedBox(
+                    width: 200,
+                    child: DropdownButtonFormField<String>(
+                      value: _filterStatus,
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(Icons.filter_list, size: 20),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'all', child: Text('Todos os Status')),
+                        DropdownMenuItem(value: 'Aberta', child: Text('Aberta')),
+                        DropdownMenuItem(value: 'Pausada', child: Text('Pausada')),
+                        DropdownMenuItem(value: 'Fechada', child: Text('Fechada')),
+                      ],
+                      onChanged: (value) => setState(() => _filterStatus = value!),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Vagas Grid
+          if (_filteredVagas.isEmpty)
+            _buildEmptyState()
+          else
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 24,
+                mainAxisSpacing: 24,
+                childAspectRatio: 1.3,
+              ),
+              itemCount: _filteredVagas.length,
+              itemBuilder: (context, index) {
+                final vaga = _filteredVagas[index];
+                return _buildVagaCard(vaga);
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVagaCard(Vaga vaga) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: InkWell(
+        onTap: () => _openDialog(vaga),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          vaga.titulo,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF111827),
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            const Icon(Icons.work_outline, size: 16, color: Color(0xFF6B7280)),
+                            const SizedBox(width: 4),
+                            Text(
+                              vaga.senioridade ?? 'Não especificado',
+                              style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+                            ),
+                            const SizedBox(width: 8),
+                            const Text('•', style: TextStyle(color: Color(0xFF6B7280))),
+                            const SizedBox(width: 8),
+                            const Icon(Icons.location_on_outlined, size: 16, color: Color(0xFF6B7280)),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                vaga.local ?? 'Remoto',
+                                style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: _getStatusBgColor(vaga.status),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      vaga.status,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: _getStatusColor(vaga.status),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Description
+              Text(
+                vaga.descricao,
+                style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 12),
+
+              // Salary
+              if (vaga.salario != null && vaga.salario!.isNotEmpty) ...[
+                Row(
+                  children: [
+                    const Icon(Icons.attach_money, size: 16, color: Color(0xFF374151)),
+                    const SizedBox(width: 4),
+                    Text(
+                      vaga.salario!,
+                      style: const TextStyle(fontSize: 14, color: Color(0xFF374151)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              // Tags
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ...((vaga.tags ?? []).take(4).map((tag) => Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: const Color(0xFFD1D5DB)),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          tag,
+                          style: const TextStyle(fontSize: 12, color: Color(0xFF374151)),
+                        ),
+                      ))),
+                  if ((vaga.tags ?? []).length > 4)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: const Color(0xFFD1D5DB)),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '+${(vaga.tags ?? []).length - 4}',
+                        style: const TextStyle(fontSize: 12, color: Color(0xFF374151)),
+                      ),
+                    ),
+                ],
+              ),
+              const Spacer(),
+
+              // Footer
+              Container(
+                padding: const EdgeInsets.only(top: 12),
+                decoration: const BoxDecoration(
+                  border: Border(top: BorderSide(color: Color(0xFFE5E7EB))),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.people_outline, size: 16, color: Color(0xFF6B7280)),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${vaga.candidatos ?? 0} candidatos',
+                          style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined, size: 18),
+                          onPressed: () => _openDialog(vaga),
+                          color: const Color(0xFF6B7280),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline, size: 18),
+                          onPressed: () => _handleDelete(vaga.id),
+                          color: const Color(0xFF6B7280),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(48),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(Icons.work_outline, size: 64, color: Colors.grey.shade400),
+              const SizedBox(height: 16),
+              const Text(
+                'Nenhuma vaga encontrada',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF111827),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _searchTerm.isNotEmpty || _filterStatus != 'all'
+                    ? 'Tente ajustar os filtros de busca'
+                    : 'Comece criando sua primeira vaga',
+                style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+              ),
+              if (_searchTerm.isEmpty && _filterStatus == 'all') ...[
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: () => _openDialog(),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Nova Vaga'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563EB),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDialog() {
+    return Dialog(
+      child: Container(
+        width: 700,
+        constraints: const BoxConstraints(maxHeight: 700),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: const BoxDecoration(
+                border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _editingVaga != null ? 'Editar Vaga' : 'Nova Vaga',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF111827),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Preencha as informações da vaga para publicá-la',
+                    style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+                  ),
+                ],
+              ),
+            ),
+
+            // Form
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Título
+                      const Text('Título da Vaga *', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _tituloController,
+                        decoration: InputDecoration(
+                          hintText: 'Ex: Desenvolvedor Full Stack Senior',
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        validator: (value) => value?.isEmpty ?? true ? 'Campo obrigatório' : null,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Descrição
+                      const Text('Descrição *', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _descricaoController,
+                        decoration: InputDecoration(
+                          hintText: 'Descreva a vaga, responsabilidades e o que você procura...',
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        maxLines: 4,
+                        validator: (value) => value?.isEmpty ?? true ? 'Campo obrigatório' : null,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Requisitos
+                      const Text('Requisitos (um por linha) *', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _requisitosController,
+                        decoration: InputDecoration(
+                          hintText: 'React e TypeScript avançado\nNode.js e Express\nPostgreSQL',
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        maxLines: 5,
+                        validator: (value) => value?.isEmpty ?? true ? 'Campo obrigatório' : null,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Senioridade e Regime
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Senioridade *', style: TextStyle(fontWeight: FontWeight.w600)),
+                                const SizedBox(height: 8),
+                                DropdownButtonFormField<String>(
+                                  value: _senioridade,
+                                  decoration: InputDecoration(
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                  items: const [
+                                    DropdownMenuItem(value: 'Junior', child: Text('Junior')),
+                                    DropdownMenuItem(value: 'Pleno', child: Text('Pleno')),
+                                    DropdownMenuItem(value: 'Senior', child: Text('Senior')),
+                                    DropdownMenuItem(value: 'Especialista', child: Text('Especialista')),
+                                  ],
+                                  onChanged: (value) => setState(() => _senioridade = value!),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Regime *', style: TextStyle(fontWeight: FontWeight.w600)),
+                                const SizedBox(height: 8),
+                                DropdownButtonFormField<String>(
+                                  value: _regime,
+                                  decoration: InputDecoration(
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                  items: const [
+                                    DropdownMenuItem(value: 'CLT', child: Text('CLT')),
+                                    DropdownMenuItem(value: 'PJ', child: Text('PJ')),
+                                    DropdownMenuItem(value: 'Estágio', child: Text('Estágio')),
+                                    DropdownMenuItem(value: 'Temporário', child: Text('Temporário')),
+                                  ],
+                                  onChanged: (value) => setState(() => _regime = value!),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Localização
+                      const Text('Localização *', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _localController,
+                        decoration: InputDecoration(
+                          hintText: 'Ex: São Paulo - Híbrido',
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        validator: (value) => value?.isEmpty ?? true ? 'Campo obrigatório' : null,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Salário
+                      const Text('Faixa Salarial (opcional)', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _salarioController,
+                        decoration: InputDecoration(
+                          hintText: 'Ex: R\$ 8.000 - R\$ 12.000',
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Tags
+                      const Text('Tags (separadas por vírgula)', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _tagsController,
+                        decoration: InputDecoration(
+                          hintText: 'Ex: React, Node.js, TypeScript',
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            // Footer
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: const BoxDecoration(
+                border: Border(top: BorderSide(color: Color(0xFFE5E7EB))),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Cancelar'),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: _handleSave,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      foregroundColor: Colors.white,
+                    ),
+                    child: Text(_editingVaga != null ? 'Salvar Alterações' : 'Criar Vaga'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
