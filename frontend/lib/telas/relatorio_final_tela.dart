@@ -166,7 +166,7 @@ class RelatorioFinalTela extends StatelessWidget {
                     padding: const EdgeInsets.all(24),
                     child: Column(
                       children: [
-                        const BadgePontuacao(pontuacao: pontuacaoGeral, tamanho: 90),
+                        BadgePontuacao(pontuacao: pontuacaoGeral, tamanho: 90),
                         const SizedBox(height: 16),
                         const Text(
                           'Pontuação Geral',

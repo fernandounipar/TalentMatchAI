@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../componentes/widgets.dart';
 import '../servicos/api_cliente.dart';
 
 /// Tela de Entrevista Assistida por IA (com chat ao backend)
