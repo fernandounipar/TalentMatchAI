@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Tela de Configurações
+/// Tela de Configurações inspirada no layout web
 class ConfiguracoesTela extends StatefulWidget {
   const ConfiguracoesTela({super.key});
 
@@ -9,396 +9,1034 @@ class ConfiguracoesTela extends StatefulWidget {
 }
 
 class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
-  final _nomeController = TextEditingController(text: 'Patricia Recrutadora');
-  final _emailController = TextEditingController(text: 'patricia@talentmatch.com');
-  final _empresaController = TextEditingController(text: 'TalentMatch IA');
-  
-  bool _notificacoesEmail = true;
-  bool _notificacoesPush = false;
-  bool _lgpdAtivo = true;
-  bool _criptografiaAtiva = true;
+  late final TextEditingController _empresaNomeController;
+  late final TextEditingController _empresaDocumentoController;
+  late final TextEditingController _termoController;
+  late final TextEditingController _corHexController;
+
+  late final TextEditingController _perfilNomeController;
+  late final TextEditingController _perfilEmailController;
+  late final TextEditingController _perfilCargoController;
+
+  late final TextEditingController _senhaAtualController;
+  late final TextEditingController _novaSenhaController;
+  late final TextEditingController _confirmarSenhaController;
+
+  late final TextEditingController _githubTokenController;
+  late final TextEditingController _webhookUrlController;
+
+  Color _corPrimaria = const Color(0xFF2B6CB0);
+  bool _retencaoCurriculos = true;
+  bool _anonimizacaoDados = false;
+
+  bool _emailNovoCandidato = true;
+  bool _emailAnaliseConcluida = true;
+  bool _emailLembreteEntrevista = true;
+  bool _pushTempoReal = false;
+
+  bool _doisFatoresAtivo = false;
+  bool _analiseGithubAtiva = true;
+
+  bool _eventoWebhookNovo = true;
+  bool _eventoWebhookAnalise = true;
+  bool _eventoWebhookEntrevista = false;
+
+  final List<Map<String, String>> _usuariosEquipe = const [
+    {
+      'nome': 'Patrícia Almeida',
+      'email': 'patricia@talentmatch.com',
+      'papel': 'Admin',
+      'iniciais': 'PA',
+    },
+    {
+      'nome': 'João Mendes',
+      'email': 'joao.mendes@empresa.com',
+      'papel': 'Recrutador',
+      'iniciais': 'JM',
+    },
+    {
+      'nome': 'Mariana Costa',
+      'email': 'mariana.costa@empresa.com',
+      'papel': 'Recrutador',
+      'iniciais': 'MC',
+    },
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _empresaNomeController = TextEditingController(text: 'TalentMatch IA');
+    _empresaDocumentoController = TextEditingController(text: '12.345.678/0001-90');
+    _termoController = TextEditingController(
+      text: 'Ao prosseguir com sua candidatura, você autoriza o uso dos seus dados '
+          'para fins de recrutamento e seleção pela TalentMatch IA.',
+    );
+    _corHexController = TextEditingController(text: _colorToHex(_corPrimaria));
+
+    _perfilNomeController = TextEditingController(text: 'Patrícia Almeida');
+    _perfilEmailController = TextEditingController(text: 'patricia@talentmatch.com');
+    _perfilCargoController = TextEditingController(text: 'Recrutadora Senior');
+
+    _senhaAtualController = TextEditingController();
+    _novaSenhaController = TextEditingController();
+    _confirmarSenhaController = TextEditingController();
+
+    _githubTokenController = TextEditingController();
+    _webhookUrlController = TextEditingController(text: 'https://seu-sistema.com/webhook');
+  }
 
   @override
   void dispose() {
-    _nomeController.dispose();
-    _emailController.dispose();
-    _empresaController.dispose();
+    _empresaNomeController.dispose();
+    _empresaDocumentoController.dispose();
+    _termoController.dispose();
+    _corHexController.dispose();
+    _perfilNomeController.dispose();
+    _perfilEmailController.dispose();
+    _perfilCargoController.dispose();
+    _senhaAtualController.dispose();
+    _novaSenhaController.dispose();
+    _confirmarSenhaController.dispose();
+    _githubTokenController.dispose();
+    _webhookUrlController.dispose();
     super.dispose();
+  }
+
+  static String _colorToHex(Color color) {
+    final value = color.value.toRadixString(16).padLeft(8, '0').toUpperCase();
+    return '#${value.substring(2)}';
+  }
+
+  void _atualizarCorPorHex(String value) {
+    final cleaned = value.replaceAll('#', '');
+    if (cleaned.length == 6) {
+      final parsed = int.tryParse('FF$cleaned', radix: 16);
+      if (parsed != null) {
+        setState(() {
+          _corPrimaria = Color(parsed);
+        });
+      }
+    }
+  }
+
+  Future<void> _selecionarCorPrimaria() async {
+    final palette = [
+      const Color(0xFF2B6CB0),
+      const Color(0xFF4338CA),
+      const Color(0xFF0EA5E9),
+      const Color(0xFF047857),
+      const Color(0xFF7C3AED),
+      const Color(0xFFDC2626),
+      const Color(0xFFF97316),
+    ];
+
+    final selecionada = await showDialog<Color>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Selecione a cor primária'),
+          content: SizedBox(
+            width: 320,
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: palette
+                  .map(
+                    (color) => GestureDetector(
+                      onTap: () => Navigator.of(context).pop(color),
+                      child: Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: color,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white, width: 3),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 6,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+        );
+      },
+    );
+
+    if (selecionada != null) {
+      setState(() {
+        _corPrimaria = selecionada;
+        _corHexController.text = _colorToHex(selecionada);
+      });
+    }
+  }
+
+  void _mostrarSnack(String mensagem) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(mensagem)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
+    const destaque = Color(0xFF4338CA);
+
+    return DefaultTabController(
+      length: 5,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Título
           const Text(
             'Configurações',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF3730A3)),
+            style: TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w700,
+              color: destaque,
+            ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Gerencie suas preferências e segurança',
-            style: TextStyle(fontSize: 14, color: Colors.black54),
+          Text(
+            'Gerencie as configurações da empresa e do usuário',
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
           ),
           const SizedBox(height: 24),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: TabBar(
+              labelColor: destaque,
+              unselectedLabelColor: Colors.grey.shade600,
+              indicator: BoxDecoration(
+                color: destaque.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              unselectedLabelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+              tabs: const [
+                Tab(icon: Icon(Icons.apartment_outlined, size: 18), text: 'Empresa'),
+                Tab(icon: Icon(Icons.person_outline, size: 18), text: 'Perfil'),
+                Tab(icon: Icon(Icons.notifications_none, size: 18), text: 'Notificações'),
+                Tab(icon: Icon(Icons.lock_outline, size: 18), text: 'Segurança'),
+                Tab(icon: Icon(Icons.integration_instructions_outlined, size: 18), text: 'Integrações'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: TabBarView(
+              children: [
+                _buildEmpresaTab(),
+                _buildPerfilTab(),
+                _buildNotificacoesTab(),
+                _buildSegurancaTab(),
+                _buildIntegracoesTab(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildEmpresaTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        children: [
+          _buildSectionCard(
+            icon: Icons.apartment,
+            title: 'Informações da Empresa',
+            description: 'Dados cadastrais e identificação',
             children: [
-              // Perfil
-              Expanded(
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Row(
-                          children: [
-                            Icon(Icons.person, color: Color(0xFF4F46E5)),
-                            SizedBox(width: 8),
-                            Text(
-                              'Perfil do Usuário',
-                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        Center(
-                          child: Stack(
-                            children: [
-                              const CircleAvatar(
-                                radius: 50,
-                                backgroundColor: Color(0xFF4F46E5),
-                                child: Icon(Icons.person, size: 50, color: Colors.white),
-                              ),
-                              Positioned(
-                                bottom: 0,
-                                right: 0,
-                                child: Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.grey.shade300, width: 2),
-                                  ),
-                                  child: const Icon(Icons.camera_alt, size: 18, color: Color(0xFF4F46E5)),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        const Text('Nome Completo', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _nomeController,
-                          decoration: InputDecoration(
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                            filled: true,
-                            fillColor: Colors.grey.shade50,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        const Text('E-mail', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _emailController,
-                          decoration: InputDecoration(
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                            filled: true,
-                            fillColor: Colors.grey.shade50,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        const Text('Empresa', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _empresaController,
-                          decoration: InputDecoration(
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                            filled: true,
-                            fillColor: Colors.grey.shade50,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Perfil atualizado com sucesso!')),
-                              );
-                            },
-                            icon: const Icon(Icons.save),
-                            label: const Text('Salvar Alterações'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF4F46E5),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isWide = constraints.maxWidth > 640;
+                  final fields = [
+                    Expanded(child: _buildLabeledField('Nome da Empresa', _empresaNomeController)),
+                    const SizedBox(width: 16),
+                    Expanded(child: _buildLabeledField('CNPJ', _empresaDocumentoController)),
+                  ];
+
+                  if (isWide) {
+                    return Row(children: fields);
+                  }
+
+                  return Column(
+                    children: [
+                      _buildLabeledField('Nome da Empresa', _empresaNomeController),
+                      const SizedBox(height: 16),
+                      _buildLabeledField('CNPJ', _empresaDocumentoController),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 24),
+              Align(
+                alignment: Alignment.centerRight,
+                child: ElevatedButton.icon(
+                  onPressed: () => _mostrarSnack('Informações da empresa atualizadas!'),
+                  icon: const Icon(Icons.save_outlined),
+                  label: const Text('Salvar Alterações'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4F46E5),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ),
-
-              const SizedBox(width: 16),
-
-              // Configurações
-              Expanded(
-                child: Column(
-                  children: [
-                    // Notificações
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Row(
-                              children: [
-                                Icon(Icons.notifications, color: Color(0xFF4F46E5)),
-                                SizedBox(width: 8),
-                                Text(
-                                  'Notificações',
-                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            SwitchListTile(
-                              title: const Text('Notificações por E-mail'),
-                              subtitle: const Text('Receba atualizações por e-mail'),
-                              value: _notificacoesEmail,
-                              onChanged: (value) => setState(() => _notificacoesEmail = value),
-                            ),
-                            SwitchListTile(
-                              title: const Text('Notificações Push'),
-                              subtitle: const Text('Alertas em tempo real'),
-                              value: _notificacoesPush,
-                              onChanged: (value) => setState(() => _notificacoesPush = value),
-                            ),
-                          ],
+            ],
+          ),
+          const SizedBox(height: 24),
+          _buildSectionCard(
+            icon: Icons.palette_outlined,
+            title: 'Identidade Visual',
+            description: 'Personalize a aparência do sistema',
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Logo da Empresa',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade800),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Container(
+                        width: 88,
+                        height: 88,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.grey.shade300, style: BorderStyle.solid, width: 2),
+                          color: Colors.grey.shade50,
+                        ),
+                        child: const Icon(Icons.apartment, size: 36, color: Colors.grey),
+                      ),
+                      const SizedBox(width: 16),
+                      OutlinedButton.icon(
+                        onPressed: () => _mostrarSnack('Upload de logo em breve!'),
+                        icon: const Icon(Icons.upload_file_outlined),
+                        label: const Text('Upload de Logo'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Cor Primária',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade800),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  GestureDetector(
+                    onTap: _selecionarCorPrimaria,
+                    child: Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: _corPrimaria,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: const Icon(Icons.colorize, color: Colors.white),
                     ),
-
-                    const SizedBox(height: 16),
-
-                    // Privacidade e Segurança
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildLabeledField(
+                      'Código HEX',
+                      _corHexController,
+                      onChanged: _atualizarCorPorHex,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  OutlinedButton(
+                    onPressed: _selecionarCorPrimaria,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Selecionar cor'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Align(
+                alignment: Alignment.centerRight,
+                child: ElevatedButton(
+                  onPressed: () => _mostrarSnack('Identidade visual atualizada!'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4F46E5),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Aplicar Alterações'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _buildSectionCard(
+            icon: Icons.verified_user_outlined,
+            title: 'LGPD & Privacidade',
+            description: 'Configurações de conformidade e retenção de dados',
+            children: [
+              _buildSwitchTile(
+                title: 'Retenção automática de currículos',
+                subtitle: 'Manter currículos por até 90 dias após o processo seletivo',
+                value: _retencaoCurriculos,
+                onChanged: (value) => setState(() => _retencaoCurriculos = value),
+              ),
+              const Divider(height: 32),
+              _buildSwitchTile(
+                title: 'Anonimização de dados rejeitados',
+                subtitle: 'Anonimizar dados de candidatos reprovados automaticamente',
+                value: _anonimizacaoDados,
+                onChanged: (value) => setState(() => _anonimizacaoDados = value),
+              ),
+              const SizedBox(height: 24),
+              _buildLabeledField(
+                'Termo de Consentimento LGPD',
+                _termoController,
+                maxLines: 4,
+              ),
+              const SizedBox(height: 24),
+              Align(
+                alignment: Alignment.centerRight,
+                child: ElevatedButton(
+                  onPressed: () => _mostrarSnack('Configurações de privacidade salvas!'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4F46E5),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Salvar Configurações'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _buildSectionCard(
+            icon: Icons.group_outlined,
+            title: 'Gerenciamento de Usuários',
+            description: 'Convide e gerencie membros da equipe',
+            children: [
+              Column(
+                children: _usuariosEquipe
+                    .map(
+                      (usuario) => Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Row(
                           children: [
-                            const Row(
-                              children: [
-                                Icon(Icons.security, color: Color(0xFF4F46E5)),
-                                SizedBox(width: 8),
-                                Text(
-                                  'Privacidade & Segurança',
-                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                            CircleAvatar(
+                              radius: 24,
+                              backgroundColor: const Color(0xFFEEF2FF),
+                              child: Text(
+                                usuario['iniciais']!,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF4338CA),
                                 ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.green.shade50,
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: Colors.green.shade200),
                               ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Row(
-                                    children: [
-                                      Icon(Icons.verified_user, color: Colors.green.shade700),
-                                      const SizedBox(width: 8),
-                                      const Text(
-                                        'Sistema Protegido',
-                                        style: TextStyle(fontWeight: FontWeight.w600),
-                                      ),
-                                    ],
+                                  Text(
+                                    usuario['nome']!,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
-                                  const SizedBox(height: 12),
-                                  const Text(
-                                    'Todos os dados são criptografados e armazenados com segurança. O sistema está em conformidade com LGPD e GDPR.',
-                                    style: TextStyle(fontSize: 13, height: 1.5),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    usuario['email']!,
+                                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                                   ),
                                 ],
                               ),
                             ),
-                            const SizedBox(height: 16),
-                            ListTile(
-                              leading: Icon(
-                                _lgpdAtivo ? Icons.check_circle : Icons.cancel,
-                                color: _lgpdAtivo ? Colors.green : Colors.red,
-                              ),
-                              title: const Text('Conformidade LGPD'),
-                              subtitle: const Text('Lei Geral de Proteção de Dados'),
-                              trailing: Switch(
-                                value: _lgpdAtivo,
-                                onChanged: (value) => setState(() => _lgpdAtivo = value),
-                              ),
-                            ),
-                            ListTile(
-                              leading: Icon(
-                                _criptografiaAtiva ? Icons.lock : Icons.lock_open,
-                                color: _criptografiaAtiva ? Colors.green : Colors.red,
-                              ),
-                              title: const Text('Criptografia de Dados'),
-                              subtitle: const Text('AES-256 para dados sensíveis'),
-                              trailing: Switch(
-                                value: _criptografiaAtiva,
-                                onChanged: (value) => setState(() => _criptografiaAtiva = value),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                Chip(
-                                  label: const Text('LGPD'),
-                                  backgroundColor: Colors.green.shade100,
-                                  avatar: Icon(Icons.check, color: Colors.green.shade700, size: 18),
-                                ),
-                                Chip(
-                                  label: const Text('GDPR'),
-                                  backgroundColor: Colors.blue.shade100,
-                                  avatar: Icon(Icons.check, color: Colors.blue.shade700, size: 18),
-                                ),
-                                Chip(
-                                  label: const Text('ISO 27001'),
-                                  backgroundColor: Colors.purple.shade100,
-                                  avatar: Icon(Icons.check, color: Colors.purple.shade700, size: 18),
-                                ),
-                              ],
-                            ),
+                            _buildBadge(usuario['papel']!),
                           ],
                         ),
                       ),
+                    )
+                    .toList(),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => _mostrarSnack('Convite enviado!'),
+                icon: const Icon(Icons.person_add_alt_1_outlined),
+                label: const Text('+ Convidar Membro'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPerfilTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        children: [
+          _buildSectionCard(
+            icon: Icons.person_outline,
+            title: 'Informações Pessoais',
+            description: 'Atualize seus dados pessoais',
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 44,
+                    backgroundColor: const Color(0xFFEEF2FF),
+                    child: const Icon(Icons.person, size: 44, color: Color(0xFF4338CA)),
+                  ),
+                  const SizedBox(width: 16),
+                  OutlinedButton.icon(
+                    onPressed: () => _mostrarSnack('Funcionalidade de alterar foto em breve!'),
+                    icon: const Icon(Icons.photo_camera_outlined),
+                    label: const Text('Alterar Foto'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-
-                    const SizedBox(height: 16),
-
-                    // IA e Análise
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Row(
-                              children: [
-                                Icon(Icons.psychology, color: Color(0xFF4F46E5)),
-                                SizedBox(width: 8),
-                                Text(
-                                  'Configurações de IA',
-                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            const Text('Modelo de IA', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 8),
-                            DropdownButtonFormField<String>(
-                              initialValue: 'GPT-4',
-                              decoration: InputDecoration(
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                                filled: true,
-                                fillColor: Colors.grey.shade50,
-                              ),
-                              items: const [
-                                DropdownMenuItem(value: 'GPT-4', child: Text('GPT-4 (Recomendado)')),
-                                DropdownMenuItem(value: 'GPT-3.5', child: Text('GPT-3.5 Turbo')),
-                                DropdownMenuItem(value: 'Claude', child: Text('Claude 2')),
-                              ],
-                              onChanged: (value) {},
-                            ),
-                            const SizedBox(height: 16),
-                            const Text('Nível de Detalhe', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 8),
-                            Slider(
-                              value: 0.7,
-                              onChanged: (value) {},
-                              divisions: 10,
-                              label: 'Detalhado',
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Quantidade de perguntas e insights gerados pela IA',
-                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                            ),
-                          ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isWide = constraints.maxWidth > 640;
+                  if (isWide) {
+                    return Row(
+                      children: [
+                        Expanded(child: _buildLabeledField('Nome Completo', _perfilNomeController)),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _buildLabeledField(
+                            'Email',
+                            _perfilEmailController,
+                            keyboardType: TextInputType.emailAddress,
+                          ),
                         ),
+                      ],
+                    );
+                  }
+                  return Column(
+                    children: [
+                      _buildLabeledField('Nome Completo', _perfilNomeController),
+                      const SizedBox(height: 16),
+                      _buildLabeledField(
+                        'Email',
+                        _perfilEmailController,
+                        keyboardType: TextInputType.emailAddress,
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+              _buildLabeledField('Cargo', _perfilCargoController),
+              const SizedBox(height: 24),
+              Align(
+                alignment: Alignment.centerRight,
+                child: ElevatedButton.icon(
+                  onPressed: () => _mostrarSnack('Perfil atualizado com sucesso!'),
+                  icon: const Icon(Icons.save_outlined),
+                  label: const Text('Salvar Alterações'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4F46E5),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNotificacoesTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        children: [
+          _buildSectionCard(
+            icon: Icons.notifications_outlined,
+            title: 'Preferências de Notificação',
+            description: 'Escolha como deseja receber atualizações',
+            children: [
+              Text(
+                'Email',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade800),
+              ),
+              const SizedBox(height: 12),
+              _buildSwitchTile(
+                title: 'Novo candidato',
+                subtitle: 'Quando um novo currículo é enviado',
+                value: _emailNovoCandidato,
+                onChanged: (value) => setState(() => _emailNovoCandidato = value),
+              ),
+              const Divider(height: 32),
+              _buildSwitchTile(
+                title: 'Análise concluída',
+                subtitle: 'Quando a IA termina de analisar um currículo',
+                value: _emailAnaliseConcluida,
+                onChanged: (value) => setState(() => _emailAnaliseConcluida = value),
+              ),
+              const Divider(height: 32),
+              _buildSwitchTile(
+                title: 'Lembrete de entrevista',
+                subtitle: '24h antes de uma entrevista agendada',
+                value: _emailLembreteEntrevista,
+                onChanged: (value) => setState(() => _emailLembreteEntrevista = value),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Push (Navegador)',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade800),
+              ),
+              const SizedBox(height: 12),
+              _buildSwitchTile(
+                title: 'Notificações em tempo real',
+                subtitle: 'Receber notificações push no navegador',
+                value: _pushTempoReal,
+                onChanged: (value) => setState(() => _pushTempoReal = value),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSegurancaTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        children: [
+          _buildSectionCard(
+            icon: Icons.lock_reset,
+            title: 'Alterar Senha',
+            description: 'Mantenha sua conta segura',
+            children: [
+              _buildLabeledField('Senha Atual', _senhaAtualController, obscureText: true),
+              const SizedBox(height: 16),
+              _buildLabeledField('Nova Senha', _novaSenhaController, obscureText: true),
+              const SizedBox(height: 16),
+              _buildLabeledField('Confirmar Nova Senha', _confirmarSenhaController, obscureText: true),
+              const SizedBox(height: 24),
+              Align(
+                alignment: Alignment.centerRight,
+                child: ElevatedButton(
+                  onPressed: () => _mostrarSnack('Senha atualizada com sucesso!'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4F46E5),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Atualizar Senha'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _buildSectionCard(
+            icon: Icons.verified_user_outlined,
+            title: 'Autenticação de Dois Fatores',
+            description: 'Adicione uma camada extra de segurança',
+            children: [
+              _buildSwitchTile(
+                title: 'Habilitar 2FA',
+                subtitle: 'Requer código de verificação ao fazer login',
+                value: _doisFatoresAtivo,
+                onChanged: (value) => setState(() => _doisFatoresAtivo = value),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () => _mostrarSnack('Configuração de 2FA em breve!'),
+                icon: const Icon(Icons.qr_code_2_outlined),
+                label: const Text('Configurar 2FA'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _buildSectionCard(
+            icon: Icons.devices_other_outlined,
+            title: 'Sessões Ativas',
+            description: 'Gerencie seus dispositivos conectados',
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.laptop_mac, color: Color(0xFF4338CA)),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Chrome • Windows',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'São Paulo, SP • Sessão atual',
+                            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                          ),
+                        ],
+                      ),
+                    ),
+                    _buildBadge('Ativo', filled: false),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () => _mostrarSnack('Sessões encerradas com sucesso!'),
+                icon: const Icon(Icons.logout),
+                label: const Text('Encerrar Todas as Outras Sessões'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIntegracoesTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        children: [
+          _buildSectionCard(
+            icon: Icons.vpn_key_outlined,
+            title: 'API Keys',
+            description: 'Tokens para integração com sistemas externos',
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'OpenAI API Key',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                        ),
+                        _buildBadge('Configurada'),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'sk-...•••••••••••••••••••••••••••',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 12,
+                        color: Colors.grey.shade700,
                       ),
                     ),
                   ],
                 ),
               ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () => _mostrarSnack('Nova API Key cadastrada!'),
+                icon: const Icon(Icons.add_circle_outline),
+                label: const Text('+ Adicionar Nova API Key'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
             ],
           ),
-
           const SizedBox(height: 24),
-
-          // Sobre o Sistema
-          Card(
-            color: Colors.indigo.shade50,
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline, color: Colors.indigo.shade700, size: 40),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'TalentMatch IA',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text('Versão 1.0.0 • Build 2025.10.12'),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Sistema de recrutamento inteligente com análise de currículos, entrevistas assistidas por IA e relatórios automatizados.',
-                          style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
-                        ),
-                      ],
-                    ),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      showAboutDialog(
-                        context: context,
-                        applicationName: 'TalentMatch IA',
-                        applicationVersion: '1.0.0',
-                        applicationIcon: const Icon(Icons.psychology, size: 48, color: Color(0xFF4F46E5)),
-                        children: const [
-                          Text('Desenvolvido com Flutter e Node.js'),
-                          SizedBox(height: 8),
-                          Text('© 2025 TalentMatch IA. Todos os direitos reservados.'),
-                        ],
-                      );
-                    },
-                    icon: const Icon(Icons.help_outline),
-                    label: const Text('Sobre'),
-                  ),
-                ],
+          _buildSectionCard(
+            icon: Icons.code_outlined,
+            title: 'Integração GitHub',
+            description: 'Analise repositórios dos candidatos automaticamente',
+            children: [
+              _buildSwitchTile(
+                title: 'Habilitar análise de GitHub',
+                subtitle: 'Buscar repositórios e analisar contribuições',
+                value: _analiseGithubAtiva,
+                onChanged: (value) => setState(() => _analiseGithubAtiva = value),
               ),
-            ),
+              const SizedBox(height: 16),
+              _buildLabeledField(
+                'GitHub Token (opcional)',
+                _githubTokenController,
+                obscureText: true,
+              ),
+              const SizedBox(height: 24),
+              Align(
+                alignment: Alignment.centerRight,
+                child: ElevatedButton(
+                  onPressed: () => _mostrarSnack('Integração GitHub atualizada!'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4F46E5),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Salvar Configuração'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _buildSectionCard(
+            icon: Icons.webhook_outlined,
+            title: 'Webhooks',
+            description: 'Receba notificações em seus sistemas',
+            children: [
+              _buildLabeledField('URL do Webhook', _webhookUrlController),
+              const SizedBox(height: 24),
+              Text(
+                'Eventos',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade800),
+              ),
+              const SizedBox(height: 12),
+              _buildSwitchTile(
+                title: 'Novo candidato',
+                subtitle: 'Acionado quando um novo currículo é recebido',
+                value: _eventoWebhookNovo,
+                onChanged: (value) => setState(() => _eventoWebhookNovo = value),
+              ),
+              const Divider(height: 32),
+              _buildSwitchTile(
+                title: 'Análise concluída',
+                subtitle: 'Aviso assim que o relatório de IA ficar pronto',
+                value: _eventoWebhookAnalise,
+                onChanged: (value) => setState(() => _eventoWebhookAnalise = value),
+              ),
+              const Divider(height: 32),
+              _buildSwitchTile(
+                title: 'Entrevista agendada',
+                subtitle: 'Confirmação do agendamento de entrevistas',
+                value: _eventoWebhookEntrevista,
+                onChanged: (value) => setState(() => _eventoWebhookEntrevista = value),
+              ),
+              const SizedBox(height: 24),
+              Align(
+                alignment: Alignment.centerRight,
+                child: ElevatedButton(
+                  onPressed: () => _mostrarSnack('Webhook salvo com sucesso!'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4F46E5),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Salvar Webhook'),
+                ),
+              ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSectionCard({
+    required IconData icon,
+    required String title,
+    String? description,
+    required List<Widget> children,
+  }) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEEF2FF),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: const Color(0xFF4338CA)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      if (description != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          description,
+                          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLabeledField(
+    String label,
+    TextEditingController controller, {
+    TextInputType keyboardType = TextInputType.text,
+    int maxLines = 1,
+    bool obscureText = false,
+    ValueChanged<String>? onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade800),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          keyboardType: keyboardType,
+          obscureText: obscureText,
+          maxLines: obscureText ? 1 : maxLines,
+          minLines: obscureText ? 1 : (maxLines > 1 ? maxLines : 1),
+          onChanged: onChanged,
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: Colors.grey.shade50,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey.shade200),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF4F46E5)),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSwitchTile({
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        title,
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+      ),
+      value: value,
+      onChanged: onChanged,
+      activeColor: const Color(0xFF4F46E5),
+    );
+  }
+
+  Widget _buildBadge(String label, {bool filled = true}) {
+    final isAdmin = label.toLowerCase() == 'admin';
+    final color = filled
+        ? (isAdmin ? const Color(0xFF4F46E5) : const Color(0xFF16A34A))
+        : const Color(0xFF4338CA);
+    final background = filled ? color.withOpacity(isAdmin ? 1 : 0.12) : Colors.transparent;
+    final textColor = filled ? (isAdmin ? Colors.white : color) : color;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+        border: filled ? null : Border.all(color: color),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: textColor),
       ),
     );
   }
