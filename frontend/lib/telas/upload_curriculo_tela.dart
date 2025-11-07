@@ -1,6 +1,9 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+
+import '../modelos/analise_curriculo.dart';
 import '../servicos/api_cliente.dart';
+import '../servicos/dados_mockados.dart';
 
 enum UploadStatus { idle, uploading, parsing, analyzing, complete, error }
 
@@ -27,8 +30,18 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
   double _uploadProgress = 0.0;
   String? _vagaSelecionadaId;
   List<Map<String, dynamic>> _vagas = [];
-  Map<String, dynamic>? _analise;
+  AnaliseCurriculo? _analise;
   bool _dragActive = false;
+
+  void _setDragActive(bool value) {
+    if (_uploadStatus != UploadStatus.idle) {
+      value = false;
+    }
+    if (_dragActive == value) return;
+    setState(() {
+      _dragActive = value;
+    });
+  }
 
   @override
   void initState() {
@@ -115,56 +128,36 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
     // Complete
     if (!mounted) return;
     
-    // Simular análise mockada
-    final analiseMock = {
-      'matchingScore': 92,
-      'recomendacao': 'Forte Recomendação',
-      'resumo':
-          'Candidato altamente qualificado com 6+ anos de experiência em desenvolvimento full stack. Forte expertise em React, Node.js e arquitetura cloud. Experiência comprovada em liderança técnica.',
-      'pontosFortes': [
-        'Sólida experiência com stack MERN e TypeScript',
-        'Conhecimento profundo de arquitetura de microsserviços',
-        'Certificações AWS Solutions Architect',
-        'Histórico de liderança técnica',
-        'Contribuições open-source relevantes'
-      ],
-      'pontosAtencao': [
-        'Pouca experiência com testes automatizados mencionada',
-        'Falta detalhamento sobre práticas de CI/CD'
-      ],
-      'aderenciaRequisitos': [
-        {
-          'requisito': 'React e TypeScript avançado',
-          'score': 95,
-          'evidencias': [
-            'Tech Lead em projeto React/TypeScript por 3 anos',
-            'Criação de biblioteca de componentes compartilhados',
-            'Implementação de arquitetura micro-frontend'
-          ]
-        },
-        {
-          'requisito': 'Node.js e Express',
-          'score': 90,
-          'evidencias': [
-            'Desenvolvimento de APIs REST em Node.js',
-            'Implementação de autenticação JWT',
-            'Otimização de performance em endpoints críticos'
-          ]
-        },
-        {
-          'requisito': 'PostgreSQL e MongoDB',
-          'score': 85,
-          'evidencias': [
-            'Modelagem de banco relacional',
-            'Experiência com MongoDB em produção'
-          ]
-        }
-      ]
-    };
+    final analiseMock = mockAnaliseCurriculo;
 
+    if (!mounted) return;
     setState(() {
       _uploadStatus = UploadStatus.complete;
       _analise = analiseMock;
+    });
+
+    Map<String, dynamic>? vagaSelecionada;
+    if (_vagaSelecionadaId != null) {
+      for (final vaga in _vagas) {
+        if (vaga['id']?.toString() == _vagaSelecionadaId) {
+          vagaSelecionada = vaga;
+          break;
+        }
+      }
+    }
+
+    final candidatoMock =
+        mockCandidatos.isNotEmpty ? mockCandidatos.first.toJson() : {'nome': 'Candidato'};
+
+    widget.onUploaded({
+      'candidato': candidatoMock,
+      'vaga': vagaSelecionada,
+      'curriculo': {
+        'nome_arquivo': _arquivo?.name ?? 'curriculo.pdf',
+        'tamanho_bytes': _arquivo?.size,
+        'analise_json': analiseMock.toJson(),
+      },
+      'entrevista': null,
     });
   }
 
@@ -186,6 +179,7 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
       _uploadStatus = UploadStatus.idle;
       _uploadProgress = 0.0;
       _analise = null;
+      _dragActive = false;
     });
   }
 
@@ -223,8 +217,8 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
 
   Widget _buildResultadoAnalise() {
     final analise = _analise!;
-    final matchingScore = analise['matchingScore'] as int;
-    final recomendacao = analise['recomendacao'] as String;
+    final matchingScore = analise.matchingScore;
+    final recomendacao = analise.recomendacao;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -363,7 +357,7 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    analise['resumo'] as String,
+                    analise.resumo,
                     style: const TextStyle(
                       fontSize: 16,
                       height: 1.6,
@@ -404,7 +398,7 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
                           ],
                         ),
                         const SizedBox(height: 16),
-                        ...(analise['pontosFortes'] as List).map((ponto) {
+                        ...analise.pontosFortes.map((ponto) {
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 12),
                             child: Row(
@@ -415,7 +409,7 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    ponto as String,
+                                    ponto,
                                     style: const TextStyle(
                                       fontSize: 14,
                                       color: Color(0xFF374151),
@@ -457,7 +451,7 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
                           ],
                         ),
                         const SizedBox(height: 16),
-                        ...(analise['pontosAtencao'] as List).map((ponto) {
+                        ...analise.pontosAtencao.map((ponto) {
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 12),
                             child: Row(
@@ -468,7 +462,7 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    ponto as String,
+                                    ponto,
                                     style: const TextStyle(
                                       fontSize: 14,
                                       color: Color(0xFF374151),
@@ -514,11 +508,10 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
                     style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
                   ),
                   const SizedBox(height: 24),
-                  ...(analise['aderenciaRequisitos'] as List).map((item) {
-                    final req = item as Map<String, dynamic>;
-                    final requisito = req['requisito'] as String;
-                    final score = req['score'] as int;
-                    final evidencias = req['evidencias'] as List;
+                  ...analise.aderenciaRequisitos.map((item) {
+                    final requisito = item.requisito;
+                    final score = item.score;
+                    final evidencias = item.evidencias;
 
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 24),
@@ -723,28 +716,33 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
 
           // Área de Upload (Drag and Drop)
           Card(
-            child: InkWell(
-              onTap: _uploadStatus == UploadStatus.idle
-                  ? _selecionarArquivo
-                  : null,
-              child: Container(
-                padding: const EdgeInsets.all(48),
-                decoration: BoxDecoration(
-                  border: Border.all(
+            child: MouseRegion(
+              onEnter: (_) => _setDragActive(true),
+              onExit: (_) => _setDragActive(false),
+              child: InkWell(
+                onTap: _uploadStatus == UploadStatus.idle
+                    ? _selecionarArquivo
+                    : null,
+                onHover: (hovering) => _setDragActive(hovering),
+                child: Container(
+                  padding: const EdgeInsets.all(48),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: _dragActive
+                          ? const Color(0xFF2563EB)
+                          : const Color(0xFFD1D5DB),
+                      width: 2,
+                      style: BorderStyle.solid,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
                     color: _dragActive
-                        ? const Color(0xFF2563EB)
-                        : const Color(0xFFD1D5DB),
-                    width: 2,
-                    style: BorderStyle.solid,
+                        ? const Color(0xFFEFF6FF)
+                        : Colors.transparent,
                   ),
-                  borderRadius: BorderRadius.circular(12),
-                  color: _dragActive
-                      ? const Color(0xFFEFF6FF)
-                      : Colors.transparent,
+                  child: _arquivo != null
+                      ? _buildArquivoSelecionado()
+                      : _buildAreaUpload(),
                 ),
-                child: _arquivo != null
-                    ? _buildArquivoSelecionado()
-                    : _buildAreaUpload(),
               ),
             ),
           ),
