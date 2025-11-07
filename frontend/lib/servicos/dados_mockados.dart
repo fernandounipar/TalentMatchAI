@@ -3,6 +3,7 @@ import '../modelos/candidato.dart';
 import '../modelos/usuario.dart';
 import '../modelos/historico.dart';
 import '../modelos/dashboard.dart';
+import '../modelos/analise_curriculo.dart';
 
 // Usuário atual
 final usuarioAtual = Usuario(
@@ -85,6 +86,53 @@ final List<Vaga> mockVagas = [
     candidatos: 12,
   ),
 ];
+
+// Análise de currículo mockada
+final AnaliseCurriculo mockAnaliseCurriculo = AnaliseCurriculo(
+  matchingScore: 92,
+  recomendacao: 'Forte Recomendação',
+  resumo:
+      'Candidato altamente qualificado com 6+ anos de experiência em desenvolvimento full stack. Forte expertise em React, Node.js e arquitetura cloud. Experiência comprovada em liderança técnica.',
+  pontosFortes: const [
+    'Sólida experiência com stack MERN e TypeScript',
+    'Conhecimento profundo de arquitetura de microsserviços',
+    'Certificações AWS Solutions Architect',
+    'Histórico de liderança técnica',
+    'Contribuições open-source relevantes',
+  ],
+  pontosAtencao: const [
+    'Pouca experiência com testes automatizados mencionada',
+    'Falta detalhamento sobre práticas de CI/CD',
+  ],
+  aderenciaRequisitos: const [
+    AderenciaRequisito(
+      requisito: 'React e TypeScript avançado',
+      score: 95,
+      evidencias: [
+        'Tech Lead em projeto React/TypeScript por 3 anos',
+        'Criação de biblioteca de componentes compartilhados',
+        'Implementação de arquitetura micro-frontend',
+      ],
+    ),
+    AderenciaRequisito(
+      requisito: 'Node.js e Express',
+      score: 90,
+      evidencias: [
+        'Desenvolvimento de APIs REST em Node.js',
+        'Implementação de autenticação JWT',
+        'Otimização de performance em endpoints críticos',
+      ],
+    ),
+    AderenciaRequisito(
+      requisito: 'PostgreSQL e MongoDB',
+      score: 85,
+      evidencias: [
+        'Modelagem de banco relacional',
+        'Experiência com MongoDB em produção',
+      ],
+    ),
+  ],
+);
 
 // Candidatos mockados
 final List<Candidato> mockCandidatos = [
