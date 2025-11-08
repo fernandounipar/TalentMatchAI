@@ -570,7 +570,7 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
-                                        evidencia as String,
+                                        evidencia,
                                         style: const TextStyle(
                                           fontSize: 14,
                                           color: Color(0xFF6B7280),
