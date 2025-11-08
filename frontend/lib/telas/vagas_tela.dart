@@ -203,119 +203,208 @@ class _VagasTelaState extends State<VagasTela> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompactHeader = constraints.maxWidth < 720;
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Vagas',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF111827),
-                    ),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    'Gerencie as vagas abertas e seu pipeline',
-                    style: TextStyle(fontSize: 16, color: Color(0xFF6B7280)),
-                  ),
-                ],
-              ),
-              ElevatedButton.icon(
-                onPressed: () => _openDialog(),
-                icon: const Icon(Icons.add),
-                label: const Text('Nova Vaga'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2563EB),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              _buildHeader(isCompactHeader),
+              const SizedBox(height: 24),
+              _buildFilters(isCompactHeader),
+              const SizedBox(height: 24),
+              if (_filteredVagas.isEmpty)
+                _buildEmptyState()
+              else
+                LayoutBuilder(
+                  builder: (context, gridConstraints) {
+                    final width = gridConstraints.maxWidth;
+                    final crossAxisCount = width >= 1280
+                        ? 3
+                        : width >= 900
+                            ? 2
+                            : 1;
+                    final childAspectRatio = width >= 1280
+                        ? 1.35
+                        : width >= 900
+                            ? 1.25
+                            : 1.05;
+
+                    return GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        crossAxisSpacing: 24,
+                        mainAxisSpacing: 24,
+                        childAspectRatio: childAspectRatio,
+                      ),
+                      itemCount: _filteredVagas.length,
+                      itemBuilder: (context, index) {
+                        final vaga = _filteredVagas[index];
+                        return _buildVagaCard(vaga);
+                      },
+                    );
+                  },
                 ),
-              ),
             ],
           ),
-          const SizedBox(height: 24),
+        );
+      },
+    );
+  }
 
-          // Filters
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      decoration: InputDecoration(
-                        hintText: 'Buscar vagas...',
-                        prefixIcon: const Icon(Icons.search, color: Color(0xFF9CA3AF)),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      ),
-                      onChanged: (value) => setState(() => _searchTerm = value),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  SizedBox(
-                    width: 200,
-                    child: DropdownButtonFormField<String>(
-                      value: _filterStatus,
-                      decoration: InputDecoration(
-                        prefixIcon: const Icon(Icons.filter_list, size: 20),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      ),
-                      items: const [
-                        DropdownMenuItem(value: 'all', child: Text('Todos os Status')),
-                        DropdownMenuItem(value: 'Aberta', child: Text('Aberta')),
-                        DropdownMenuItem(value: 'Pausada', child: Text('Pausada')),
-                        DropdownMenuItem(value: 'Fechada', child: Text('Fechada')),
-                      ],
-                      onChanged: (value) => setState(() => _filterStatus = value!),
-                    ),
-                  ),
-                ],
+  Widget _buildHeader(bool isCompact) {
+    final headerContent = <Widget>[
+      const Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Vagas',
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF111827),
+              ),
+            ),
+            SizedBox(height: 4),
+            Text(
+              'Gerencie as vagas abertas e seu pipeline',
+              style: TextStyle(fontSize: 16, color: Color(0xFF6B7280)),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(width: 16),
+      ElevatedButton.icon(
+        onPressed: () => _openDialog(),
+        icon: const Icon(Icons.add),
+        label: const Text('Nova Vaga'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF2563EB),
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        ),
+      ),
+    ];
+
+    if (isCompact) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Vagas',
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF111827),
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Gerencie as vagas abertas e seu pipeline',
+            style: TextStyle(fontSize: 16, color: Color(0xFF6B7280)),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _openDialog(),
+              icon: const Icon(Icons.add),
+              label: const Text('Nova Vaga'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               ),
             ),
           ),
-          const SizedBox(height: 24),
-
-          // Vagas Grid
-          if (_filteredVagas.isEmpty)
-            _buildEmptyState()
-          else
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 24,
-                mainAxisSpacing: 24,
-                childAspectRatio: 1.3,
-              ),
-              itemCount: _filteredVagas.length,
-              itemBuilder: (context, index) {
-                final vaga = _filteredVagas[index];
-                return _buildVagaCard(vaga);
-              },
-            ),
         ],
+      );
+    }
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: headerContent,
+    );
+  }
+
+  Widget _buildFilters(bool isCompact) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: isCompact
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildSearchField(),
+                  const SizedBox(height: 16),
+                  _buildStatusDropdown(),
+                ],
+              )
+            : Row(
+                children: [
+                  Expanded(child: _buildSearchField()),
+                  const SizedBox(width: 16),
+                  SizedBox(width: 220, child: _buildStatusDropdown()),
+                ],
+              ),
       ),
+    );
+  }
+
+  Widget _buildSearchField() {
+    return TextField(
+      decoration: InputDecoration(
+        hintText: 'Buscar vagas...',
+        prefixIcon: const Icon(Icons.search, color: Color(0xFF9CA3AF)),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      onChanged: (value) => setState(() => _searchTerm = value),
+    );
+  }
+
+  Widget _buildStatusDropdown() {
+    return DropdownButtonFormField<String>(
+      value: _filterStatus,
+      decoration: InputDecoration(
+        prefixIcon: const Icon(Icons.filter_list, size: 20),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      items: const [
+        DropdownMenuItem(value: 'all', child: Text('Todos os Status')),
+        DropdownMenuItem(value: 'Aberta', child: Text('Aberta')),
+        DropdownMenuItem(value: 'Pausada', child: Text('Pausada')),
+        DropdownMenuItem(value: 'Fechada', child: Text('Fechada')),
+      ],
+      onChanged: (value) => setState(() => _filterStatus = value ?? 'all'),
     );
   }
 
