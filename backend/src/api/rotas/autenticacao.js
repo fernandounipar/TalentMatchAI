@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../../config/database');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { validaDocumento, normalizaDocumento } = require('../../servicos/documento');
 
 // Registrar novo usuário (cria empresa se informado CPF/CNPJ)
 router.post('/registrar', async (req, res) => {
@@ -12,19 +13,27 @@ router.post('/registrar', async (req, res) => {
 
     let companyId = null;
     if (company && company.documento && company.tipo) {
+      const tipo = String(company.tipo).toUpperCase();
+      const documento = normalizaDocumento(company.documento);
+      if (!['CPF', 'CNPJ'].includes(tipo)) {
+        return res.status(400).json({ erro: 'Tipo de documento inválido (CPF ou CNPJ)' });
+      }
+      if (!validaDocumento(tipo, documento)) {
+        return res.status(400).json({ erro: 'Documento inválido' });
+      }
       const up = await db.query(
         `INSERT INTO companies (tipo, documento, nome)
          VALUES ($1,$2,$3)
          ON CONFLICT (documento) DO UPDATE SET tipo=EXCLUDED.tipo, nome=EXCLUDED.nome
-         RETURNING id`, [company.tipo, String(company.documento), company.nome || null]
+         RETURNING id`, [tipo, documento, company.nome || null]
       );
       companyId = up.rows[0].id;
     }
 
     const hash = await bcrypt.hash(senha, 10);
     const result = await db.query(
-      'INSERT INTO usuarios (nome, email, senha_hash, aceitou_lgpd, perfil, company_id) VALUES ($1,$2,$3,$4,$5,COALESCE($6, (SELECT id FROM companies WHERE documento=$7 LIMIT 1))) RETURNING id,nome,email,perfil,company_id',
-      [nome, email.toLowerCase(), hash, !!aceitouLGPD, 'RECRUTADOR', companyId, '00000000000000']
+      'INSERT INTO usuarios (nome, email, senha_hash, aceitou_lgpd, perfil, company_id, is_active) VALUES ($1,$2,$3,$4,$5,COALESCE($6, (SELECT id FROM companies WHERE documento=$7 LIMIT 1)),$8) RETURNING id,nome,email,perfil,company_id',
+      [nome, email.toLowerCase(), hash, !!aceitouLGPD, 'USER', companyId, '00000000000000', true]
     );
     const usuario = result.rows[0];
     const token = jwt.sign({ id: usuario.id, email: usuario.email, perfil: usuario.perfil, companyId: usuario.company_id }, process.env.JWT_SECRET || 'dev', { expiresIn: '8h' });

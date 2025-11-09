@@ -6,7 +6,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
   nome TEXT NOT NULL,
   email TEXT UNIQUE NOT NULL,
   senha_hash TEXT NOT NULL,
-  perfil TEXT NOT NULL DEFAULT 'RECRUTADOR',
+  perfil TEXT NOT NULL DEFAULT 'USER',
+  is_active BOOLEAN NOT NULL DEFAULT true,
   aceitou_lgpd BOOLEAN NOT NULL DEFAULT false,
   criado_em TIMESTAMP NOT NULL DEFAULT now()
 );

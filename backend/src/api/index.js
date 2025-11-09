@@ -10,6 +10,7 @@ const rotasEntrevistas = require('./rotas/entrevistas');
 const rotasDashboard = require('./rotas/dashboard');
 const rotasCandidatos = require('./rotas/candidatos');
 const rotasHistorico = require('./rotas/historico');
+const rotasCompanies = require('./rotas/companies');
 
 // Montar rotas
 router.use('/usuarios', rotasUsuarios);
@@ -20,5 +21,6 @@ router.use('/entrevistas', rotasEntrevistas);
 router.use('/dashboard', rotasDashboard);
 router.use('/candidatos', rotasCandidatos);
 router.use('/historico', rotasHistorico);
+router.use('/companies', rotasCompanies);
 
 module.exports = router;
