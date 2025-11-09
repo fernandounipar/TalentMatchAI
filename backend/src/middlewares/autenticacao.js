@@ -13,8 +13,6 @@ function exigirAutenticacao(req, res, next) {
   }
 }
 
-module.exports = { exigirAutenticacao };
-
 function exigirAdmin(req, res, next) {
   try {
     const perfil = req.usuario?.perfil || '';
@@ -25,4 +23,16 @@ function exigirAdmin(req, res, next) {
   }
 }
 
-module.exports = { exigirAutenticacao, exigirAdmin };
+function exigirRole(...roles) {
+  return (req, res, next) => {
+    try {
+      const role = req.usuario?.perfil || '';
+      if (!roles.includes(role)) return res.status(403).json({ erro: 'Permissão insuficiente' });
+      return next();
+    } catch (_) {
+      return res.status(403).json({ erro: 'Permissão insuficiente' });
+    }
+  };
+}
+
+module.exports = { exigirAutenticacao, exigirAdmin, exigirRole };

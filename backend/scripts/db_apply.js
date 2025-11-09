@@ -29,12 +29,17 @@ async function main() {
       const full = path.join(sqlDir, file);
       const sql = fs.readFileSync(full, 'utf8');
       console.log(`\n--- Executando ${file} ---`);
-      await client.query(sql);
+      try {
+        await client.query(sql);
+      } catch (e) {
+        e.message = `Erro em ${file}: ${e.message}`;
+        throw e;
+      }
       console.log(`OK: ${file}`);
     }
+    console.log('\nMigrações aplicadas com sucesso.');
   } finally {
     await client.end();
-    console.log('\nMigrações aplicadas com sucesso.');
   }
 }
 
