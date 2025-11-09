@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../modelos/candidato.dart';
 import '../servicos/api_cliente.dart';
 import '../servicos/dados_mockados.dart';
+import '../componentes/tm_chip.dart';
+import '../componentes/tm_button.dart';
+import '../design_system/tm_tokens.dart';
 
 class CandidatosTela extends StatefulWidget {
   final ApiCliente api;
@@ -19,6 +22,7 @@ class _CandidatosTelaState extends State<CandidatosTela> {
   String _searchTerm = '';
   String _filterStatus = 'all';
   String _filterVaga = 'all';
+  final Set<int> _hoveredCards = <int>{};
 
   @override
   void initState() {
@@ -64,40 +68,6 @@ class _CandidatosTelaState extends State<CandidatosTela> {
   String _avatarUrl(String nome) {
     final encoded = Uri.encodeComponent(nome);
     return 'https://api.dicebear.com/7.x/avataaars/svg?seed=$encoded';
-  }
-
-  Color _statusTextColor(String status) {
-    switch (status) {
-      case 'Novo':
-        return const Color(0xFF1D4ED8);
-      case 'Em Análise':
-        return const Color(0xFFB45309);
-      case 'Entrevista Agendada':
-        return const Color(0xFF6D28D9);
-      case 'Aprovado':
-        return const Color(0xFF047857);
-      case 'Reprovado':
-        return const Color(0xFFB91C1C);
-      default:
-        return const Color(0xFF4B5563);
-    }
-  }
-
-  Color _statusBackgroundColor(String status) {
-    switch (status) {
-      case 'Novo':
-        return const Color(0xFFE0F2FE);
-      case 'Em Análise':
-        return const Color(0xFFFEF3C7);
-      case 'Entrevista Agendada':
-        return const Color(0xFFEDE9FE);
-      case 'Aprovado':
-        return const Color(0xFFD1FAE5);
-      case 'Reprovado':
-        return const Color(0xFFFEE2E2);
-      default:
-        return const Color(0xFFE5E7EB);
-    }
   }
 
   Color _matchingScoreColor(int? score) {
@@ -345,28 +315,9 @@ class _CandidatosTelaState extends State<CandidatosTela> {
                   const SizedBox(height: 24),
                   Row(
                     children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {},
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            backgroundColor: const Color(0xFF2563EB),
-                            foregroundColor: Colors.white,
-                          ),
-                          child: const Text('Agendar Entrevista'),
-                        ),
-                      ),
+                      Expanded(child: TMButton('Agendar Entrevista', onPressed: () {})),
                       const SizedBox(width: 12),
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () {},
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            side: const BorderSide(color: Color(0xFFD1D5DB)),
-                          ),
-                          child: const Text('Ver Currículo'),
-                        ),
-                      ),
+                      Expanded(child: TMButton('Ver Currículo', variant: TMButtonVariant.secondary, onPressed: () {})),
                     ],
                   ),
                 ],
@@ -379,23 +330,7 @@ class _CandidatosTelaState extends State<CandidatosTela> {
     if (!mounted) return;
   }
 
-  Widget _buildStatusBadge(String status) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: _statusBackgroundColor(status),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        status,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: _statusTextColor(status),
-        ),
-      ),
-    );
-  }
+  Widget _buildStatusBadge(String status) => TMChip.candidateStatus(status);
 
   Widget _buildDialogSection({required IconData icon, required String titulo, required Widget child}) {
     return Column(
@@ -517,7 +452,7 @@ class _CandidatosTelaState extends State<CandidatosTela> {
                         itemCount: _filteredCandidatos.length,
                         itemBuilder: (context, index) {
                           final candidato = _filteredCandidatos[index];
-                          return _buildCandidatoCard(candidato);
+                          return _buildCandidatoCard(candidato, index);
                         },
                       );
                     },
@@ -632,12 +567,16 @@ class _CandidatosTelaState extends State<CandidatosTela> {
     );
   }
 
-  Widget _buildCandidatoCard(Candidato candidato) {
+  Widget _buildCandidatoCard(Candidato candidato, int index) {
     final status = candidato.status ?? 'Novo';
     final skills = candidato.skills ?? const [];
 
-    return Card(
-      elevation: 0,
+    final isHovered = _hoveredCards.contains(index);
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hoveredCards.add(index)),
+      onExit: (_) => setState(() => _hoveredCards.remove(index)),
+      child: Card(
+      elevation: isHovered ? 8 : 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
@@ -679,7 +618,7 @@ class _CandidatosTelaState extends State<CandidatosTela> {
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF111827),
+                            color: TMTokens.text,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -687,7 +626,7 @@ class _CandidatosTelaState extends State<CandidatosTela> {
                         const SizedBox(height: 4),
                         Text(
                           candidato.email,
-                          style: const TextStyle(color: Color(0xFF6B7280), fontSize: 13),
+                          style: const TextStyle(color: TMTokens.textMuted, fontSize: 13),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -702,7 +641,7 @@ class _CandidatosTelaState extends State<CandidatosTela> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Matching Score', style: TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
+                    const Text('Matching Score', style: TextStyle(fontSize: 13, color: TMTokens.textMuted)),
                     Text(
                       '${candidato.matchingScore}%',
                       style: TextStyle(
@@ -719,7 +658,7 @@ class _CandidatosTelaState extends State<CandidatosTela> {
                   child: LinearProgressIndicator(
                     minHeight: 6,
                     value: (candidato.matchingScore ?? 0) / 100,
-                    backgroundColor: const Color(0xFFE5E7EB),
+                    backgroundColor: TMTokens.border,
                     color: _matchingScoreColor(candidato.matchingScore),
                   ),
                 ),
@@ -728,12 +667,12 @@ class _CandidatosTelaState extends State<CandidatosTela> {
               if (candidato.vagaId != null) ...[
                 Row(
                   children: [
-                    const Icon(Icons.work_outline, size: 16, color: Color(0xFF6B7280)),
+                    const Icon(Icons.work_outline, size: 16, color: TMTokens.textMuted),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         _getVagaTitulo(candidato.vagaId),
-                        style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                        style: const TextStyle(fontSize: 13, color: TMTokens.textMuted),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -745,12 +684,12 @@ class _CandidatosTelaState extends State<CandidatosTela> {
               if (candidato.telefone != null && candidato.telefone!.isNotEmpty) ...[
                 Row(
                   children: [
-                    const Icon(Icons.phone_in_talk_outlined, size: 16, color: Color(0xFF6B7280)),
+                    const Icon(Icons.phone_in_talk_outlined, size: 16, color: TMTokens.textMuted),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         candidato.telefone!,
-                        style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                        style: const TextStyle(fontSize: 13, color: TMTokens.textMuted),
                       ),
                     ),
                   ],
@@ -769,7 +708,7 @@ class _CandidatosTelaState extends State<CandidatosTela> {
                               borderRadius: BorderRadius.circular(999),
                               border: Border.all(color: const Color(0xFFD1D5DB)),
                             ),
-                            child: Text(skill, style: const TextStyle(fontSize: 12, color: Color(0xFF4B5563))),
+                            child: Text(skill, style: const TextStyle(fontSize: 12, color: TMTokens.text)),
                           ),
                         ),
                     if (skills.length > 3)
@@ -779,7 +718,7 @@ class _CandidatosTelaState extends State<CandidatosTela> {
                           borderRadius: BorderRadius.circular(999),
                           border: Border.all(color: const Color(0xFFD1D5DB)),
                         ),
-                        child: Text('+${skills.length - 3}', style: const TextStyle(fontSize: 12, color: Color(0xFF4B5563))),
+                        child: Text('+${skills.length - 3}', style: const TextStyle(fontSize: 12, color: TMTokens.text)),
                       ),
                   ],
                 ),
@@ -787,6 +726,7 @@ class _CandidatosTelaState extends State<CandidatosTela> {
           ),
         ),
       ),
+    ),
     );
   }
 

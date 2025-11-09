@@ -7,11 +7,15 @@ import 'telas/candidatos_tela.dart';
 import 'telas/upload_curriculo_tela.dart';
 import 'telas/analise_curriculo_tela.dart';
 import 'telas/entrevista_assistida_tela.dart';
+import 'telas/entrevistas_tela.dart';
 import 'telas/relatorio_final_tela.dart';
+import 'telas/relatorios_tela.dart';
 import 'telas/usuarios_admin_tela.dart';
 import 'telas/historico_tela.dart';
 import 'telas/configuracoes_tela.dart';
 import 'servicos/api_cliente.dart';
+import 'design_system/tm_theme.dart';
+import 'componentes/tm_app_shell.dart';
 
 void main() => runApp(const TalentMatchIA());
 
@@ -25,7 +29,9 @@ enum RouteKey {
   candidatos,
   upload,
   analise,
+  entrevistas,
   entrevista,
+  relatorios,
   relatorio,
   historico,
   config,
@@ -81,68 +87,107 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
     });
   }
 
+  String _sectionFromRoute(RouteKey r) {
+    switch (r) {
+      case RouteKey.dashboard:
+        return 'dashboard';
+      case RouteKey.vagas:
+        return 'vagas';
+      case RouteKey.candidatos:
+        return 'candidatos';
+      case RouteKey.upload:
+        return 'upload';
+      case RouteKey.entrevistas:
+        return 'entrevistas';
+      case RouteKey.historico:
+        return 'historico';
+      case RouteKey.config:
+        return 'configuracoes';
+      case RouteKey.usuarios:
+        return 'configuracoes';
+      case RouteKey.entrevista:
+        return 'entrevistas';
+      case RouteKey.relatorios:
+        return 'relatorios';
+      case RouteKey.relatorio:
+        return 'relatorios';
+      case RouteKey.novaVaga:
+        return 'vagas';
+      case RouteKey.landing:
+      case RouteKey.login:
+      case RouteKey.analise:
+        return 'dashboard';
+    }
+  }
+
+  RouteKey _routeFromSection(String s) {
+    switch (s) {
+      case 'dashboard':
+        return RouteKey.dashboard;
+      case 'vagas':
+        return RouteKey.vagas;
+      case 'candidatos':
+        return RouteKey.candidatos;
+      case 'upload':
+        return RouteKey.upload;
+      case 'entrevistas':
+        return RouteKey.entrevistas;
+      case 'relatorios':
+        return RouteKey.relatorios;
+      case 'historico':
+        return RouteKey.historico;
+      case 'configuracoes':
+        return RouteKey.config;
+      default:
+        return RouteKey.dashboard;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'TalentMatchIA',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF4F46E5)),
-        useMaterial3: true,
-      ),
+      theme: TMTheme.light(),
+      darkTheme: TMTheme.dark(),
+      themeMode: ThemeMode.light,
       debugShowCheckedModeBanner: false,
-      home: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFF0F3FF), Colors.white],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        child: auth['logged'] == true
-            ? AppShell(
-                onNavigate: go,
-                route: route,
-                name: auth['name'] ?? 'Recrutadora',
-                onLogout: () {
-                  setState(() {
-                    auth = {'logged': false, 'name': null};
-                    route = RouteKey.landing;
-                  });
-                },
-                child: _buildContent(),
-              )
-            : route == RouteKey.landing
-                ? LandingTela(
-                    onLogin: () => go(RouteKey.login),
-                    onDemo: () => go(RouteKey.login),
-                  )
-                : LoginTela(
-                    onVoltar: () => go(RouteKey.landing),
-                    onSubmit: (email, senha) async {
-                      try {
-                        final r = await api.entrar(email: email, senha: senha);
-                        setState(() {
-                          auth = {
-                            'logged': true,
-                            'name': r['usuario']?['nome'] ?? email.split('@')[0],
-                          };
-                          perfil = r['usuario']?['perfil'];
-                          route = RouteKey.dashboard;
-                        });
-                      } catch (e) {
-                        // fallback mock
-                        setState(() {
-                          auth = {
-                            'logged': true,
-                            'name': email.split('@')[0],
-                          };
-                          perfil = 'ADMIN';
-                          route = RouteKey.dashboard;
-                        });
-                      }
-                    },
-                  ),
-      ),
+      home: auth['logged'] == true
+          ? TMAppShell(
+              activeSection: _sectionFromRoute(route),
+              onSectionChange: (s) => go(_routeFromSection(s)),
+              child: _buildContent(),
+            )
+          : route == RouteKey.landing
+              ? LandingTela(
+                  onLogin: () => go(RouteKey.login),
+                  onDemo: () => go(RouteKey.login),
+                )
+              : LoginTela(
+                  onVoltar: () => go(RouteKey.landing),
+                  onSubmit: (email, senha) async {
+                    try {
+                      final r = await api.entrar(email: email, senha: senha);
+                      setState(() {
+                        auth = {
+                          'logged': true,
+                          'name': r['usuario']?['nome'] ?? email.split('@')[0],
+                        };
+                        perfil = r['usuario']?['perfil'];
+                        route = RouteKey.dashboard;
+                      });
+                    } catch (e) {
+                      // fallback mock
+                      setState(() {
+                        auth = {
+                          'logged': true,
+                          'name': email.split('@')[0],
+                        };
+                        perfil = 'ADMIN';
+                        route = RouteKey.dashboard;
+                      });
+                    }
+                  },
+                ),
     );
   }
 
@@ -176,6 +221,38 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
             });
           },
           onBack: () => go(RouteKey.dashboard),
+        );
+      case RouteKey.relatorios:
+        return RelatoriosTela(
+          api: api,
+          onAbrirRelatorio: (candidato, vaga) {
+            setState(() {
+              ctx['candidato'] = candidato;
+              ctx['vagaSelecionada'] = vaga;
+              relatorioFinal = null;
+              route = RouteKey.relatorio;
+            });
+          },
+        );
+      case RouteKey.entrevistas:
+        return EntrevistasTela(
+          api: api,
+          onAbrirAssistida: (candidato, vaga) {
+            setState(() {
+              ctx['candidato'] = candidato;
+              ctx['vagaSelecionada'] = vaga;
+              entrevistaId = entrevistaId ?? 'ent-1';
+              route = RouteKey.entrevista;
+            });
+          },
+          onAbrirRelatorio: (candidato, vaga) {
+            setState(() {
+              ctx['candidato'] = candidato;
+              ctx['vagaSelecionada'] = vaga;
+              relatorioFinal = null;
+              route = RouteKey.relatorio;
+            });
+          },
         );
       case RouteKey.analise:
         return AnaliseCurriculoTela(
@@ -607,10 +684,7 @@ class AppShell extends StatelessWidget {
                 ),
                 // Main content
                 Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: child,
-                  ),
+                  child: child,
                 ),
               ],
             ),

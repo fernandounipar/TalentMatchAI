@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../servicos/dados_mockados.dart';
 import '../modelos/vaga.dart';
+import '../componentes/tm_button.dart';
+import '../componentes/tm_chip.dart';
+import '../design_system/tm_tokens.dart';
 
 /// Tela de Gerenciamento de Vagas
 class VagasTela extends StatefulWidget {
@@ -15,6 +18,7 @@ class _VagasTelaState extends State<VagasTela> {
   String _searchTerm = '';
   String _filterStatus = 'all';
   bool _carregando = true;
+  final Set<int> _hoveredCards = <int>{};
 
   // Form fields
   final _formKey = GlobalKey<FormState>();
@@ -171,31 +175,7 @@ class _VagasTelaState extends State<VagasTela> {
     );
   }
 
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'Aberta':
-        return Colors.green;
-      case 'Pausada':
-        return Colors.orange;
-      case 'Fechada':
-        return Colors.grey;
-      default:
-        return Colors.blue;
-    }
-  }
-
-  Color _getStatusBgColor(String status) {
-    switch (status) {
-      case 'Aberta':
-        return Colors.green.shade50;
-      case 'Pausada':
-        return Colors.orange.shade50;
-      case 'Fechada':
-        return Colors.grey.shade50;
-      default:
-        return Colors.blue.shade50;
-    }
-  }
+  // Status cores migradas para TMChip.jobStatus (ver TMTokens/TMStatusColors)
 
   @override
   Widget build(BuildContext context) {
@@ -222,16 +202,8 @@ class _VagasTelaState extends State<VagasTela> {
                 LayoutBuilder(
                   builder: (context, gridConstraints) {
                     final width = gridConstraints.maxWidth;
-                    final crossAxisCount = width >= 1280
-                        ? 3
-                        : width >= 900
-                            ? 2
-                            : 1;
-                    final childAspectRatio = width >= 1280
-                        ? 1.35
-                        : width >= 900
-                            ? 1.25
-                            : 1.05;
+                    final crossAxisCount = width >= 1024 ? 2 : 1;
+                    final childAspectRatio = width >= 1024 ? 1.2 : 1.05;
 
                     return GridView.builder(
                       shrinkWrap: true,
@@ -245,7 +217,7 @@ class _VagasTelaState extends State<VagasTela> {
                       itemCount: _filteredVagas.length,
                       itemBuilder: (context, index) {
                         final vaga = _filteredVagas[index];
-                        return _buildVagaCard(vaga);
+                        return _buildVagaCard(vaga, index);
                       },
                     );
                   },
@@ -280,16 +252,7 @@ class _VagasTelaState extends State<VagasTela> {
         ),
       ),
       const SizedBox(width: 16),
-      ElevatedButton.icon(
-        onPressed: () => _openDialog(),
-        icon: const Icon(Icons.add),
-        label: const Text('Nova Vaga'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF2563EB),
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        ),
-      ),
+      TMButton('Nova Vaga', icon: Icons.add, onPressed: () => _openDialog()),
     ];
 
     if (isCompact) {
@@ -310,19 +273,7 @@ class _VagasTelaState extends State<VagasTela> {
             style: TextStyle(fontSize: 16, color: Color(0xFF6B7280)),
           ),
           const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => _openDialog(),
-              icon: const Icon(Icons.add),
-              label: const Text('Nova Vaga'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              ),
-            ),
-          ),
+          TMButton('Nova Vaga', icon: Icons.add, onPressed: () => _openDialog()),
         ],
       );
     }
@@ -408,18 +359,22 @@ class _VagasTelaState extends State<VagasTela> {
     );
   }
 
-  Widget _buildVagaCard(Vaga vaga) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        onTap: () => _openDialog(vaga),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+  Widget _buildVagaCard(Vaga vaga, int index) {
+    final isHovered = _hoveredCards.contains(index);
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hoveredCards.add(index)),
+      onExit: (_) => setState(() => _hoveredCards.remove(index)),
+      child: Card(
+        elevation: isHovered ? 8 : 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: InkWell(
+          onTap: () => _openDialog(vaga),
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               // Header
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -433,7 +388,7 @@ class _VagasTelaState extends State<VagasTela> {
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF111827),
+                            color: TMTokens.text,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -466,21 +421,7 @@ class _VagasTelaState extends State<VagasTela> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: _getStatusBgColor(vaga.status),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      vaga.status,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: _getStatusColor(vaga.status),
-                      ),
-                    ),
-                  ),
+                  TMChip.jobStatus(vaga.status),
                 ],
               ),
               const SizedBox(height: 12),
@@ -488,7 +429,7 @@ class _VagasTelaState extends State<VagasTela> {
               // Description
               Text(
                 vaga.descricao,
-                style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+                style: const TextStyle(fontSize: 14, color: TMTokens.textMuted),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -498,11 +439,11 @@ class _VagasTelaState extends State<VagasTela> {
               if (vaga.salario != null && vaga.salario!.isNotEmpty) ...[
                 Row(
                   children: [
-                    const Icon(Icons.attach_money, size: 16, color: Color(0xFF374151)),
+                    const Icon(Icons.attach_money, size: 16, color: TMTokens.text),
                     const SizedBox(width: 4),
                     Text(
                       vaga.salario!,
-                      style: const TextStyle(fontSize: 14, color: Color(0xFF374151)),
+                      style: const TextStyle(fontSize: 14, color: TMTokens.text),
                     ),
                   ],
                 ),
@@ -522,7 +463,7 @@ class _VagasTelaState extends State<VagasTela> {
                         ),
                         child: Text(
                           tag,
-                          style: const TextStyle(fontSize: 12, color: Color(0xFF374151)),
+                          style: const TextStyle(fontSize: 12, color: TMTokens.text),
                         ),
                       ))),
                   if ((vaga.tags ?? []).length > 4)
@@ -534,7 +475,7 @@ class _VagasTelaState extends State<VagasTela> {
                       ),
                       child: Text(
                         '+${(vaga.tags ?? []).length - 4}',
-                        style: const TextStyle(fontSize: 12, color: Color(0xFF374151)),
+                        style: const TextStyle(fontSize: 12, color: TMTokens.text),
                       ),
                     ),
                 ],
@@ -552,11 +493,11 @@ class _VagasTelaState extends State<VagasTela> {
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.people_outline, size: 16, color: Color(0xFF6B7280)),
+                        const Icon(Icons.people_outline, size: 16, color: TMTokens.textMuted),
                         const SizedBox(width: 4),
                         Text(
                           '${vaga.candidatos ?? 0} candidatos',
-                          style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+                          style: const TextStyle(fontSize: 14, color: TMTokens.textMuted),
                         ),
                       ],
                     ),
@@ -585,6 +526,7 @@ class _VagasTelaState extends State<VagasTela> {
             ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -615,16 +557,7 @@ class _VagasTelaState extends State<VagasTela> {
               ),
               if (_searchTerm.isEmpty && _filterStatus == 'all') ...[
                 const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: () => _openDialog(),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Nova Vaga'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2563EB),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  ),
-                ),
+                TMButton('Nova Vaga', icon: Icons.add, onPressed: () => _openDialog()),
               ],
             ],
           ),
@@ -819,19 +752,9 @@ class _VagasTelaState extends State<VagasTela> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  OutlinedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Cancelar'),
-                  ),
+                  TMButton('Cancelar', variant: TMButtonVariant.secondary, onPressed: () => Navigator.of(context).pop()),
                   const SizedBox(width: 12),
-                  ElevatedButton(
-                    onPressed: _handleSave,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2563EB),
-                      foregroundColor: Colors.white,
-                    ),
-                    child: Text(_editingVaga != null ? 'Salvar Alterações' : 'Criar Vaga'),
-                  ),
+                  TMButton(_editingVaga != null ? 'Salvar Alterações' : 'Criar Vaga', onPressed: _handleSave),
                 ],
               ),
             ),

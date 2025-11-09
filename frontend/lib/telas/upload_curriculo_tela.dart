@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../modelos/analise_curriculo.dart';
 import '../servicos/api_cliente.dart';
+import '../componentes/tm_upload.dart';
+import '../componentes/tm_button.dart';
 import '../servicos/dados_mockados.dart';
 
 enum UploadStatus { idle, uploading, parsing, analyzing, complete, error }
@@ -53,8 +55,14 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
     try {
       final lista = await widget.api.vagas();
       if (mounted) {
+        // Filtrar apenas vagas abertas
+        final vagasAbertas = lista.where((vaga) {
+          final status = vaga['status']?.toString() ?? '';
+          return status == 'Aberta';
+        }).toList();
+        
         setState(() {
-          _vagas = List<Map<String, dynamic>>.from(lista);
+          _vagas = List<Map<String, dynamic>>.from(vagasAbertas);
           if (_vagas.isNotEmpty) {
             _vagaSelecionadaId = _vagas.first['id']?.toString();
           }
@@ -186,15 +194,30 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
   Color _getRecomendacaoColor(String recomendacao) {
     switch (recomendacao) {
       case 'Forte Recomendação':
-        return Colors.green;
+        return Colors.green.shade800;
       case 'Recomendado':
-        return Colors.blue;
+        return Colors.blue.shade800;
       case 'Considerar':
-        return Colors.orange;
+        return Colors.yellow.shade800;
       case 'Não Recomendado':
-        return Colors.red;
+        return Colors.red.shade800;
       default:
-        return Colors.grey;
+        return Colors.grey.shade800;
+    }
+  }
+
+  Color _getRecomendacaoBgColor(String recomendacao) {
+    switch (recomendacao) {
+      case 'Forte Recomendação':
+        return Colors.green.shade100;
+      case 'Recomendado':
+        return Colors.blue.shade100;
+      case 'Considerar':
+        return Colors.yellow.shade100;
+      case 'Não Recomendado':
+        return Colors.red.shade100;
+      default:
+        return Colors.grey.shade100;
     }
   }
 
@@ -318,7 +341,7 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
-                    color: _getRecomendacaoColor(recomendacao).withOpacity(0.1),
+                    color: _getRecomendacaoBgColor(recomendacao),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -598,12 +621,16 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: () {},
-                  icon: const Icon(Icons.calendar_today),
+                  icon: const Icon(Icons.calendar_today, size: 18),
                   label: const Text('Agendar Entrevista'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2563EB),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                 ),
               ),
@@ -611,10 +638,14 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () {},
-                  icon: const Icon(Icons.check_circle_outline),
+                  icon: const Icon(Icons.check_circle_outline, size: 18),
                   label: const Text('Aprovar Candidato'),
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                 ),
               ),
@@ -622,10 +653,14 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () {},
-                  icon: const Icon(Icons.cancel_outlined),
+                  icon: const Icon(Icons.cancel_outlined, size: 18),
                   label: const Text('Reprovar'),
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                 ),
               ),
@@ -638,182 +673,230 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
 
   Widget _buildFormularioUpload() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          const Column(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+      child: Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 1280), // max-w-7xl
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Upload de Currículo',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF111827),
-                ),
-              ),
-              SizedBox(height: 4),
-              Text(
-                'Envie currículos para análise automática por IA',
-                style: TextStyle(fontSize: 16, color: Color(0xFF6B7280)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          // Seleção de Vaga
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
+              // Header
+              const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Selecionar Vaga',
+                  Text(
+                    'Upload de Currículo',
                     style: TextStyle(
-                      fontSize: 20,
+                      fontSize: 28,
                       fontWeight: FontWeight.bold,
+                      color: Color(0xFF111827),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Escolha a vaga para qual está recrutando',
-                    style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    value: _vagaSelecionadaId,
-                    decoration: InputDecoration(
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                    ),
-                    hint: const Text('Selecione uma vaga...'),
-                    items: _vagas.map((vaga) {
-                      final candidatos = vaga['candidatos'] ?? 0;
-                      return DropdownMenuItem<String>(
-                        value: vaga['id']?.toString(),
-                        child: Text(
-                          '${vaga['titulo']} ($candidatos candidatos)',
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setState(() => _vagaSelecionadaId = value);
-                    },
+                  SizedBox(height: 4),
+                  Text(
+                    'Envie currículos para análise automática por IA',
+                    style: TextStyle(fontSize: 16, color: Color(0xFF6B7280)),
                   ),
                 ],
               ),
-            ),
-          ),
-          const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-          // Área de Upload (Drag and Drop)
-          Card(
-            child: MouseRegion(
-              onEnter: (_) => _setDragActive(true),
-              onExit: (_) => _setDragActive(false),
-              child: InkWell(
-                onTap: _uploadStatus == UploadStatus.idle
-                    ? _selecionarArquivo
-                    : null,
-                onHover: (hovering) => _setDragActive(hovering),
-                child: Container(
-                  padding: const EdgeInsets.all(48),
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: _dragActive
-                          ? const Color(0xFF2563EB)
-                          : const Color(0xFFD1D5DB),
-                      width: 2,
-                      style: BorderStyle.solid,
+              // Seleção de Vaga
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: const BorderSide(color: Color(0xFFE5E7EB)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Card Header
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                      child: const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Selecionar Vaga',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF111827),
+                              height: 1,
+                            ),
+                          ),
+                          SizedBox(height: 6),
+                          Text(
+                            'Escolha a vaga para qual está recrutando',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF6B7280),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    borderRadius: BorderRadius.circular(12),
-                    color: _dragActive
-                        ? const Color(0xFFEFF6FF)
-                        : Colors.transparent,
-                  ),
-                  child: _arquivo != null
-                      ? _buildArquivoSelecionado()
-                      : _buildAreaUpload(),
+                    // Card Content
+                    Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: DropdownButtonFormField<String>(
+                        value: _vagaSelecionadaId,
+                        decoration: InputDecoration(
+                          hintText: 'Selecione uma vaga...',
+                          hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(6),
+                            borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(6),
+                            borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(6),
+                            borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 1.5),
+                          ),
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                        ),
+                        items: _vagas.isEmpty
+                            ? null
+                            : _vagas.map((vaga) {
+                                final candidatos = vaga['candidatos'] ?? 0;
+                                return DropdownMenuItem<String>(
+                                  value: vaga['id']?.toString(),
+                                  child: Text(
+                                    '${vaga['titulo']} ($candidatos candidatos)',
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
+                                );
+                              }).toList(),
+                        onChanged: (value) {
+                          setState(() => _vagaSelecionadaId = value);
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-          ),
-          const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-          // Progresso do Upload
-          if (_uploadStatus != UploadStatus.idle &&
-              _uploadStatus != UploadStatus.complete)
-            _buildProgressoUpload(),
-
-          if (_uploadStatus != UploadStatus.idle &&
-              _uploadStatus != UploadStatus.complete)
-            const SizedBox(height: 24),
-
-          // Informações
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFFEFF6FF),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.info_outline, color: Color(0xFF2563EB)),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Como funciona:',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
+              // Área de Upload (Drag and Drop)
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: const BorderSide(color: Color(0xFFE5E7EB)),
+                ),
+                child: Padding(
+                  padding: EdgeInsets.zero,
+                  child: Opacity(
+                    opacity: _uploadStatus != UploadStatus.idle ? 0.5 : 1.0,
+                    child: MouseRegion(
+                      onEnter: (_) => _setDragActive(true),
+                      onExit: (_) => _setDragActive(false),
+                      child: InkWell(
+                        onTap: _uploadStatus == UploadStatus.idle ? _selecionarArquivo : null,
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: _arquivo != null
+                              ? _buildArquivoSelecionado()
+                              : TMUploadArea(
+                                  dragActive: _dragActive,
+                                  onPick: _selecionarArquivo,
+                                  helper: 'PDF, DOCX, TXT (máx. 10MB)',
+                                ),
                         ),
                       ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Após o upload, nossa IA irá extrair as informações do currículo, analisar a experiência, habilidades e formação do candidato, e calcular um score de compatibilidade com os requisitos da vaga selecionada. O processo leva cerca de 10 segundos.',
-                        style: TextStyle(fontSize: 14, height: 1.5),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Botão de Ação
-          Align(
-            alignment: Alignment.centerRight,
-            child: ElevatedButton.icon(
-              onPressed: _arquivo != null &&
-                      _vagaSelecionadaId != null &&
-                      _uploadStatus == UploadStatus.idle
-                  ? _simularUploadEAnalise
-                  : null,
-              icon: const Icon(Icons.auto_awesome),
-              label: const Text('Analisar Currículo com IA'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
-                foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                textStyle: const TextStyle(fontSize: 16),
               ),
-            ),
+              const SizedBox(height: 24),
+
+              // Progresso do Upload
+              if (_uploadStatus != UploadStatus.idle &&
+                  _uploadStatus != UploadStatus.complete)
+                _buildProgressoUpload(),
+
+              if (_uploadStatus != UploadStatus.idle &&
+                  _uploadStatus != UploadStatus.complete)
+                const SizedBox(height: 24),
+
+              // Informações (Alert)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 16,
+                      height: 16,
+                      margin: const EdgeInsets.only(top: 2),
+                      child: const Icon(
+                        Icons.info_outline,
+                        size: 16,
+                        color: Color(0xFF6B7280),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: 'Como funciona: ',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: Color(0xFF6B7280),
+                              ),
+                            ),
+                            TextSpan(
+                              text: 'Após o upload, nossa IA irá extrair as informações do currículo, analisar a experiência, habilidades e formação do candidato, e calcular um score de compatibilidade com os requisitos da vaga selecionada. O processo leva cerca de 10 segundos.',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFF6B7280),
+                                height: 1.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Botão de Ação
+              Align(
+                alignment: Alignment.centerRight,
+                child: TMButton(
+                  'Analisar Currículo com IA',
+                  icon: Icons.auto_awesome,
+                  variant: TMButtonVariant.primary,
+                  onPressed: _arquivo != null &&
+                          _vagaSelecionadaId != null &&
+                          _uploadStatus == UploadStatus.idle
+                      ? _simularUploadEAnalise
+                      : null,
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -852,43 +935,6 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
             label: const Text('Remover arquivo'),
           ),
         ],
-      ],
-    );
-  }
-
-  Widget _buildAreaUpload() {
-    return Column(
-      children: [
-        Icon(
-          Icons.cloud_upload_outlined,
-          size: 64,
-          color: Colors.grey.shade400,
-        ),
-        const SizedBox(height: 16),
-        const Text(
-          'Arraste e solte o currículo aqui',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF111827),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'ou clique para selecionar',
-          style: TextStyle(
-            fontSize: 14,
-            color: Colors.grey.shade600,
-          ),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'Formatos aceitos: PDF, DOCX, TXT (máx. 10MB)',
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey.shade500,
-          ),
-        ),
       ],
     );
   }
