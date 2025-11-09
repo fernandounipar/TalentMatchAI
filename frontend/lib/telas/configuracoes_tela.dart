@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../design_system/tm_tokens.dart';
 
 /// Tela de Configurações inspirada no layout web
 class ConfiguracoesTela extends StatefulWidget {
@@ -185,7 +186,7 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
 
   @override
   Widget build(BuildContext context) {
-    const destaque = Color(0xFF4338CA);
+    const destaque = TMTokens.primary;
 
     return DefaultTabController(
       length: 5,
@@ -201,20 +202,20 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
             ),
           ),
           const SizedBox(height: 8),
-          Text(
+          const Text(
             'Gerencie as configurações da empresa e do usuário',
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 14, color: TMTokens.textMuted),
           ),
           const SizedBox(height: 24),
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: TMTokens.surface,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
+              border: Border.all(color: TMTokens.border),
             ),
             child: TabBar(
               labelColor: destaque,
-              unselectedLabelColor: Colors.grey.shade600,
+              unselectedLabelColor: TMTokens.textMuted,
               indicator: BoxDecoration(
                 color: destaque.withOpacity(0.12),
                 borderRadius: BorderRadius.circular(10),
@@ -287,8 +288,8 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
                   icon: const Icon(Icons.save_outlined),
                   label: const Text('Salvar Alterações'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4F46E5),
-                    foregroundColor: Colors.white,
+                    backgroundColor: TMTokens.primary,
+                    foregroundColor: TMTokens.surface,
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -305,9 +306,9 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'Logo da Empresa',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade800),
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: TMTokens.text),
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -317,10 +318,10 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
                         height: 88,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.grey.shade300, style: BorderStyle.solid, width: 2),
-                          color: Colors.grey.shade50,
+                          border: Border.all(color: TMTokens.border, style: BorderStyle.solid, width: 2),
+                          color: TMTokens.bg,
                         ),
-                        child: const Icon(Icons.apartment, size: 36, color: Colors.grey),
+                        child: const Icon(Icons.apartment, size: 36, color: TMTokens.textMuted),
                       ),
                       const SizedBox(width: 16),
                       OutlinedButton.icon(
@@ -337,9 +338,9 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
                 ],
               ),
               const SizedBox(height: 24),
-              Text(
+              const Text(
                 'Cor Primária',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade800),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: TMTokens.text),
               ),
               const SizedBox(height: 12),
               Row(
@@ -352,7 +353,7 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
                       decoration: BoxDecoration(
                         color: _corPrimaria,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade300),
+                        border: Border.all(color: TMTokens.border),
                       ),
                       child: const Icon(Icons.colorize, color: Colors.white),
                     ),
@@ -382,8 +383,8 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
                 child: ElevatedButton(
                   onPressed: () => _mostrarSnack('Identidade visual atualizada!'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4F46E5),
-                    foregroundColor: Colors.white,
+                    backgroundColor: TMTokens.primary,
+                    foregroundColor: TMTokens.surface,
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -423,8 +424,8 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
                 child: ElevatedButton(
                   onPressed: () => _mostrarSnack('Configurações de privacidade salvas!'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4F46E5),
-                    foregroundColor: Colors.white,
+                    backgroundColor: TMTokens.primary,
+                    foregroundColor: TMTokens.surface,
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -447,18 +448,18 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: Colors.grey.shade200),
+                          border: Border.all(color: TMTokens.border),
                         ),
                         child: Row(
                           children: [
                             CircleAvatar(
                               radius: 24,
-                              backgroundColor: const Color(0xFFEEF2FF),
+                              backgroundColor: TMTokens.primary.withOpacity(0.12),
                               child: Text(
                                 usuario['iniciais']!,
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w700,
-                                  color: Color(0xFF4338CA),
+                                  color: TMTokens.primary,
                                 ),
                               ),
                             ),
@@ -477,7 +478,7 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
                                   const SizedBox(height: 4),
                                   Text(
                                     usuario['email']!,
-                                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                    style: const TextStyle(fontSize: 12, color: TMTokens.textMuted),
                                   ),
                                 ],
                               ),
@@ -519,8 +520,8 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
                 children: [
                   CircleAvatar(
                     radius: 44,
-                    backgroundColor: const Color(0xFFEEF2FF),
-                    child: const Icon(Icons.person, size: 44, color: Color(0xFF4338CA)),
+                    backgroundColor: TMTokens.primary.withOpacity(0.12),
+                    child: const Icon(Icons.person, size: 44, color: TMTokens.primary),
                   ),
                   const SizedBox(width: 16),
                   OutlinedButton.icon(
@@ -576,8 +577,8 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
                   icon: const Icon(Icons.save_outlined),
                   label: const Text('Salvar Alterações'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4F46E5),
-                    foregroundColor: Colors.white,
+                    backgroundColor: TMTokens.primary,
+                    foregroundColor: TMTokens.surface,
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -600,9 +601,9 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
             title: 'Preferências de Notificação',
             description: 'Escolha como deseja receber atualizações',
             children: [
-              Text(
+              const Text(
                 'Email',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade800),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: TMTokens.text),
               ),
               const SizedBox(height: 12),
               _buildSwitchTile(
@@ -626,9 +627,9 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
                 onChanged: (value) => setState(() => _emailLembreteEntrevista = value),
               ),
               const SizedBox(height: 24),
-              Text(
+              const Text(
                 'Push (Navegador)',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade800),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: TMTokens.text),
               ),
               const SizedBox(height: 12),
               _buildSwitchTile(
@@ -665,8 +666,8 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
                 child: ElevatedButton(
                   onPressed: () => _mostrarSnack('Senha atualizada com sucesso!'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4F46E5),
-                    foregroundColor: Colors.white,
+                    backgroundColor: TMTokens.primary,
+                    foregroundColor: TMTokens.surface,
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -709,11 +710,11 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.grey.shade200),
+                  border: Border.all(color: TMTokens.border),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.laptop_mac, color: Color(0xFF4338CA)),
+                    const Icon(Icons.laptop_mac, color: TMTokens.primary),
                     const SizedBox(width: 16),
                     Expanded(
                       child: Column(
@@ -726,7 +727,7 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
                           const SizedBox(height: 4),
                           Text(
                             'São Paulo, SP • Sessão atual',
-                            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                            style: const TextStyle(fontSize: 12, color: TMTokens.textMuted),
                           ),
                         ],
                       ),
@@ -766,9 +767,9 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
+                  color: TMTokens.bg,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.grey.shade200),
+                  border: Border.all(color: TMTokens.border),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -786,10 +787,10 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
                     const SizedBox(height: 8),
                     Text(
                       'sk-...•••••••••••••••••••••••••••',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: 'monospace',
                         fontSize: 12,
-                        color: Colors.grey.shade700,
+                        color: TMTokens.textMuted,
                       ),
                     ),
                   ],
@@ -831,8 +832,8 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
                 child: ElevatedButton(
                   onPressed: () => _mostrarSnack('Integração GitHub atualizada!'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4F46E5),
-                    foregroundColor: Colors.white,
+                    backgroundColor: TMTokens.primary,
+                    foregroundColor: TMTokens.surface,
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -849,9 +850,9 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
             children: [
               _buildLabeledField('URL do Webhook', _webhookUrlController),
               const SizedBox(height: 24),
-              Text(
+              const Text(
                 'Eventos',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade800),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: TMTokens.text),
               ),
               const SizedBox(height: 12),
               _buildSwitchTile(
@@ -880,8 +881,8 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
                 child: ElevatedButton(
                   onPressed: () => _mostrarSnack('Webhook salvo com sucesso!'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4F46E5),
-                    foregroundColor: Colors.white,
+                    backgroundColor: TMTokens.primary,
+                    foregroundColor: TMTokens.surface,
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -916,10 +917,10 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFEEF2FF),
+                    color: TMTokens.primary.withOpacity(0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(icon, color: const Color(0xFF4338CA)),
+                  child: Icon(icon, color: TMTokens.primary),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -937,7 +938,7 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
                         const SizedBox(height: 4),
                         Text(
                           description,
-                          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                          style: const TextStyle(fontSize: 13, color: TMTokens.textMuted),
                         ),
                       ],
                     ],
@@ -966,7 +967,7 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
       children: [
         Text(
           label,
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade800),
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: TMTokens.text),
         ),
         const SizedBox(height: 8),
         TextField(
@@ -978,18 +979,18 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
           onChanged: onChanged,
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.grey.shade50,
+            fillColor: TMTokens.bg,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey.shade300),
+              borderSide: const BorderSide(color: TMTokens.border),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey.shade200),
+              borderSide: const BorderSide(color: TMTokens.border),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF4F46E5)),
+              borderSide: const BorderSide(color: TMTokens.primary),
             ),
           ),
         ),
@@ -1011,19 +1012,19 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
       ),
       subtitle: Text(
         subtitle,
-        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+        style: const TextStyle(fontSize: 12, color: TMTokens.textMuted),
       ),
       value: value,
       onChanged: onChanged,
-      activeColor: const Color(0xFF4F46E5),
+      activeColor: TMTokens.primary,
     );
   }
 
   Widget _buildBadge(String label, {bool filled = true}) {
     final isAdmin = label.toLowerCase() == 'admin';
     final color = filled
-        ? (isAdmin ? const Color(0xFF4F46E5) : const Color(0xFF16A34A))
-        : const Color(0xFF4338CA);
+        ? (isAdmin ? TMTokens.primary : TMTokens.success)
+        : TMTokens.primary;
     final background = filled ? color.withOpacity(isAdmin ? 1 : 0.12) : Colors.transparent;
     final textColor = filled ? (isAdmin ? Colors.white : color) : color;
 

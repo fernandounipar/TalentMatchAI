@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../servicos/api_cliente.dart';
+import '../design_system/tm_tokens.dart';
+import '../servicos/dados_mockados.dart';
+import '../modelos/historico.dart';
 
 class HistoricoTela extends StatefulWidget {
   final ApiCliente api;
@@ -10,54 +13,12 @@ class HistoricoTela extends StatefulWidget {
 }
 
 class _HistoricoTelaState extends State<HistoricoTela> {
-  static const List<Map<String, dynamic>> _mockHistorico = [
-    {
-      'id': '1',
-      'candidato': 'João Silva',
-      'vaga': 'Desenvolvedor Full Stack',
-      'criado_em': '2024-06-10T14:32:00Z',
-      'tem_relatorio': true,
-    },
-    {
-      'id': '2',
-      'candidato': 'Maria Souza',
-      'vaga': 'UX/UI Designer',
-      'criado_em': '2024-06-09T10:15:00Z',
-      'tem_relatorio': false,
-    },
-    {
-      'id': '3',
-      'candidato': 'Carlos Lima',
-      'vaga': 'DevOps Engineer',
-      'criado_em': '2024-06-05T18:45:00Z',
-      'tem_relatorio': true,
-    },
-    {
-      'id': '4',
-      'candidato': 'Ana Paula',
-      'vaga': 'Product Manager',
-      'criado_em': '2024-05-30T09:00:00Z',
-      'tem_relatorio': false,
-    },
-  ];
-
-  List<dynamic>? _itens;
-  bool _carregando = false;
-
-  Future<void> _carregar() async {
-    setState(() => _carregando = true);
-    List<dynamic> itens;
-    try {
-      itens = await widget.api.historico();
-    } catch (_) {
-      itens = _mockHistorico;
-    }
-    if (!mounted) return;
-    setState(() {
-      _itens = itens;
-      _carregando = false;
-    });
-  }
+  List<AtividadeHistorico> _atividades = [];
+  bool _carregando = true;
+  String _busca = '';
+  String _filtroTipo = 'Todos';
+  String _filtroEntidade = 'Todas';
+  final Set<int> _hovered = <int>{};
 
   @override
   void initState() {
@@ -65,28 +26,365 @@ class _HistoricoTelaState extends State<HistoricoTela> {
     _carregar();
   }
 
+  Future<void> _carregar() async {
+    setState(() => _carregando = true);
+    try {
+      // Usamos dataset rico do mock (com tipo/entidade/usuario)
+      await Future.delayed(const Duration(milliseconds: 200));
+      _atividades = List<AtividadeHistorico>.from(mockHistorico);
+    } finally {
+      if (mounted) setState(() => _carregando = false);
+    }
+  }
+
+  List<AtividadeHistorico> get _filtradas {
+    return _atividades.where((a) {
+      final matchBusca = _busca.trim().isEmpty ||
+          a.descricao.toLowerCase().contains(_busca.toLowerCase()) ||
+          a.usuario.toLowerCase().contains(_busca.toLowerCase());
+      final matchTipo = _filtroTipo == 'Todos' || a.tipo == _filtroTipo;
+      final matchEntidade = _filtroEntidade == 'Todas' || a.entidade == _filtroEntidade;
+      return matchBusca && matchTipo && matchEntidade;
+    }).toList()
+      ..sort((a, b) => b.data.compareTo(a.data));
+  }
+
+  Map<DateTime, List<AtividadeHistorico>> get _agrupadasPorDia {
+    final mapa = <DateTime, List<AtividadeHistorico>>{};
+    for (final a in _filtradas) {
+      final k = DateTime(a.data.year, a.data.month, a.data.day);
+      mapa.putIfAbsent(k, () => []).add(a);
+    }
+    final ordenadas = Map.fromEntries(mapa.entries.toList()
+      ..sort((a, b) => b.key.compareTo(a.key)));
+    return ordenadas;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Histórico de Entrevistas')),
-      body: _carregando
-          ? const Center(child: CircularProgressIndicator())
-          : ListView.separated(
-              itemCount: _itens?.length ?? 0,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (_, i) {
-                final e = _itens![i];
-                final dt = DateTime.tryParse(e['criado_em']?.toString() ?? '') ?? DateTime.now();
-                return ListTile(
-                  title: Text('${e['candidato'] ?? ''} — ${e['vaga'] ?? ''}'),
-                  subtitle: Text(dt.toLocal().toString()),
-                  trailing: e['tem_relatorio'] == true
-                      ? const Icon(Icons.check_circle, color: Colors.green)
-                      : const Icon(Icons.timelapse, color: Colors.amber),
+    if (_carregando) return const Center(child: CircularProgressIndicator());
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Histórico & Auditoria', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: TMTokens.text)),
+          const SizedBox(height: 4),
+          const Text('Rastreie todas as atividades e eventos do sistema', style: TextStyle(fontSize: 16, color: TMTokens.textMuted)),
+          const SizedBox(height: 16),
+          _buildFilters(),
+          const SizedBox(height: 24),
+          ..._agrupadasPorDia.entries.map((e) => _diaSection(e.key, e.value)),
+          const SizedBox(height: 16),
+          _estatisticasCard(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilters() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Stack(
+                    children: [
+                      const Positioned(
+                        left: 12,
+                        top: 12,
+                        child: Icon(Icons.search, size: 18, color: TMTokens.textMuted),
+                      ),
+                      TextField(
+                        decoration: InputDecoration(
+                          hintText: 'Buscar atividades...',
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 36, vertical: 10),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: TMTokens.border),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: TMTokens.border),
+                          ),
+                          filled: true,
+                          fillColor: const Color(0xFFF3F4F6),
+                        ),
+                        onChanged: (v) => setState(() => _busca = v),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SizedBox(width: 220, child: _tipoDropdown()),
+                const SizedBox(width: 12),
+                SizedBox(width: 220, child: _entidadeDropdown()),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _tipoDropdown() {
+    const tipos = ['Todos', 'Upload', 'Análise', 'Entrevista', 'Aprovação', 'Reprovação', 'Edição'];
+    return DropdownButtonFormField<String>(
+      value: _filtroTipo,
+      decoration: InputDecoration(
+        prefixIcon: const Icon(Icons.filter_alt, size: 18),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: TMTokens.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: TMTokens.border),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      ),
+      items: tipos.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+      onChanged: (v) => setState(() => _filtroTipo = v ?? 'Todos'),
+    );
+  }
+
+  Widget _entidadeDropdown() {
+    const ents = ['Todas', 'Candidato', 'Vaga', 'Entrevista'];
+    return DropdownButtonFormField<String>(
+      value: _filtroEntidade,
+      decoration: InputDecoration(
+        prefixIcon: const Icon(Icons.filter_list, size: 18),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: TMTokens.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: TMTokens.border),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      ),
+      items: ents.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+      onChanged: (v) => setState(() => _filtroEntidade = v ?? 'Todas'),
+    );
+  }
+
+  Widget _diaSection(DateTime dia, List<AtividadeHistorico> itens) {
+    final titulo = _formatarDiaCompleto(dia);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Text(titulo, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: TMTokens.text)),
+            const SizedBox(width: 8),
+            Expanded(child: Container(height: 1, color: TMTokens.border)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ...List.generate(itens.length, (i) => _atividadeCard(itens[i], i)),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
+  Widget _atividadeCard(AtividadeHistorico a, int index) {
+    final isHovered = _hovered.contains(index);
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered.add(index)),
+      onExit: (_) => setState(() => _hovered.remove(index)),
+      child: Card(
+        elevation: isHovered ? 6 : 1.5,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _iconeCategoria(a.tipo),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(a.descricao, style: const TextStyle(color: TMTokens.text, fontSize: 14, fontWeight: FontWeight.w500)),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(_tempoDecorrido(a.data), style: const TextStyle(color: TMTokens.textMuted, fontSize: 12)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text(a.usuario, style: const TextStyle(fontSize: 12, color: TMTokens.textMuted)),
+                        const SizedBox(width: 8),
+                        const Text('•', style: TextStyle(color: TMTokens.textMuted)),
+                        const SizedBox(width: 8),
+                        _badgeEntidade(a.entidade),
+                        const SizedBox(width: 8),
+                        TextButton.icon(
+                          onPressed: () => _verDetalhes(a),
+                          icon: const Icon(Icons.open_in_new, size: 14),
+                          label: const Text('Ver detalhes', style: TextStyle(fontSize: 12)),
+                          style: TextButton.styleFrom(
+                            foregroundColor: TMTokens.primary,
+                            padding: EdgeInsets.zero,
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                      ],
+                    )
+                  ],
+                ),
+              )
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _iconeCategoria(String tipo) {
+    IconData icon;
+    Color bg;
+    Color fg;
+    switch (tipo) {
+      case 'Upload':
+        icon = Icons.upload_file; bg = TMTokens.info.withOpacity(0.15); fg = TMTokens.info; break;
+      case 'Análise':
+        icon = Icons.psychology; bg = TMTokens.secondary.withOpacity(0.15); fg = TMTokens.secondary; break;
+      case 'Entrevista':
+        icon = Icons.calendar_today; bg = TMTokens.warning.withOpacity(0.15); fg = TMTokens.warning; break;
+      case 'Aprovação':
+        icon = Icons.check_circle; bg = TMTokens.success.withOpacity(0.15); fg = TMTokens.success; break;
+      case 'Reprovação':
+        icon = Icons.cancel; bg = TMTokens.error.withOpacity(0.15); fg = TMTokens.error; break;
+      case 'Edição':
+      default:
+        icon = Icons.edit_square; bg = TMTokens.textMuted.withOpacity(0.15); fg = TMTokens.textMuted; break;
+    }
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
+      child: Icon(icon, color: fg, size: 20),
+    );
+  }
+
+  Widget _badgeEntidade(String entidade) {
+    Color fg;
+    Color bg;
+    switch (entidade) {
+      case 'Vaga':
+        fg = TMTokens.primary; bg = TMTokens.primary.withOpacity(0.08); break;
+      case 'Entrevista':
+        fg = TMTokens.warning; bg = TMTokens.warning.withOpacity(0.15); break;
+      case 'Candidato':
+      default:
+        fg = TMTokens.secondary; bg = TMTokens.secondary.withOpacity(0.15); break;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(6), border: Border.all(color: bg)),
+      child: Text(entidade, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: fg)),
+    );
+  }
+
+  Widget _estatisticasCard() {
+    final counts = <String, int>{
+      'Upload': 0,
+      'Análise': 0,
+      'Entrevista': 0,
+      'Aprovação': 0,
+      'Reprovação': 0,
+      'Edição': 0,
+    };
+    for (final a in _filtradas) {
+      counts[a.tipo] = (counts[a.tipo] ?? 0) + 1;
+    }
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Estatísticas do Período', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: TMTokens.text)),
+            const SizedBox(height: 12),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final cols = constraints.maxWidth >= 1024 ? 6 : (constraints.maxWidth >= 640 ? 3 : 2);
+                return GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: cols,
+                  childAspectRatio: 2.2,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  children: [
+                    _kpiTile(Icons.upload_file, 'Upload', counts['Upload'] ?? 0, TMTokens.info),
+                    _kpiTile(Icons.psychology, 'Análise', counts['Análise'] ?? 0, TMTokens.secondary),
+                    _kpiTile(Icons.calendar_today, 'Entrevista', counts['Entrevista'] ?? 0, TMTokens.warning),
+                    _kpiTile(Icons.check_circle, 'Aprovação', counts['Aprovação'] ?? 0, TMTokens.success),
+                    _kpiTile(Icons.cancel, 'Reprovação', counts['Reprovação'] ?? 0, TMTokens.error),
+                    _kpiTile(Icons.edit_square, 'Edição', counts['Edição'] ?? 0, TMTokens.textMuted),
+                  ],
                 );
               },
-            ),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _kpiTile(IconData icon, String label, int valor, Color color) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
+          child: Icon(icon, color: color),
+        ),
+        const SizedBox(height: 6),
+        Text('$valor', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: TMTokens.text)),
+        Text(label, style: const TextStyle(fontSize: 12, color: TMTokens.textMuted)),
+      ],
+    );
+  }
+
+  String _tempoDecorrido(DateTime data) {
+    final a = DateTime.now();
+    final d = a.difference(data);
+    if (d.inMinutes < 1) return 'Agora há pouco';
+    if (d.inHours < 1) return 'Há ${d.inMinutes}min';
+    if (d.inHours < 24) return 'Há ${d.inHours}h';
+    final dias = d.inDays;
+    if (dias == 1) return 'Ontem';
+    if (dias < 7) return 'Há $dias dias';
+    if (dias < 30) return 'Há ${(dias / 7).floor()} semanas';
+    return 'Há ${(dias / 30).floor()} meses';
+  }
+
+  String _formatarDiaCompleto(DateTime d) {
+    const meses = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+    return '${d.day.toString().padLeft(2, '0')} de ${meses[d.month - 1]} de ${d.year}';
+  }
+
+  void _verDetalhes(AtividadeHistorico a) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Abrir detalhes de ${a.entidade} (${a.entidadeId})')),
     );
   }
 }
-

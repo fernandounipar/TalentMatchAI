@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../servicos/api_cliente.dart';
+import '../componentes/tm_card_kpi.dart';
+import '../componentes/tm_table.dart';
+import '../componentes/tm_chip.dart';
+import '../design_system/tm_tokens.dart';
 
 /// Dashboard - Implementação seguindo layout React
 /// Grid responsivo de 12 colunas com estatísticas, tabelas e insights
@@ -201,26 +205,10 @@ class _DashboardTelaState extends State<DashboardTela> {
           mainAxisSpacing: 16,
           childAspectRatio: 2.5,
           children: [
-            _StatCard(
-              title: 'Vagas abertas',
-              value: '$vagas',
-              subtitle: 'Dados atualizados',
-            ),
-            _StatCard(
-              title: 'Currículos recebidos',
-              value: '$curriculos',
-              subtitle: 'Últimas 24 horas',
-            ),
-            _StatCard(
-              title: 'Entrevistas registradas',
-              value: '$entrevistas',
-              subtitle: 'No histórico',
-            ),
-            _StatCard(
-              title: 'Relatórios gerados',
-              value: '$relatorios',
-              subtitle: 'Com IA',
-            ),
+            TMCardKPI(title: 'Vagas abertas', value: '$vagas', delta: 'Atualizado', icon: Icons.work_outline),
+            TMCardKPI(title: 'Currículos recebidos', value: '$curriculos', delta: '24h', icon: Icons.description_outlined, accentColor: TMTokens.info),
+            TMCardKPI(title: 'Entrevistas registradas', value: '$entrevistas', delta: 'No histórico', icon: Icons.calendar_today_outlined, accentColor: TMTokens.secondary),
+            TMCardKPI(title: 'Relatórios gerados', value: '$relatorios', delta: 'Com IA', icon: Icons.assessment_outlined, accentColor: TMTokens.emphasis),
           ],
         );
       },
@@ -264,68 +252,31 @@ class _DashboardTelaState extends State<DashboardTela> {
   }
 
   Widget _buildTableVagas() {
-    final linhas = _vagas.take(5).map((vaga) {
+    final rows = _vagas.take(5).map((vaga) {
       final titulo = vaga['titulo']?.toString() ?? 'Vaga';
       final candidatos = vaga['candidatos']?.toString() ?? '-';
-      final status = vaga['status']?.toString() ?? 'aberta';
+      final status = vaga['status']?.toString() ?? 'Aberta';
       final atualizado = vaga['atualizado_em']?.toString() ?? 'Recente';
-      return DataRow(
-        cells: [
-          DataCell(Text(titulo, style: const TextStyle(fontWeight: FontWeight.w500))),
-          DataCell(Text(candidatos)),
-          DataCell(
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade300),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(status, style: const TextStyle(fontSize: 12)),
-            ),
-          ),
-          DataCell(Text(atualizado, style: TextStyle(color: Colors.grey[500]))),
-          DataCell(
-            TextButton.icon(
-              onPressed: () {},
-              icon: const Icon(Icons.chevron_right, size: 16),
-              label: const Text('Detalhes', style: TextStyle(fontSize: 13)),
-            ),
-          ),
-        ],
-      );
+      return DataRow(cells: [
+        DataCell(Text(titulo, style: const TextStyle(fontWeight: FontWeight.w500))),
+        DataCell(Text(candidatos)),
+        DataCell(TMChip.jobStatus(status)),
+        DataCell(Text(atualizado, style: TextStyle(color: Colors.grey[500]))),
+        const DataCell(Icon(Icons.chevron_right, size: 18, color: TMTokens.secondary)),
+      ]);
     }).toList();
 
-    if (linhas.isEmpty) {
-      linhas.add(DataRow(cells: const [
-        DataCell(Text('Nenhuma vaga cadastrada')),
-        DataCell(Text('-')),
-        DataCell(Text('-')),
-        DataCell(Text('-')),
-        DataCell(Text('-')),
-      ]));
-    }
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        headingTextStyle: TextStyle(
-          fontSize: 14,
-          color: Colors.grey[500],
-          fontWeight: FontWeight.w500,
-        ),
-        dataTextStyle: const TextStyle(
-          fontSize: 14,
-          color: Colors.black87,
-        ),
-        columns: const [
-          DataColumn(label: Text('Título')),
-          DataColumn(label: Text('Candidatos')),
-          DataColumn(label: Text('Status')),
-          DataColumn(label: Text('Última atualização')),
-          DataColumn(label: Text('')),
-        ],
-        rows: linhas,
-      ),
+    return TMDataTable(
+      columns: const [
+        DataColumn(label: Text('Título')),
+        DataColumn(label: Text('Candidatos')),
+        DataColumn(label: Text('Status')),
+        DataColumn(label: Text('Última atualização')),
+        DataColumn(label: Text('')),
+      ],
+      rows: rows,
+      state: rows.isEmpty ? TMTableState.empty : TMTableState.normal,
+      emptyMessage: 'Nenhuma vaga cadastrada',
     );
   }
 
@@ -687,72 +638,4 @@ class _DashboardTelaState extends State<DashboardTela> {
 }
 
 /// Card de Estatística
-class _StatCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final String subtitle;
-
-  const _StatCard({
-    required this.title,
-    required this.value,
-    required this.subtitle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade200),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[500],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF0F3FF),
-                    border: Border.all(color: const Color(0xFFE0E7FF)),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    subtitle,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF4F46E5),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+// _StatCard substituído por TMCardKPI
