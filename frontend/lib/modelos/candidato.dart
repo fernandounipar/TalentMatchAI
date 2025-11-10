@@ -131,9 +131,10 @@ class Candidato {
       skillsList = (json['skills'] as List).map((e) => e.toString()).toList();
     }
 
+    final fullName = json['nome'] ?? json['full_name'] ?? json['fullName'];
     return Candidato(
       id: json['id'].toString(),
-      nome: json['nome'] as String,
+      nome: fullName is String ? fullName : fullName?.toString() ?? '',
       email: json['email'] as String,
       telefone: json['telefone'] as String?,
       linkedinUrl: json['linkedin_url'] as String? ?? json['linkedin'] as String?,

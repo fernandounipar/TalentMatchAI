@@ -516,7 +516,7 @@ class _LandingTelaState extends State<LandingTela> {
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF4F46E5).withOpacity(0.35),
+                  color: const Color(0xFF4F46E5).withValues(alpha: 0.35),
                   blurRadius: 18,
                   offset: const Offset(0, 12),
                 ),
@@ -589,10 +589,10 @@ class _LandingTelaState extends State<LandingTela> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Expanded(
+                      const Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
+                          children: [
                             Text(
                               'TalentMatchIA',
                               style: TextStyle(
@@ -610,10 +610,10 @@ class _LandingTelaState extends State<LandingTela> {
                         ),
                       ),
                       SizedBox(width: isVertical ? 0 : 48, height: isVertical ? 32 : 0),
-                      Expanded(
+                      const Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
+                          children: [
                             _FooterLink(titulo: 'Produto', links: [
                               'Dashboard',
                               'Análise de Currículos',
@@ -624,10 +624,10 @@ class _LandingTelaState extends State<LandingTela> {
                         ),
                       ),
                       SizedBox(width: isVertical ? 0 : 48, height: isVertical ? 32 : 0),
-                      Expanded(
+                      const Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
+                          children: [
                             _FooterLink(titulo: 'Recursos', links: [
                               'Roadmap',
                               'Segurança e LGPD',
@@ -638,10 +638,10 @@ class _LandingTelaState extends State<LandingTela> {
                         ),
                       ),
                       SizedBox(width: isVertical ? 0 : 48, height: isVertical ? 32 : 0),
-                      Expanded(
+                      const Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
+                          children: [
                             _FooterLink(titulo: 'Contato', links: [
                               'suporte@talentmatch.ai',
                               '+55 (11) 4000-1234',
@@ -746,9 +746,9 @@ class _LogoMarca extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 12),
-        Column(
+        const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
+          children: [
             Text(
               'TalentMatchIA',
               style: TextStyle(
@@ -853,10 +853,10 @@ class _HeroContent extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 32),
-        Wrap(
+        const Wrap(
           spacing: 24,
           runSpacing: 12,
-          children: const [
+          children: [
             _HeroMetric(titulo: 'Tempo médio de triagem', valor: '5x mais rápido'),
             _HeroMetric(titulo: 'Aderência média', valor: '92%'),
             _HeroMetric(titulo: 'Satisfação dos gestores', valor: '9,4/10'),
@@ -883,7 +883,7 @@ class _HeroMetric extends StatelessWidget {
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 12,
             offset: const Offset(0, 6),
           ),
@@ -1035,7 +1035,7 @@ class _FeatureCard extends StatelessWidget {
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 14,
             offset: const Offset(0, 10),
           ),
@@ -1310,7 +1310,7 @@ class _IAInsightCard extends StatelessWidget {
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 20,
             offset: const Offset(0, 16),
           ),
@@ -1348,9 +1348,9 @@ class _IAInsightCard extends StatelessWidget {
               color: Colors.white,
               border: Border.all(color: const Color(0xFFE0E7FF)),
             ),
-            child: Column(
+            child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
+              children: [
                 _Bullet(texto: 'Geração de perguntas adaptativas por senioridade'),
                 SizedBox(height: 8),
                 _Bullet(texto: 'Transcrição opcional de áudio e identificação de palavras-chave'),
@@ -1410,7 +1410,7 @@ class _MetricaCard extends StatelessWidget {
         border: Border.all(color: Colors.white70),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 18,
             offset: const Offset(0, 14),
           ),

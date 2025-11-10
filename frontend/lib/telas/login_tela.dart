@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 class LoginTela extends StatefulWidget {
   final VoidCallback onVoltar;
   final Function(String email, String senha) onSubmit;
+  final VoidCallback? onSolicitarAcesso;
 
   const LoginTela({
     super.key,
     required this.onVoltar,
     required this.onSubmit,
+    this.onSolicitarAcesso,
   });
 
   @override
@@ -87,7 +89,7 @@ class _LoginTelaState extends State<LoginTela> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF2563EB).withOpacity(0.3),
+                    color: const Color(0xFF2563EB).withValues(alpha: 0.3),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -225,8 +227,8 @@ class _LoginTelaState extends State<LoginTela> {
     final isLargeScreen = size.width > 1024;
 
     return Card(
-      elevation: 16,
-      shadowColor: Colors.black.withOpacity(0.1),
+  elevation: 16,
+  shadowColor: Colors.black.withValues(alpha: 0.1),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(color: Colors.grey.shade200),
@@ -457,47 +459,26 @@ class _LoginTelaState extends State<LoginTela> {
             ),
             const SizedBox(height: 24),
 
-            // Divider
-            Row(
-              children: [
-                Expanded(child: Divider(color: Colors.grey.shade300)),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    'Demonstração - Use qualquer credencial',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                ),
-                Expanded(child: Divider(color: Colors.grey.shade300)),
-              ],
-            ),
-            const SizedBox(height: 24),
-
             // Link Solicitar Acesso
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  'Não tem uma conta? ',
+                  'Novo no TalentMatchIA? ',
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.grey.shade600,
                   ),
                 ),
                 TextButton(
-                  onPressed: () {
-                    // TODO: Implementar solicitação de acesso
-                  },
+                  onPressed: widget.onSolicitarAcesso,
                   style: TextButton.styleFrom(
                     padding: EdgeInsets.zero,
                     minimumSize: const Size(0, 0),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                   child: const Text(
-                    'Solicitar acesso',
+                    'Crie sua conta aqui',
                     style: TextStyle(
                       fontSize: 14,
                       color: Color(0xFF2563EB),

@@ -72,7 +72,7 @@ class _SidebarState extends State<Sidebar> {
                     });
                   },
                   child: Container(
-                    color: Colors.black.withOpacity(0.5),
+                    color: Colors.black.withValues(alpha: 0.5),
                   ),
                 ),
               ),
@@ -95,7 +95,7 @@ class _SidebarState extends State<Sidebar> {
                       ? []
                       : [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
+                            color: Colors.black.withValues(alpha: 0.1),
                             blurRadius: 10,
                             offset: const Offset(2, 0),
                           ),

@@ -1,9 +1,10 @@
 /*
   Aplica todas as migrações SQL em backend/scripts/sql na ordem do nome do arquivo
 */
-require('dotenv').config({ path: __dirname + '/../.env' });
-const fs = require('fs');
 const path = require('path');
+// Garante carregamento do .env do backend, mesmo sendo executado a partir de diretórios diferentes
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+const fs = require('fs');
 const { Client } = require('pg');
 
 async function main() {

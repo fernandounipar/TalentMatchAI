@@ -8,12 +8,18 @@ class TMAppShell extends StatelessWidget {
   final String activeSection;
   final ValueChanged<String> onSectionChange;
   final Widget child;
+  final String userName;
+  final String userRole;
+  final VoidCallback onLogout;
 
   const TMAppShell({
     super.key,
     required this.activeSection,
     required this.onSectionChange,
     required this.child,
+    this.userName = 'Usuário',
+    this.userRole = 'usuário',
+    required this.onLogout,
   });
 
   @override
@@ -27,9 +33,9 @@ class TMAppShell extends StatelessWidget {
             child: legacy.Sidebar(
               activeSection: activeSection,
               onSectionChange: onSectionChange,
-              userName: 'Recrutadora',
-              userRole: 'recrutador',
-              onLogout: () {},
+              userName: userName,
+              userRole: userRole,
+              onLogout: onLogout,
             ),
           ),
           // Main content area

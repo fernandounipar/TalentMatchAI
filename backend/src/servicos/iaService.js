@@ -70,4 +70,54 @@ async function responderChatEntrevista({ historico = [], mensagemAtual = '', ana
   return content.trim();
 }
 
-module.exports = { gerarAnaliseCurriculo, gerarPerguntasEntrevista, responderChatEntrevista };
+async function avaliarResposta({ pergunta, resposta }) {
+  if (!openai) {
+    // fallback simples sem IA
+    return {
+      score: 70,
+      verdict: 'ADEQUADO',
+      rationale_text: 'Sem IA configurada: avaliação padrão. Resposta coerente em termos gerais.',
+      suggested_followups: ['Peça exemplos práticos com métricas', 'Investigue experiência recente']
+    };
+  }
+  const prompt = `Avalie a resposta do candidato à pergunta da entrevista. Retorne um JSON com campos: score (0..100), verdict em ['FORTE','ADEQUADO','FRACO','INCONSISTENTE'], rationale_text (string), suggested_followups (array de strings).\nPergunta: ${pergunta}\nResposta: ${resposta}`;
+  const resp = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [
+      { role: 'system', content: 'Você é um avaliador técnico. Responda apenas JSON válido.'},
+      { role: 'user', content: prompt }
+    ],
+    temperature: 0.2,
+  });
+  const content = resp.choices?.[0]?.message?.content || '{}';
+  try { return JSON.parse(content); } catch { return { score: 60, verdict: 'ADEQUADO', rationale_text: content, suggested_followups: [] }; }
+}
+
+async function gerarRelatorioEntrevista({ candidato, vaga, respostas = [], feedbacks = [] }) {
+  // Fusão simples: sumariza com base nos feedbacks
+  if (!openai) {
+    const strengths = feedbacks.filter(f => (f.verdict || '').toUpperCase() === 'FORTE').map(f => f.topic || 'Ponto forte');
+    const risks = feedbacks.filter(f => (f.verdict || '').toUpperCase() === 'FRACO' || (f.verdict || '').toUpperCase() === 'INCONSISTENTE').map(f => f.topic || 'Risco');
+    const score = Math.round((feedbacks.reduce((a, b) => a + (Number(b.score)||60), 0) / Math.max(1, feedbacks.length)));
+    const recommendation = score >= 80 ? 'APROVAR' : (score >= 65 ? 'DÚVIDA' : 'REPROVAR');
+    return {
+      summary_text: `Resumo automático (sem IA): candidato ${candidato} para a vaga ${vaga}.`,
+      strengths,
+      risks,
+      recommendation,
+    };
+  }
+  const prompt = `Com base nas respostas e feedbacks abaixo, gere um relatório de entrevista em JSON com campos: summary_text (string), strengths (array de strings), risks (array de strings), recommendation em ['APROVAR','DÚVIDA','REPROVAR'].\nRespostas: ${JSON.stringify(respostas).slice(0, 6000)}\nFeedbacks: ${JSON.stringify(feedbacks).slice(0, 6000)}`;
+  const resp = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [
+      { role: 'system', content: 'Você é um tech lead avaliando entrevistas. Responda apenas JSON válido.'},
+      { role: 'user', content: prompt }
+    ],
+    temperature: 0.2,
+  });
+  const content = resp.choices?.[0]?.message?.content || '{}';
+  try { return JSON.parse(content); } catch { return { summary_text: content, strengths: [], risks: [], recommendation: 'DÚVIDA' }; }
+}
+
+module.exports = { gerarAnaliseCurriculo, gerarPerguntasEntrevista, responderChatEntrevista, avaliarResposta, gerarRelatorioEntrevista };

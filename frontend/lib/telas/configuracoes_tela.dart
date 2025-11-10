@@ -104,7 +104,8 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
   }
 
   static String _colorToHex(Color color) {
-    final value = color.value.toRadixString(16).padLeft(8, '0').toUpperCase();
+    final argb = color.toARGB32();
+    final value = argb.toRadixString(16).padLeft(8, '0').toUpperCase();
     return '#${value.substring(2)}';
   }
 
@@ -154,7 +155,7 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
                           border: Border.all(color: Colors.white, width: 3),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
+                              color: Colors.black.withValues(alpha: 0.1),
                               blurRadius: 6,
                               offset: const Offset(0, 3),
                             ),
@@ -217,7 +218,7 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
               labelColor: destaque,
               unselectedLabelColor: TMTokens.textMuted,
               indicator: BoxDecoration(
-                color: destaque.withOpacity(0.12),
+                color: destaque.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
               ),
               labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
@@ -454,7 +455,7 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
                           children: [
                             CircleAvatar(
                               radius: 24,
-                              backgroundColor: TMTokens.primary.withOpacity(0.12),
+                              backgroundColor: TMTokens.primary.withValues(alpha: 0.12),
                               child: Text(
                                 usuario['iniciais']!,
                                 style: const TextStyle(
@@ -520,7 +521,7 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
                 children: [
                   CircleAvatar(
                     radius: 44,
-                    backgroundColor: TMTokens.primary.withOpacity(0.12),
+                    backgroundColor: TMTokens.primary.withValues(alpha: 0.12),
                     child: const Icon(Icons.person, size: 44, color: TMTokens.primary),
                   ),
                   const SizedBox(width: 16),
@@ -717,17 +718,17 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
                     const Icon(Icons.laptop_mac, color: TMTokens.primary),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: Column(
+                      child: const Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Chrome • Windows',
                             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                           ),
-                          const SizedBox(height: 4),
+                          SizedBox(height: 4),
                           Text(
                             'São Paulo, SP • Sessão atual',
-                            style: const TextStyle(fontSize: 12, color: TMTokens.textMuted),
+                            style: TextStyle(fontSize: 12, color: TMTokens.textMuted),
                           ),
                         ],
                       ),
@@ -785,9 +786,9 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Text(
+                    const Text(
                       'sk-...•••••••••••••••••••••••••••',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'monospace',
                         fontSize: 12,
                         color: TMTokens.textMuted,
@@ -917,7 +918,7 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: TMTokens.primary.withOpacity(0.12),
+                    color: TMTokens.primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(icon, color: TMTokens.primary),
@@ -1016,7 +1017,7 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
       ),
       value: value,
       onChanged: onChanged,
-      activeColor: TMTokens.primary,
+      activeThumbColor: TMTokens.primary,
     );
   }
 
@@ -1025,7 +1026,7 @@ class _ConfiguracoesTelaState extends State<ConfiguracoesTela> {
     final color = filled
         ? (isAdmin ? TMTokens.primary : TMTokens.success)
         : TMTokens.primary;
-    final background = filled ? color.withOpacity(isAdmin ? 1 : 0.12) : Colors.transparent;
+  final background = filled ? color.withValues(alpha: isAdmin ? 1 : 0.12) : Colors.transparent;
     final textColor = filled ? (isAdmin ? Colors.white : color) : color;
 
     return Container(

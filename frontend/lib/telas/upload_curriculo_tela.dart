@@ -5,7 +5,6 @@ import '../modelos/analise_curriculo.dart';
 import '../servicos/api_cliente.dart';
 import '../componentes/tm_upload.dart';
 import '../componentes/tm_button.dart';
-import '../servicos/dados_mockados.dart';
 
 enum UploadStatus { idle, uploading, parsing, analyzing, complete, error }
 
@@ -58,7 +57,7 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
         // Filtrar apenas vagas abertas
         final vagasAbertas = lista.where((vaga) {
           final status = vaga['status']?.toString() ?? '';
-          return status == 'Aberta';
+          return status.toLowerCase() == 'aberta';
         }).toList();
         
         setState(() {
@@ -106,77 +105,44 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
 
   Future<void> _simularUploadEAnalise() async {
     if (_arquivo == null || _vagaSelecionadaId == null) return;
-
-    // Upload
-    setState(() {
-      _uploadStatus = UploadStatus.uploading;
-      _uploadProgress = 0.0;
-    });
-
-    await _animarProgresso(100, 10, 100);
-
-    // Parsing
-    if (!mounted) return;
-    setState(() {
-      _uploadStatus = UploadStatus.parsing;
-      _uploadProgress = 0.0;
-    });
-
-    await _animarProgresso(100, 20, 150);
-
-    // Analyzing
-    if (!mounted) return;
-    setState(() {
-      _uploadStatus = UploadStatus.analyzing;
-      _uploadProgress = 0.0;
-    });
-
-    await _animarProgresso(100, 5, 200);
-
-    // Complete
-    if (!mounted) return;
-    
-    final analiseMock = mockAnaliseCurriculo;
-
-    if (!mounted) return;
-    setState(() {
-      _uploadStatus = UploadStatus.complete;
-      _analise = analiseMock;
-    });
-
-    Map<String, dynamic>? vagaSelecionada;
-    if (_vagaSelecionadaId != null) {
-      for (final vaga in _vagas) {
-        if (vaga['id']?.toString() == _vagaSelecionadaId) {
-          vagaSelecionada = vaga;
-          break;
+    try {
+      setState(() { _uploadStatus = UploadStatus.uploading; _uploadProgress = 10; });
+      final resp = await widget.api.uploadCurriculoBytes(
+        bytes: _arquivo!.bytes!,
+        filename: _arquivo!.name,
+        candidato: {'nome': 'Candidato'},
+        vagaId: _vagaSelecionadaId,
+      );
+      final cur = (resp['curriculo'] ?? {}) as Map<String, dynamic>;
+      final analise = (cur['analise_json'] ?? {}) as Map<String, dynamic>;
+      final job = (resp['ingestion_job'] ?? {}) as Map<String, dynamic>;
+      if (job['id'] != null) {
+        setState(() { _uploadStatus = UploadStatus.parsing; _uploadProgress = (job['progress'] as num?)?.toDouble() ?? 20; });
+        for (int i = 0; i < 10; i++) {
+          await Future.delayed(const Duration(milliseconds: 400));
+          try {
+            final j = await widget.api.getIngestionJob(job['id'].toString());
+            final prog = (j['progress'] as num?)?.toDouble() ?? _uploadProgress;
+            setState(() { _uploadProgress = prog; });
+            if ((j['status'] as String).toLowerCase() == 'completed') break;
+          } catch (_) {}
         }
       }
-    }
-
-    final candidatoMock =
-        mockCandidatos.isNotEmpty ? mockCandidatos.first.toJson() : {'nome': 'Candidato'};
-
-    widget.onUploaded({
-      'candidato': candidatoMock,
-      'vaga': vagaSelecionada,
-      'curriculo': {
-        'nome_arquivo': _arquivo?.name ?? 'curriculo.pdf',
-        'tamanho_bytes': _arquivo?.size,
-        'analise_json': analiseMock.toJson(),
-      },
-      'entrevista': null,
-    });
-  }
-
-  Future<void> _animarProgresso(
-      int targetProgress, int increment, int delayMs) async {
-    while (_uploadProgress < targetProgress) {
-      await Future.delayed(Duration(milliseconds: delayMs));
+      final a = AnaliseCurriculo(
+        matchingScore: analise['matchingScore'] is int ? analise['matchingScore'] as int : 0,
+        recomendacao: (analise['recomendacao'] ?? '').toString(),
+        resumo: (analise['summary'] ?? analise['resumo'] ?? '').toString(),
+        pontosFortes: (analise['pontosFortes'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+        pontosAtencao: (analise['pontosAtencao'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+        aderenciaRequisitos: const [],
+      );
       if (!mounted) return;
-      setState(() {
-        _uploadProgress = (_uploadProgress + increment).clamp(0, 100);
-      });
+      setState(() { _uploadStatus = UploadStatus.complete; _analise = a; });
+      widget.onUploaded(resp);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _uploadStatus = UploadStatus.error);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Falha ao enviar/analizar currículo')));
     }
   }
 
@@ -741,7 +707,7 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
                     Padding(
                       padding: const EdgeInsets.all(24),
                       child: DropdownButtonFormField<String>(
-                        value: _vagaSelecionadaId,
+                        initialValue: _vagaSelecionadaId,
                         decoration: InputDecoration(
                           hintText: 'Selecione uma vaga...',
                           hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),

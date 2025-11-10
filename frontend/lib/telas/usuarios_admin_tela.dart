@@ -14,7 +14,7 @@ class _UsuariosAdminTelaState extends State<UsuariosAdminTela> {
   final _nome = TextEditingController();
   final _email = TextEditingController();
   final _senha = TextEditingController();
-  String _perfil = 'RECRUTADOR';
+  String _perfil = 'USER';
   String _tipo = 'CNPJ';
   final _documento = TextEditingController();
   final _empresa = TextEditingController();
@@ -52,7 +52,7 @@ class _UsuariosAdminTelaState extends State<UsuariosAdminTela> {
       _nome.clear();
       _email.clear();
       _senha.clear();
-      setState(() => _perfil = 'RECRUTADOR');
+      setState(() => _perfil = 'USER');
       _documento.clear();
       _empresa.clear();
     } catch (e) {
@@ -91,7 +91,7 @@ class _UsuariosAdminTelaState extends State<UsuariosAdminTela> {
           children: [
             const Text('Gerenciar Usuários', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF3730A3))),
             const SizedBox(height: 8),
-            const Text('Crie novos usuários do sistema (ADMIN, GESTOR, RECRUTADOR).', style: TextStyle(color: Colors.black54)),
+            const Text('Crie novos usuários do sistema (USER, ADMIN, SUPER_ADMIN).', style: TextStyle(color: Colors.black54)),
             const SizedBox(height: 16),
             Card(
               child: Padding(
@@ -137,11 +137,11 @@ class _UsuariosAdminTelaState extends State<UsuariosAdminTela> {
                     DropdownButtonFormField<String>(
                       value: _perfil,
                       items: const [
-                        DropdownMenuItem(value: 'RECRUTADOR', child: Text('Recrutador')),
-                        DropdownMenuItem(value: 'GESTOR', child: Text('Gestor')),
+                        DropdownMenuItem(value: 'USER', child: Text('User')),
                         DropdownMenuItem(value: 'ADMIN', child: Text('Admin')),
+                        DropdownMenuItem(value: 'SUPER_ADMIN', child: Text('Super Admin')),
                       ],
-                      onChanged: (v) => setState(() => _perfil = v ?? 'RECRUTADOR'),
+                      onChanged: (v) => setState(() => _perfil = v ?? 'USER'),
                     ),
                     const SizedBox(height: 16),
                     Align(
