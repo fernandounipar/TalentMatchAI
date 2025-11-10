@@ -38,7 +38,7 @@ class TMCardKPI extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: color.withOpacity(.1),
+                      color: color.withValues(alpha: .1),
                       borderRadius: BorderRadius.circular(TMTokens.r8),
                     ),
                     child: Icon(icon, size: 18, color: color),

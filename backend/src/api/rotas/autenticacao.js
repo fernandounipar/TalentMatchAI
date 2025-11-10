@@ -1,63 +1,153 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../../config/database');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const { validaDocumento, normalizaDocumento } = require('../../servicos/documento');
+const rateLimit = require('express-rate-limit');
+const authService = require('../../servicos/autenticacaoService');
+const { exigirAutenticacao } = require('../../middlewares/autenticacao');
 
-// Registrar novo usuário (cria empresa se informado CPF/CNPJ)
-router.post('/registrar', async (req, res) => {
+// Rate limiting para rotas de autenticação (proteção contra brute force)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 10, // máximo 10 requisições por janela por IP
+  message: { erro: 'Muitas tentativas. Tente novamente em 15 minutos.' }
+});
+
+/**
+ * POST /api/auth/register
+ * Registra nova empresa + primeiro usuário
+ * Body: { type: 'CPF'|'CNPJ', document, name, user: {full_name, email, password, role?} }
+ */
+router.post('/register', authLimiter, async (req, res) => {
   try {
-    const { nome, email, senha, aceitouLGPD, company } = req.body || {};
-    if (!nome || !email || !senha) return res.status(400).json({ erro: 'Campos obrigatórios' });
-
-    let companyId = null;
-    if (company && company.documento && company.tipo) {
-      const tipo = String(company.tipo).toUpperCase();
-      const documento = normalizaDocumento(company.documento);
-      if (!['CPF', 'CNPJ'].includes(tipo)) {
-        return res.status(400).json({ erro: 'Tipo de documento inválido (CPF ou CNPJ)' });
-      }
-      if (!validaDocumento(tipo, documento)) {
-        return res.status(400).json({ erro: 'Documento inválido' });
-      }
-      const up = await db.query(
-        `INSERT INTO companies (tipo, documento, nome)
-         VALUES ($1,$2,$3)
-         ON CONFLICT (documento) DO UPDATE SET tipo=EXCLUDED.tipo, nome=EXCLUDED.nome
-         RETURNING id`, [tipo, documento, company.nome || null]
-      );
-      companyId = up.rows[0].id;
-    }
-
-    const hash = await bcrypt.hash(senha, 10);
-    const result = await db.query(
-      'INSERT INTO usuarios (nome, email, senha_hash, aceitou_lgpd, perfil, company_id, is_active) VALUES ($1,$2,$3,$4,$5,COALESCE($6, (SELECT id FROM companies WHERE documento=$7 LIMIT 1)),$8) RETURNING id,nome,email,perfil,company_id',
-      [nome, email.toLowerCase(), hash, !!aceitouLGPD, 'USER', companyId, '00000000000000', true]
-    );
-    const usuario = result.rows[0];
-    const token = jwt.sign({ id: usuario.id, email: usuario.email, perfil: usuario.perfil, companyId: usuario.company_id }, process.env.JWT_SECRET || 'dev', { expiresIn: '8h' });
-    res.json({ token, usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, perfil: usuario.perfil, company_id: usuario.company_id } });
-  } catch (e) {
-    if (String(e.message || '').includes('duplicate')) return res.status(409).json({ erro: 'Email já cadastrado' });
-    res.status(500).json({ erro: 'Falha ao registrar' });
+    const resultado = await authService.registrar(req.body);
+    res.status(201).json(resultado);
+  } catch (error) {
+    console.error('❌ Erro no registro:', error.message);
+    res.status(400).json({ erro: error.message });
   }
 });
 
-// Login
-router.post('/login', async (req, res) => {
+/**
+ * POST /api/auth/login
+ * Login com email e senha
+ * Body: { email, senha }
+ */
+router.post('/login', authLimiter, async (req, res) => {
   try {
-    const { email, senha } = req.body || {};
-    if (!email || !senha) return res.status(400).json({ erro: 'Credenciais obrigatórias' });
-    const r = await db.query('SELECT * FROM usuarios WHERE email=$1', [email.toLowerCase()]);
-    const u = r.rows[0];
-    if (!u) return res.status(401).json({ erro: 'Credenciais inválidas' });
-    const ok = await bcrypt.compare(senha, u.senha_hash);
-    if (!ok) return res.status(401).json({ erro: 'Credenciais inválidas' });
-    const token = jwt.sign({ id: u.id, email: u.email, perfil: u.perfil, companyId: u.company_id }, process.env.JWT_SECRET || 'dev', { expiresIn: '8h' });
-    res.json({ token, usuario: { id: u.id, nome: u.nome, email: u.email, perfil: u.perfil, company_id: u.company_id } });
-  } catch (e) {
-    res.status(500).json({ erro: 'Falha ao autenticar' });
+    const { email, senha } = req.body;
+    const resultado = await authService.login(email, senha);
+    res.json(resultado);
+  } catch (error) {
+    console.error('❌ Erro no login:', error.message);
+    res.status(401).json({ erro: error.message });
+  }
+});
+
+/**
+ * POST /api/auth/refresh
+ * Renova access token usando refresh token (com rotação)
+ * Body: { refresh_token }
+ */
+router.post('/refresh', async (req, res) => {
+  try {
+    const { refresh_token } = req.body;
+    const resultado = await authService.refresh(refresh_token);
+    res.json(resultado);
+  } catch (error) {
+    console.error('❌ Erro no refresh:', error.message);
+    res.status(401).json({ erro: error.message });
+  }
+});
+
+/**
+ * POST /api/auth/logout
+ * Revoga refresh token
+ * Body: { refresh_token }
+ */
+router.post('/logout', async (req, res) => {
+  try {
+    const { refresh_token } = req.body;
+    await authService.logout(refresh_token);
+    res.json({ mensagem: 'Logout realizado com sucesso' });
+  } catch (error) {
+    console.error('❌ Erro no logout:', error.message);
+    res.status(500).json({ erro: 'Erro ao fazer logout' });
+  }
+});
+
+/**
+ * POST /api/auth/forgot-password
+ * Solicita reset de senha (gera token)
+ * Body: { email }
+ */
+router.post('/forgot-password', authLimiter, async (req, res) => {
+  try {
+    const { email } = req.body;
+    const resultado = await authService.solicitarResetSenha(email);
+    
+    if (resultado) {
+      // Em produção, envie o reset_token por email
+      // Para MVP/desenvolvimento, retornamos no response
+      res.json({ 
+        mensagem: 'Se o email existir, você receberá instruções para reset.',
+        // REMOVER EM PRODUÇÃO:
+        reset_token: resultado.reset_token 
+      });
+    } else {
+      // Por segurança, sempre retorna sucesso mesmo se email não existe
+      res.json({ mensagem: 'Se o email existir, você receberá instruções para reset.' });
+    }
+  } catch (error) {
+    console.error('❌ Erro ao solicitar reset:', error.message);
+    res.status(500).json({ erro: 'Erro ao processar solicitação' });
+  }
+});
+
+/**
+ * POST /api/auth/reset-password
+ * Reset de senha com token
+ * Body: { reset_token, nova_senha }
+ */
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { reset_token, nova_senha } = req.body;
+    await authService.resetSenha(reset_token, nova_senha);
+    res.json({ mensagem: 'Senha redefinida com sucesso. Faça login novamente.' });
+  } catch (error) {
+    console.error('❌ Erro ao resetar senha:', error.message);
+    res.status(400).json({ erro: error.message });
+  }
+});
+
+/**
+ * POST /api/auth/change-password
+ * Trocar senha (usuário logado)
+ * Body: { senha_atual, nova_senha }
+ * Requer autenticação
+ */
+router.post('/change-password', exigirAutenticacao, async (req, res) => {
+  try {
+    const { senha_atual, nova_senha } = req.body;
+    const user_id = req.usuario.id;
+    
+    await authService.trocarSenha(user_id, senha_atual, nova_senha);
+    res.json({ mensagem: 'Senha alterada com sucesso. Faça login novamente.' });
+  } catch (error) {
+    console.error('❌ Erro ao trocar senha:', error.message);
+    res.status(400).json({ erro: error.message });
+  }
+});
+
+/**
+ * GET /api/auth/me
+ * Retorna dados do usuário autenticado
+ * Requer autenticação
+ */
+router.get('/me', exigirAutenticacao, async (req, res) => {
+  try {
+    res.json({ usuario: req.usuario });
+  } catch (error) {
+    console.error('❌ Erro ao buscar usuário:', error.message);
+    res.status(500).json({ erro: 'Erro ao buscar dados do usuário' });
   }
 });
 

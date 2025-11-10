@@ -13,11 +13,11 @@ router.get('/:id', async (req, res) => {
      FROM entrevistas e
      JOIN vagas v ON v.id = e.vaga_id
      JOIN candidatos c ON c.id = e.candidato_id
-     WHERE e.id=$1 AND e.company_id=$2`, [id, req.usuario.companyId]
+     WHERE e.id=$1 AND e.company_id=$2`, [id, req.usuario.company_id]
   );
   if (!r.rows[0]) return res.status(404).json({ erro: 'Entrevista não encontrada' });
-  const perguntas = await db.query('SELECT * FROM perguntas WHERE entrevista_id=$1 AND company_id=$2 ORDER BY criado_em ASC', [id, req.usuario.companyId]);
-  const relatorio = await db.query('SELECT * FROM relatorios WHERE entrevista_id=$1 AND company_id=$2', [id, req.usuario.companyId]);
+  const perguntas = await db.query('SELECT * FROM perguntas WHERE entrevista_id=$1 AND company_id=$2 ORDER BY criado_em ASC', [id, req.usuario.company_id]);
+  const relatorio = await db.query('SELECT * FROM relatorios WHERE entrevista_id=$1 AND company_id=$2', [id, req.usuario.company_id]);
   res.json({ entrevista: r.rows[0], perguntas: perguntas.rows, relatorio: relatorio.rows[0] || null });
 });
 
@@ -28,7 +28,7 @@ router.post('/:id/perguntas', async (req, res) => {
      FROM entrevistas e
      LEFT JOIN vagas v ON v.id = e.vaga_id
      LEFT JOIN curriculos cu ON cu.id = e.curriculo_id
-     WHERE e.id=$1 AND e.company_id=$2`, [id, req.usuario.companyId]
+     WHERE e.id=$1 AND e.company_id=$2`, [id, req.usuario.company_id]
   );
   const row = e.rows[0];
   if (!row) return res.status(404).json({ erro: 'Entrevista não encontrada' });
@@ -39,13 +39,13 @@ router.post('/:id/perguntas', async (req, res) => {
     vaga: row.vaga_desc || '',
     quantidade: Number(req.query.qtd || 8)
   });
-  const inserts = await Promise.all(qs.map(q => db.query('INSERT INTO perguntas (entrevista_id, texto, company_id) VALUES ($1,$2,$3) RETURNING *', [id, q, req.usuario.companyId])));
+  const inserts = await Promise.all(qs.map(q => db.query('INSERT INTO perguntas (entrevista_id, texto, company_id) VALUES ($1,$2,$3) RETURNING *', [id, q, req.usuario.company_id])));
   res.json(inserts.map(i => i.rows[0]));
 });
 
 router.post('/:id/relatorio', async (req, res) => {
   const id = req.params.id;
-  const perguntas = await db.query('SELECT texto FROM perguntas WHERE entrevista_id=$1 AND company_id=$2 ORDER BY criado_em ASC', [id, req.usuario.companyId]);
+  const perguntas = await db.query('SELECT texto FROM perguntas WHERE entrevista_id=$1 AND company_id=$2 ORDER BY criado_em ASC', [id, req.usuario.company_id]);
   const html = `<html><head><meta charset="utf-8"></head><body>
   <h1>Relatório de Entrevista</h1>
   <h2>Perguntas</h2>
@@ -54,7 +54,7 @@ router.post('/:id/relatorio', async (req, res) => {
   const up = await db.query(
     `INSERT INTO relatorios (entrevista_id, html, company_id) VALUES ($1,$2,$3)
      ON CONFLICT (entrevista_id) DO UPDATE SET html=EXCLUDED.html, company_id=EXCLUDED.company_id
-     RETURNING *`, [id, html, req.usuario.companyId]
+     RETURNING *`, [id, html, req.usuario.company_id]
   );
   res.json(up.rows[0]);
 });
@@ -64,7 +64,7 @@ router.get('/:id/mensagens', async (req, res) => {
   const id = req.params.id;
   const msgs = await db.query(
     'SELECT id, role, conteudo, criado_em FROM mensagens WHERE entrevista_id=$1 AND company_id=$2 ORDER BY criado_em ASC',
-    [id, req.usuario.companyId]
+    [id, req.usuario.company_id]
   );
   res.json(msgs.rows);
 });
@@ -84,7 +84,7 @@ router.post('/:id/chat', async (req, res) => {
      LEFT JOIN vagas v ON v.id = e.vaga_id
      LEFT JOIN curriculos cu ON cu.id = e.curriculo_id
      WHERE e.id=$1 AND e.company_id=$2`,
-    [id, req.usuario.companyId]
+    [id, req.usuario.company_id]
   );
   const row = e.rows[0];
   if (!row) return res.status(404).json({ erro: 'Entrevista não encontrada' });
@@ -92,13 +92,13 @@ router.post('/:id/chat', async (req, res) => {
   // Buscar histórico recente
   const hist = await db.query(
     'SELECT role, conteudo FROM mensagens WHERE entrevista_id=$1 AND company_id=$2 ORDER BY criado_em ASC LIMIT 50',
-    [id, req.usuario.companyId]
+    [id, req.usuario.company_id]
   );
 
   // Persistir mensagem do usuário
   const insUser = await db.query(
     'INSERT INTO mensagens (entrevista_id, role, conteudo, company_id) VALUES ($1,$2,$3,$4) RETURNING id, role, conteudo, criado_em',
-    [id, 'user', String(mensagem), req.usuario.companyId]
+    [id, 'user', String(mensagem), req.usuario.company_id]
   );
 
   // Gerar resposta via IA (ou mock)
@@ -113,7 +113,7 @@ router.post('/:id/chat', async (req, res) => {
   // Persistir resposta do assistant
   const insIA = await db.query(
     'INSERT INTO mensagens (entrevista_id, role, conteudo, company_id) VALUES ($1,$2,$3,$4) RETURNING id, role, conteudo, criado_em',
-    [id, 'assistant', String(resposta), req.usuario.companyId]
+    [id, 'assistant', String(resposta), req.usuario.company_id]
   );
 
   res.json({

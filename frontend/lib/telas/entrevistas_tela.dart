@@ -4,7 +4,6 @@ import '../componentes/tm_button.dart';
 import '../componentes/tm_chip.dart';
 import '../design_system/tm_tokens.dart';
 import '../servicos/api_cliente.dart';
-import '../servicos/dados_mockados.dart';
 
 class EntrevistasTela extends StatefulWidget {
   final ApiCliente api;
@@ -26,6 +25,7 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
   bool _carregando = true;
   final List<_InterviewCardData> _itens = [];
   final Set<int> _hovered = <int>{};
+  int _page = 1;
 
   @override
   void initState() {
@@ -36,54 +36,23 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
   Future<void> _carregar() async {
     setState(() => _carregando = true);
     try {
-      // Agendadas a partir dos candidatos com status "Entrevista Agendada"
-      final candidatosResp = await widget.api.candidatos();
-      final candidatos = candidatosResp.whereType<Map<String, dynamic>>().toList();
-      final agendadas = candidatos.where((c) => (c['status']?.toString() ?? '') == 'Entrevista Agendada');
-
-      for (final c in agendadas) {
-        final nome = c['nome']?.toString() ?? 'Candidato(a)';
-        final vagaId = c['vagaId']?.toString();
-        final vagaTitulo = _vagaTituloPorId(vagaId) ?? 'Vaga';
-        final criadoEm = c['criadoEm'] is DateTime
-            ? c['criadoEm'] as DateTime
-            : (c['createdAt'] is DateTime ? c['createdAt'] as DateTime : DateTime.now());
-        final quando = DateTime(criadoEm.year, criadoEm.month, criadoEm.day).add(const Duration(days: 10)).add(const Duration(hours: 14));
-
-        _itens.add(
-          _InterviewCardData(
-            tipo: _InterviewType.scheduled,
-            candidato: nome,
-            vaga: vagaTitulo,
-            status: 'Agendada',
-            quando: quando,
-            duracaoMin: null,
-            perguntas: 3,
-            rating: null,
-          ),
-        );
-      }
-
-      // Concluídas via histórico com tem_relatorio = true
-      final historicoResp = await widget.api.historico();
-      final historico = historicoResp.whereType<Map<String, dynamic>>().toList();
-      for (final h in historico.where((e) => e['tem_relatorio'] == true)) {
-        final nome = h['candidato']?.toString() ?? 'Candidato';
-        final vaga = h['vaga']?.toString() ?? 'Vaga';
-        final criado = DateTime.tryParse(h['criado_em']?.toString() ?? '') ?? DateTime.now().subtract(const Duration(days: 1));
-
-        _itens.add(
-          _InterviewCardData(
-            tipo: _InterviewType.concluded,
-            candidato: nome,
-            vaga: vaga,
-            status: 'Concluída',
-            quando: criado,
-            duracaoMin: 60,
-            perguntas: 2,
-            rating: 4.5,
-          ),
-        );
+      _itens.clear();
+      final list = await widget.api.listarEntrevistas(page: _page, to: null, from: null);
+      for (final m in list.whereType<Map<String, dynamic>>()) {
+        final status = (m['status']?.toString() ?? '').toLowerCase();
+        final tipo = status == 'completed' ? _InterviewType.concluded : _InterviewType.scheduled;
+        final dt = DateTime.tryParse(m['scheduled_at']?.toString() ?? '');
+        _itens.add(_InterviewCardData(
+          id: m['id']?.toString() ?? '',
+          tipo: tipo,
+          candidato: m['candidate_name']?.toString() ?? 'Candidato',
+          vaga: m['job_title']?.toString() ?? 'Vaga',
+          status: status.isEmpty ? 'scheduled' : status,
+          quando: dt,
+          duracaoMin: null,
+          perguntas: null,
+          rating: null,
+        ));
       }
 
       // Ordena: agendadas primeiro, depois recentes
@@ -91,20 +60,8 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
         if (a.tipo != b.tipo) return a.tipo.index.compareTo(b.tipo.index);
         return (b.quando ?? DateTime(0)).compareTo(a.quando ?? DateTime(0));
       });
-    } catch (_) {
-      // fallback silencioso já que usamos mocks via ApiCliente
     } finally {
       if (mounted) setState(() => _carregando = false);
-    }
-  }
-
-  String? _vagaTituloPorId(String? vagaId) {
-    if (vagaId == null) return null;
-    try {
-      final v = mockVagas.firstWhere((e) => e.id == vagaId);
-      return v.titulo;
-    } catch (_) {
-      return null;
     }
   }
 
@@ -151,6 +108,21 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
                   itemCount: _itens.length,
                   itemBuilder: (context, index) => _buildCard(_itens[index], index),
                 ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton(
+                    onPressed: _page > 1 ? () { setState(() { _page -= 1; }); _carregar(); } : null,
+                    child: const Text('Anterior'),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () { setState(() { _page += 1; }); _carregar(); },
+                    child: const Text('Próxima'),
+                  ),
+                ],
+              ),
             ],
           ),
         );
@@ -177,16 +149,7 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
         ),
       ),
       const SizedBox(width: 16),
-      TMButton(
-        'Agendar Entrevista',
-        icon: Icons.add,
-        onPressed: () {
-          // Navega para a tela assistida com um contexto padrão
-          final candidato = _itens.where((e) => e.tipo == _InterviewType.scheduled).map((e) => e.candidato).firstOrNull ?? 'João Silva';
-          final vaga = _itens.where((e) => e.tipo == _InterviewType.scheduled).map((e) => e.vaga).firstOrNull ?? 'Desenvolvedor Full Stack';
-          widget.onAbrirAssistida(candidato, vaga);
-        },
-      ),
+      TMButton('Agendar Entrevista', icon: Icons.add, onPressed: _agendarEntrevista),
     ];
 
     if (isCompact) {
@@ -197,11 +160,7 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
           const SizedBox(height: 4),
           const Text('Gerencie e conduza entrevistas assistidas por IA', style: TextStyle(fontSize: 16, color: TMTokens.textMuted)),
           const SizedBox(height: 16),
-          TMButton('Agendar Entrevista', icon: Icons.add, onPressed: () {
-            final candidato = _itens.where((e) => e.tipo == _InterviewType.scheduled).map((e) => e.candidato).firstOrNull ?? 'João Silva';
-            final vaga = _itens.where((e) => e.tipo == _InterviewType.scheduled).map((e) => e.vaga).firstOrNull ?? 'Desenvolvedor Full Stack';
-            widget.onAbrirAssistida(candidato, vaga);
-          }),
+          TMButton('Agendar Entrevista', icon: Icons.add, onPressed: _agendarEntrevista),
         ],
       );
     }
@@ -259,7 +218,11 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
                         ],
                       ),
                     ),
-                    TMChip.interviewStatus(item.status),
+                    Row(children: [
+                      TMChip.interviewStatus(_displayStatus(item.status)),
+                      const SizedBox(width: 8),
+                      _statusDropdown(item),
+                    ]),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -311,6 +274,21 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
     );
   }
 
+  String _displayStatus(String status) {
+    switch (status) {
+      case 'scheduled':
+        return 'Agendada';
+      case 'completed':
+        return 'Concluída';
+      case 'cancelled':
+        return 'Cancelada';
+      case 'no_show':
+        return 'No-Show';
+      default:
+        return status;
+    }
+  }
+
   Widget _buildEmptyState() {
     return Card(
       child: Padding(
@@ -325,13 +303,122 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
               const SizedBox(height: 8),
               const Text('Agende uma nova entrevista para começar', style: TextStyle(fontSize: 14, color: TMTokens.textMuted)),
               const SizedBox(height: 16),
-              TMButton('Agendar Entrevista', icon: Icons.add, onPressed: () {
-                widget.onAbrirAssistida('João Silva', 'Desenvolvedor Full Stack');
-              }),
+              TMButton('Agendar Entrevista', icon: Icons.add, onPressed: _agendarEntrevista),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _statusDropdown(_InterviewCardData item) {
+    const options = ['scheduled', 'completed', 'cancelled', 'no_show'];
+    return DropdownButtonHideUnderline(
+      child: DropdownButton<String>(
+        value: item.status,
+        onChanged: (v) async {
+          if (v == null) return;
+          try {
+            await widget.api.atualizarEntrevista(item.id, status: v);
+            await _carregar();
+          } catch (_) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Falha ao atualizar status')));
+          }
+        },
+        items: options.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+      ),
+    );
+  }
+
+  Future<void> _agendarEntrevista() async {
+    final jobs = await widget.api.vagas();
+    final cands = await widget.api.candidatos();
+    if (!mounted) return;
+    String? jobId;
+    String? candidateId;
+    String mode = 'online';
+    DateTime when = DateTime.now().add(const Duration(days: 1));
+    bool loading = false;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => StatefulBuilder(builder: (context, setSB) {
+        return AlertDialog(
+          title: const Text('Agendar Entrevista'),
+          content: SizedBox(
+            width: 520,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: jobId,
+                  items: jobs.map<DropdownMenuItem<String>>((j) => DropdownMenuItem(value: j['id'].toString(), child: Text(j['title']?.toString() ?? 'Vaga'))).toList(),
+                  onChanged: (v) => setSB(() => jobId = v),
+                  decoration: const InputDecoration(labelText: 'Vaga'),
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  initialValue: candidateId,
+                  items: cands.map<DropdownMenuItem<String>>((c) => DropdownMenuItem(value: c['id'].toString(), child: Text(c['nome']?.toString() ?? c['full_name']?.toString() ?? 'Candidato'))).toList(),
+                  onChanged: (v) => setSB(() => candidateId = v),
+                  decoration: const InputDecoration(labelText: 'Candidato'),
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  initialValue: mode,
+                  items: const [
+                    DropdownMenuItem(value: 'online', child: Text('Online')),
+                    DropdownMenuItem(value: 'on_site', child: Text('Presencial')),
+                    DropdownMenuItem(value: 'phone', child: Text('Telefone')),
+                  ],
+                  onChanged: (v) => setSB(() => mode = v ?? 'online'),
+                  decoration: const InputDecoration(labelText: 'Modo'),
+                ),
+                const SizedBox(height: 8),
+                Row(children: [
+                  Expanded(child: Text('Quando: ${_formatarDataPt(when)}')),
+                  TextButton(
+                    onPressed: () async {
+                      final date = await showDatePicker(context: context, initialDate: when, firstDate: DateTime.now().subtract(const Duration(days: 1)), lastDate: DateTime.now().add(const Duration(days: 365)));
+                      if (date != null) {
+                        final time = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(when));
+                        if (time != null) {
+                          setSB(() => when = DateTime(date.year, date.month, date.day, time.hour, time.minute));
+                        } else {
+                          setSB(() => when = DateTime(date.year, date.month, date.day, when.hour, when.minute));
+                        }
+                      }
+                    },
+                    child: const Text('Alterar'),
+                  )
+                ])
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
+            ElevatedButton(
+              onPressed: (loading || jobId == null || candidateId == null) ? null : () async {
+                setSB(() => loading = true);
+                try {
+                  await widget.api.agendarEntrevista(jobId: jobId!, candidateId: candidateId!, scheduledAt: when, mode: mode);
+                  if (!context.mounted) return;
+                  Navigator.of(context).pop();
+                  await _carregar();
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Entrevista agendada')));
+                } catch (e) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Falha ao agendar entrevista')));
+                } finally {
+                  if (context.mounted) setSB(() => loading = false);
+                }
+              },
+              child: Text(loading ? 'Agendando...' : 'Agendar'),
+            )
+          ],
+        );
+      }),
     );
   }
 }
@@ -339,6 +426,7 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
 enum _InterviewType { scheduled, concluded }
 
 class _InterviewCardData {
+  final String id;
   final _InterviewType tipo;
   final String candidato;
   final String vaga;
@@ -349,6 +437,7 @@ class _InterviewCardData {
   final double? rating;
 
   _InterviewCardData({
+    required this.id,
     required this.tipo,
     required this.candidato,
     required this.vaga,
@@ -358,8 +447,4 @@ class _InterviewCardData {
     this.perguntas,
     this.rating,
   });
-}
-
-extension _FirstOrNull<E> on Iterable<E> {
-  E? get firstOrNull => isEmpty ? null : first;
 }

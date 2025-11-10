@@ -44,7 +44,7 @@ class CardEstatistica extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: (cor ?? Colors.indigo).withOpacity(0.1),
+                      color: (cor ?? Colors.indigo).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(icone, size: 18, color: cor ?? Colors.indigo),
@@ -698,7 +698,7 @@ class BolhaChat extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
@@ -741,7 +741,7 @@ class BadgePontuacao extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: _coresGradiente(pontuacao)[0].withOpacity(0.3),
+            color: _coresGradiente(pontuacao)[0].withValues(alpha: 0.3),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -864,7 +864,7 @@ class IlustracaoHero extends StatelessWidget {
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),

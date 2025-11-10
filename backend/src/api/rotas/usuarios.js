@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../../config/database');
 const bcrypt = require('bcryptjs');
 const { exigirAutenticacao, exigirAdmin, exigirRole } = require('../../middlewares/autenticacao');
+const { audit } = require('../../middlewares/audit');
 const { validaDocumento, normalizaDocumento } = require('../../servicos/documento');
 
 router.use(exigirAutenticacao);
@@ -14,7 +15,7 @@ router.post('/', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
     if (!nome || !email || !senha) return res.status(400).json({ erro: 'Campos obrigatórios: nome, email, senha' });
     if (!['USER', 'ADMIN', 'SUPER_ADMIN'].includes(perfil)) return res.status(400).json({ erro: 'Perfil inválido' });
     // Resolver company_id: usa a mesma do admin por padrão, ou cria/pega pela combinação tipo/documento
-    let companyId = req.usuario.companyId;
+  let companyId = req.usuario.company_id;
     if (company && company.documento && company.tipo) {
       const tipo = String(company.tipo).toUpperCase();
       const documento = normalizaDocumento(company.documento);
@@ -34,7 +35,9 @@ router.post('/', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
       'INSERT INTO usuarios (nome, email, senha_hash, perfil, aceitou_lgpd, company_id, is_active) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id,nome,email,perfil,criado_em',
       [nome, email.toLowerCase(), hash, perfil, !!aceitouLGPD, companyId, !!is_active]
     );
-    res.status(201).json(r.rows[0]);
+    const row = r.rows[0];
+    await audit(req, 'create', 'usuario', row.id, { email: row.email, perfil: row.perfil });
+    res.status(201).json(row);
   } catch (e) {
     if (String(e.message || '').includes('duplicate')) return res.status(409).json({ erro: 'Email já cadastrado' });
     res.status(500).json({ erro: 'Falha ao criar usuário' });
@@ -43,7 +46,7 @@ router.post('/', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
 
 // Listar usuários (somente admin)
 router.get('/', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
-  const r = await db.query('SELECT id,nome,email,perfil,criado_em FROM usuarios WHERE company_id=$1 ORDER BY criado_em DESC', [req.usuario.companyId]);
+  const r = await db.query('SELECT id,nome,email,perfil,criado_em FROM usuarios WHERE company_id=$1 ORDER BY criado_em DESC', [req.usuario.company_id]);
   res.json(r.rows);
 });
 

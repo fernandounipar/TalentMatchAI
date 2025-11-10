@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
 import '../componentes/widgets.dart';
 
 /// Tela de Análise de Currículo (usa dados reais se fornecidos)
@@ -6,6 +8,7 @@ class AnaliseCurriculoTela extends StatelessWidget {
   final String vaga;
   final String candidato;
   final String arquivo;
+  final String? fileUrl;
   final Map<String, dynamic>? analise;
   final VoidCallback onEntrevistar;
   final VoidCallback onVoltar;
@@ -18,6 +21,7 @@ class AnaliseCurriculoTela extends StatelessWidget {
     required this.onEntrevistar,
     required this.onVoltar,
     this.analise,
+    this.fileUrl,
   });
 
   @override
@@ -62,7 +66,14 @@ class AnaliseCurriculoTela extends StatelessWidget {
                     Text(summary, style: TextStyle(fontSize: 14, color: Colors.grey.shade700)),
                     const SizedBox(height: 8),
                     Wrap(spacing: 8, children: [
-                      Chip(label: const Text('Arquivo')), Chip(label: Text(arquivo)),
+                      Chip(label: const Text('Arquivo')),
+                      Chip(label: Text(arquivo)),
+                      if (fileUrl != null)
+                        TextButton.icon(
+                          onPressed: () => html.window.open(fileUrl!, '_blank'),
+                          icon: const Icon(Icons.download),
+                          label: const Text('Baixar'),
+                        ),
                     ]),
                   ]),
                 ),

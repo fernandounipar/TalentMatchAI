@@ -2,19 +2,16 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
-import 'mock_database.dart';
 
 class ApiCliente {
   final String baseUrl;
   String? _token;
-  final bool usarMock;
-  final MockDatabase mock;
+  String? _refresh;
+  // mocks removidos
 
   ApiCliente({
     required this.baseUrl,
-    this.usarMock = true,
-    MockDatabase? mock,
-  }) : mock = mock ?? MockDatabase();
+  });
 
   Map<String, String> _headers({Map<String, String>? extra}) => {
         'Content-Type': 'application/json',
@@ -23,90 +20,387 @@ class ApiCliente {
       };
 
   set token(String? t) => _token = t;
+  set refreshToken(String? t) => _refresh = t;
 
-  Future<T> _withMock<T>(Future<T> Function() call, T Function() fallback) async {
-    if (!usarMock) {
-      try {
+  Future<http.Response> _execWithRefresh(Future<http.Response> Function() call) async {
+    final resp = await call();
+    if (resp.statusCode == 401 && _refresh != null) {
+      final ok = await _tryRefresh();
+      if (ok) {
         return await call();
-      } catch (_) {
-        // Em caso de falha na API real, caímos no mock
       }
     }
-    return fallback();
+    return resp;
   }
 
-  Future<Map<String, dynamic>> entrar({required String email, required String senha}) async {
-    return _withMock(() async {
-      final resp = await http.post(
-        Uri.parse('$baseUrl/api/auth/login'),
+  Future<bool> _tryRefresh() async {
+    try {
+      final r = await http.post(
+        Uri.parse('$baseUrl/api/auth/refresh'),
         headers: _headers(),
-        body: jsonEncode({'email': email, 'senha': senha}),
+        body: jsonEncode({'refresh_token': _refresh}),
       );
-      if (resp.statusCode >= 400) throw Exception(resp.body);
-      final data = jsonDecode(resp.body);
-      token = data['token'];
-      return data;
-    }, () {
-      final data = mock.login(email, senha);
-      token = data['token'];
-      return data;
-    });
+      if (r.statusCode >= 400) return false;
+      final data = jsonDecode(r.body);
+      token = data['access_token'];
+      refreshToken = data['refresh_token'] ?? _refresh;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // Removido suporte a mocks: todas as chamadas utilizam API real
+
+  Future<Map<String, dynamic>> entrar({required String email, required String senha}) async {
+    final resp = await http.post(
+      Uri.parse('$baseUrl/api/auth/login'),
+      headers: _headers(),
+      body: jsonEncode({'email': email, 'senha': senha}),
+    );
+    if (resp.statusCode >= 400) {
+      throw Exception(resp.body);
+    }
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    token = data['access_token'] ?? data['token'];
+    refreshToken = data['refresh_token'];
+    return data;
+  }
+
+  Future<Map<String, dynamic>> registrar({
+    required String nomeCompleto,
+    required String email,
+    required String senha,
+  }) async {
+    final payload = {
+      'full_name': nomeCompleto,
+      'email': email,
+      'password': senha,
+    };
+    final resp = await http.post(
+      Uri.parse('$baseUrl/api/auth/register'),
+      headers: _headers(),
+      body: jsonEncode(payload),
+    );
+    if (resp.statusCode >= 400) {
+      throw Exception(resp.body);
+    }
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    token = data['access_token'] ?? data['token'];
+    refreshToken = data['refresh_token'];
+    return data;
+  }
+
+  /// Busca dados do usuário logado (com ou sem empresa)
+  Future<Map<String, dynamic>> obterUsuario() async {
+    final r = await _execWithRefresh(() => http.get(Uri.parse('$baseUrl/api/user/me'), headers: _headers()));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  /// Cria ou atualiza empresa do usuário logado
+  Future<Map<String, dynamic>> criarOuAtualizarEmpresa({
+    required String tipo, // 'CPF' ou 'CNPJ'
+    required String documento,
+    required String nome,
+  }) async {
+    final payload = {
+      'type': tipo,
+      'document': documento,
+      'name': nome,
+    };
+    final r = await _execWithRefresh(() => http.post(
+      Uri.parse('$baseUrl/api/user/company'),
+      headers: _headers(),
+      body: jsonEncode(payload),
+    ));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> dashboard() async {
-    return _withMock(() async {
-      final r = await http.get(Uri.parse('$baseUrl/api/dashboard'), headers: _headers());
-      if (r.statusCode >= 400) throw Exception(r.body);
-      return jsonDecode(r.body);
-    }, () => mock.dashboard());
+    final r = await _execWithRefresh(() => http.get(Uri.parse('$baseUrl/api/dashboard'), headers: _headers()));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as Map<String, dynamic>;
   }
 
-  Future<List<dynamic>> vagas() async {
-    return _withMock(() async {
-      final r = await http.get(Uri.parse('$baseUrl/api/vagas'), headers: _headers());
-      if (r.statusCode >= 400) throw Exception(r.body);
-      return jsonDecode(r.body);
-    }, () => mock.vagas());
+  Future<List<dynamic>> vagas({int page = 1, int limit = 50, String? status, String? q}) async {
+    final qp = <String, String>{'page': '$page', 'limit': '$limit'};
+    if (status != null) qp['status'] = status;
+    if (q != null) qp['q'] = q;
+    final uri = Uri.parse('$baseUrl/api/jobs').replace(queryParameters: qp);
+    final r = await _execWithRefresh(() => http.get(uri, headers: _headers()));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as List<dynamic>;
   }
 
   Future<Map<String, dynamic>> criarVaga(Map<String, dynamic> vaga) async {
-    return _withMock(() async {
-      final r = await http.post(Uri.parse('$baseUrl/api/vagas'), headers: _headers(), body: jsonEncode(vaga));
-      if (r.statusCode >= 400) throw Exception(r.body);
-      return jsonDecode(r.body);
-    }, () => mock.criarVaga(vaga));
+    final payload = {
+      'title': vaga['titulo'],
+      'description': vaga['descricao'],
+      'requirements': vaga['requisitos'],
+      'status': (vaga['status'] ?? 'aberta').toString().toLowerCase() == 'aberta' ? 'open' : 'closed',
+      'seniority': vaga['nivel'],
+      'location_type': vaga['regime'],
+    };
+    final r = await _execWithRefresh(() => http.post(Uri.parse('$baseUrl/api/jobs'), headers: _headers(), body: jsonEncode(payload)));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as Map<String, dynamic>;
   }
 
-  Future<List<dynamic>> candidatos() async {
-    return _withMock(() async {
-      final r = await http.get(Uri.parse('$baseUrl/api/candidatos'), headers: _headers());
-      if (r.statusCode >= 400) throw Exception(r.body);
-      return jsonDecode(r.body);
-    }, () => mock.candidatos());
+  Future<Map<String, dynamic>> atualizarVaga(String id, Map<String, dynamic> vaga) async {
+    final payload = {
+      if (vaga.containsKey('titulo')) 'title': vaga['titulo'],
+      if (vaga.containsKey('descricao')) 'description': vaga['descricao'],
+      if (vaga.containsKey('requisitos')) 'requirements': vaga['requisitos'],
+      if (vaga.containsKey('status')) 'status': (vaga['status'] ?? '').toString().toLowerCase() == 'aberta' ? 'open' : vaga['status'],
+      if (vaga.containsKey('nivel')) 'seniority': vaga['nivel'],
+      if (vaga.containsKey('regime')) 'location_type': vaga['regime'],
+    };
+    final r = await _execWithRefresh(() => http.put(Uri.parse('$baseUrl/api/jobs/$id'), headers: _headers(), body: jsonEncode(payload)));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body);
+  }
+
+  Future<void> deletarVaga(String id) async {
+    final r = await _execWithRefresh(() => http.delete(Uri.parse('$baseUrl/api/jobs/$id'), headers: _headers()));
+    if (r.statusCode >= 400) throw Exception(r.body);
+  }
+
+  Future<List<dynamic>> candidatos({int page = 1, int limit = 50, String? q, String? skill}) async {
+    final qp = <String, String>{'page': '$page', 'limit': '$limit'};
+    if (q != null) qp['q'] = q;
+    if (skill != null) qp['skill'] = skill;
+    final uri = Uri.parse('$baseUrl/api/candidates').replace(queryParameters: qp);
+    final r = await _execWithRefresh(() => http.get(uri, headers: _headers()));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as List<dynamic>;
   }
 
   Future<List<dynamic>> historico() async {
-    return _withMock(() async {
-      final r = await http.get(Uri.parse('$baseUrl/api/historico'), headers: _headers());
-      if (r.statusCode >= 400) throw Exception(r.body);
-      return jsonDecode(r.body);
-    }, () => mock.historico());
+    final r = await _execWithRefresh(() => http.get(Uri.parse('$baseUrl/api/historico'), headers: _headers()));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as List<dynamic>;
+  }
+
+  Future<List<String>> skills() async {
+    final r = await _execWithRefresh(() => http.get(Uri.parse('$baseUrl/api/skills'), headers: _headers()));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    final data = jsonDecode(r.body) as List;
+    return data.map((e) => (e['name'] as String)).toList();
+  }
+
+  Future<Map<String, dynamic>> obterPipeline(String jobId) async {
+    final r = await _execWithRefresh(() => http.get(Uri.parse('$baseUrl/api/jobs/$jobId/pipeline'), headers: _headers()));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> criarCandidatura({
+    required String jobId,
+    required String candidateId,
+    String? stageId,
+  }) async {
+    final payload = {
+      'job_id': jobId,
+      'candidate_id': candidateId,
+      if (stageId != null) 'stage_id': stageId,
+    };
+    final r = await _execWithRefresh(() => http.post(Uri.parse('$baseUrl/api/applications'), headers: _headers(), body: jsonEncode(payload)));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> listarCandidaturas({String? jobId, String? candidateId}) async {
+    final qs = <String, String>{};
+    if (jobId != null) qs['job_id'] = jobId;
+    if (candidateId != null) qs['candidate_id'] = candidateId;
+    final uri = Uri.parse('$baseUrl/api/applications').replace(queryParameters: qs.isEmpty ? null : qs);
+    final r = await _execWithRefresh(() => http.get(uri, headers: _headers()));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as List<dynamic>;
+  }
+
+  Future<void> moverCandidatura({
+    required String applicationId,
+    required String toStageId,
+    String? note,
+  }) async {
+    final r = await _execWithRefresh(() => http.post(
+          Uri.parse('$baseUrl/api/applications/$applicationId/move'),
+          headers: _headers(),
+          body: jsonEncode({'to_stage_id': toStageId, if (note != null) 'note': note}),
+        ));
+    if (r.statusCode >= 400) throw Exception(r.body);
+  }
+
+  Future<Map<String, dynamic>> historicoCandidatura(String applicationId) async {
+    final r = await _execWithRefresh(() => http.get(Uri.parse('$baseUrl/api/applications/$applicationId/history'), headers: _headers()));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> listarEntrevistas({String? status, String? jobId, String? candidateId, DateTime? from, DateTime? to, int page = 1, int limit = 20}) async {
+    final qp = <String, String>{'page': '$page', 'limit': '$limit'};
+    if (status != null) qp['status'] = status;
+    if (jobId != null) qp['job_id'] = jobId;
+    if (candidateId != null) qp['candidate_id'] = candidateId;
+    if (from != null) qp['from'] = from.toIso8601String();
+    if (to != null) qp['to'] = to.toIso8601String();
+    final uri = Uri.parse('$baseUrl/api/interviews').replace(queryParameters: qp.isEmpty ? null : qp);
+    final r = await _execWithRefresh(() => http.get(uri, headers: _headers()));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as List<dynamic>;
+  }
+
+  Future<Map<String, dynamic>> agendarEntrevista({
+    required String jobId,
+    required String candidateId,
+    required DateTime scheduledAt,
+    DateTime? endsAt,
+    String mode = 'online',
+  }) async {
+    final r = await _execWithRefresh(() => http.post(
+          Uri.parse('$baseUrl/api/interviews'),
+          headers: _headers(),
+          body: jsonEncode({
+            'job_id': jobId,
+            'candidate_id': candidateId,
+            'scheduled_at': scheduledAt.toIso8601String(),
+            if (endsAt != null) 'ends_at': endsAt.toIso8601String(),
+            'mode': mode,
+          }),
+        ));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  // Interview Questions & Answers
+  Future<List<dynamic>> listarPerguntasEntrevista(String interviewId) async {
+    final r = await _execWithRefresh(() => http.get(Uri.parse('$baseUrl/api/interviews/$interviewId/questions'), headers: _headers()));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as List<dynamic>;
+  }
+
+  Future<List<dynamic>> gerarPerguntasAIParaEntrevista(String interviewId, {int qtd = 8, String kind = 'TECNICA'}) async {
+    final r = await _execWithRefresh(() => http.post(
+      Uri.parse('$baseUrl/api/interviews/$interviewId/questions?qtd=$qtd'),
+      headers: _headers(),
+      body: jsonEncode({'generate_ai': true, 'kind': kind}),
+    ));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as List<dynamic>;
+  }
+
+  Future<Map<String, dynamic>> criarPerguntaManual(String interviewId, {required String prompt, String origin = 'MANUAL', String kind = 'TECNICA'}) async {
+    final r = await _execWithRefresh(() => http.post(
+      Uri.parse('$baseUrl/api/interviews/$interviewId/questions'),
+      headers: _headers(),
+      body: jsonEncode({'prompt': prompt, 'origin': origin, 'kind': kind}),
+    ));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> listarRespostasEntrevista(String interviewId) async {
+    final r = await _execWithRefresh(() => http.get(Uri.parse('$baseUrl/api/interviews/$interviewId/answers'), headers: _headers()));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as List<dynamic>;
+  }
+
+  Future<Map<String, dynamic>> responderPergunta(String interviewId, {required String questionId, required String texto}) async {
+    final r = await _execWithRefresh(() => http.post(
+      Uri.parse('$baseUrl/api/interviews/$interviewId/answers'),
+      headers: _headers(),
+      body: jsonEncode({'question_id': questionId, 'raw_text': texto}),
+    ));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> atualizarEntrevista(String id, {DateTime? scheduledAt, DateTime? endsAt, String? mode, String? status}) async {
+    final payload = {
+      if (scheduledAt != null) 'scheduled_at': scheduledAt.toIso8601String(),
+      if (endsAt != null) 'ends_at': endsAt.toIso8601String(),
+      if (mode != null) 'mode': mode,
+      if (status != null) 'status': status,
+    };
+    final r = await _execWithRefresh(() => http.put(Uri.parse('$baseUrl/api/interviews/$id'), headers: _headers(), body: jsonEncode(payload)));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  // Ingestion jobs
+  Future<Map<String, dynamic>> getIngestionJob(String id) async {
+    final r = await _execWithRefresh(() => http.get(Uri.parse('$baseUrl/api/ingestion/$id'), headers: _headers()));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  // Resume search by term
+  Future<List<dynamic>> searchResumes(String q) async {
+    final uri = Uri.parse('$baseUrl/api/resumes/search').replace(queryParameters: {'q': q});
+    final r = await _execWithRefresh(() => http.get(uri, headers: _headers()));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as List<dynamic>;
+  }
+
+  Future<Map<String, dynamic>> criarCandidato({
+    required String nome,
+    required String email,
+    String? telefone,
+    String? linkedin,
+    String? githubUrl,
+    List<String>? skills,
+  }) async {
+    final payload = {
+      'full_name': nome,
+      'email': email,
+      if (telefone != null && telefone.isNotEmpty) 'phone': telefone,
+      if (linkedin != null && linkedin.isNotEmpty) 'linkedin': linkedin,
+      if (githubUrl != null && githubUrl.isNotEmpty) 'github_url': githubUrl,
+      if (skills != null) 'skills': skills,
+    };
+    final r = await _execWithRefresh(() => http.post(Uri.parse('$baseUrl/api/candidates'), headers: _headers(), body: jsonEncode(payload)));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  Future<void> atualizarCandidato(String id, {
+    String? nome,
+    String? email,
+    String? telefone,
+    String? linkedin,
+    String? githubUrl,
+    List<String>? skills,
+  }) async {
+    final payload = {
+      if (nome != null) 'full_name': nome,
+      if (email != null) 'email': email,
+      if (telefone != null) 'phone': telefone,
+      if (linkedin != null) 'linkedin': linkedin,
+      if (githubUrl != null) 'github_url': githubUrl,
+      if (skills != null) 'skills': skills,
+    };
+    final r = await _execWithRefresh(() => http.put(Uri.parse('$baseUrl/api/candidates/$id'), headers: _headers(), body: jsonEncode(payload)));
+    if (r.statusCode >= 400) throw Exception(r.body);
+  }
+
+  Future<void> deletarCandidato(String id) async {
+    final r = await _execWithRefresh(() => http.delete(Uri.parse('$baseUrl/api/candidates/$id'), headers: _headers()));
+    if (r.statusCode >= 400) throw Exception(r.body);
   }
 
   Future<Map<String, dynamic>> entrevista(String id) async {
-    return _withMock(() async {
-      final r = await http.get(Uri.parse('$baseUrl/api/entrevistas/$id'), headers: _headers());
-      if (r.statusCode >= 400) throw Exception(r.body);
-      return jsonDecode(r.body);
-    }, () => {'id': id});
+    final r = await _execWithRefresh(() => http.get(Uri.parse('$baseUrl/api/entrevistas/$id'), headers: _headers()));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as Map<String, dynamic>;
   }
 
   Future<List<dynamic>> gerarPerguntas(String entrevistaId, {int qtd = 8}) async {
-    return _withMock(() async {
-      final r = await http.post(Uri.parse('$baseUrl/api/entrevistas/$entrevistaId/perguntas?qtd=$qtd'), headers: _headers());
-      if (r.statusCode >= 400) throw Exception(r.body);
-      return jsonDecode(r.body);
-    }, () => mock.gerarPerguntas(entrevistaId, qtd: qtd));
+    final r = await _execWithRefresh(() => http.post(Uri.parse('$baseUrl/api/entrevistas/$entrevistaId/perguntas?qtd=$qtd'), headers: _headers()));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as List<dynamic>;
   }
 
   // Upload de currículo (multipart/form-data) usando bytes
@@ -116,49 +410,41 @@ class ApiCliente {
     Map<String, dynamic>? candidato,
     String? vagaId,
   }) async {
-    return _withMock(() async {
-      final uri = Uri.parse('$baseUrl/api/curriculos/upload');
-      final req = http.MultipartRequest('POST', uri);
-      if (_token != null) req.headers['Authorization'] = 'Bearer $_token';
-      req.files.add(http.MultipartFile.fromBytes('arquivo', bytes, filename: filename));
-      if (candidato != null) req.fields['candidato'] = jsonEncode(candidato);
-      if (vagaId != null) req.fields['vagaId'] = vagaId;
-      final streamed = await req.send();
-      final resp = await http.Response.fromStream(streamed);
-      if (resp.statusCode >= 400) throw Exception(resp.body);
-      return jsonDecode(resp.body);
-    }, () => mock.uploadCurriculo(filename: filename, candidato: candidato, vagaId: vagaId));
+    final uri = Uri.parse('$baseUrl/api/curriculos/upload');
+    final req = http.MultipartRequest('POST', uri);
+    if (_token != null) req.headers['Authorization'] = 'Bearer $_token';
+    req.files.add(http.MultipartFile.fromBytes('arquivo', bytes, filename: filename));
+    if (candidato != null) req.fields['candidato'] = jsonEncode(candidato);
+    if (vagaId != null) req.fields['vagaId'] = vagaId;
+    final streamed = await req.send();
+    final resp = await http.Response.fromStream(streamed);
+    if (resp.statusCode >= 400) throw Exception(resp.body);
+    return jsonDecode(resp.body) as Map<String, dynamic>;
   }
 
   // Chat - listar mensagens
   Future<List<dynamic>> listarMensagens(String entrevistaId) async {
-    return _withMock(() async {
-      final r = await http.get(Uri.parse('$baseUrl/api/entrevistas/$entrevistaId/mensagens'), headers: _headers());
-      if (r.statusCode >= 400) throw Exception(r.body);
-      return jsonDecode(r.body);
-    }, () => mock.listarMensagens(entrevistaId));
+    final r = await _execWithRefresh(() => http.get(Uri.parse('$baseUrl/api/entrevistas/$entrevistaId/mensagens'), headers: _headers()));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as List<dynamic>;
   }
 
   // Chat - enviar mensagem
   Future<Map<String, dynamic>> enviarMensagem(String entrevistaId, String mensagem) async {
-    return _withMock(() async {
-      final r = await http.post(
-        Uri.parse('$baseUrl/api/entrevistas/$entrevistaId/chat'),
-        headers: _headers(),
-        body: jsonEncode({'mensagem': mensagem}),
-      );
-      if (r.statusCode >= 400) throw Exception(r.body);
-      return jsonDecode(r.body);
-    }, () => mock.enviarMensagem(entrevistaId, mensagem));
+    final r = await _execWithRefresh(() => http.post(
+          Uri.parse('$baseUrl/api/entrevistas/$entrevistaId/chat'),
+          headers: _headers(),
+          body: jsonEncode({'mensagem': mensagem}),
+        ));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as Map<String, dynamic>;
   }
 
   // Relatório - gerar/atualizar
   Future<Map<String, dynamic>> gerarRelatorio(String entrevistaId) async {
-    return _withMock(() async {
-      final r = await http.post(Uri.parse('$baseUrl/api/entrevistas/$entrevistaId/relatorio'), headers: _headers());
-      if (r.statusCode >= 400) throw Exception(r.body);
-      return jsonDecode(r.body);
-    }, () => mock.gerarRelatorio(entrevistaId));
+    final r = await _execWithRefresh(() => http.post(Uri.parse('$baseUrl/api/interviews/$entrevistaId/report'), headers: _headers()));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as Map<String, dynamic>;
   }
 
   // Usuários - criar (admin only)
@@ -169,20 +455,18 @@ class ApiCliente {
     String perfil = 'RECRUTADOR',
     Map<String, dynamic>? company,
   }) async {
-    return _withMock(() async {
-      final r = await http.post(
-        Uri.parse('$baseUrl/api/usuarios'),
-        headers: _headers(),
-        body: jsonEncode({
-          'nome': nome,
-          'email': email,
-          'senha': senha,
-          'perfil': perfil,
-          if (company != null) 'company': company
-        }),
-      );
-      if (r.statusCode >= 400) throw Exception(r.body);
-      return jsonDecode(r.body);
-    }, () => mock.criarUsuario(nome: nome, email: email, senha: senha, perfil: perfil, company: company));
+    final r = await _execWithRefresh(() => http.post(
+          Uri.parse('$baseUrl/api/usuarios'),
+          headers: _headers(),
+          body: jsonEncode({
+            'nome': nome,
+            'email': email,
+            'senha': senha,
+            'perfil': perfil,
+            if (company != null) 'company': company
+          }),
+        ));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as Map<String, dynamic>;
   }
 }

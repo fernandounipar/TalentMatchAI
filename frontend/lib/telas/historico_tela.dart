@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../servicos/api_cliente.dart';
 import '../design_system/tm_tokens.dart';
-import '../servicos/dados_mockados.dart';
 import '../modelos/historico.dart';
 
 class HistoricoTela extends StatefulWidget {
@@ -29,9 +28,20 @@ class _HistoricoTelaState extends State<HistoricoTela> {
   Future<void> _carregar() async {
     setState(() => _carregando = true);
     try {
-      // Usamos dataset rico do mock (com tipo/entidade/usuario)
-      await Future.delayed(const Duration(milliseconds: 200));
-      _atividades = List<AtividadeHistorico>.from(mockHistorico);
+      final hist = await widget.api.historico();
+      _atividades = hist.map<AtividadeHistorico>((e) {
+        final m = e as Map<String, dynamic>;
+        final created = DateTime.tryParse(m['criado_em']?.toString() ?? '') ?? DateTime.now();
+        return AtividadeHistorico(
+          id: (m['id'] ?? '').toString(),
+          usuario: m['candidato']?.toString() ?? '—',
+          descricao: 'Entrevista ${m['tem_relatorio'] == true ? 'com relatório' : ''} para ${m['vaga'] ?? 'Vaga'}',
+          tipo: 'Entrevista',
+          entidade: 'Entrevista',
+          entidadeId: (m['id'] ?? '').toString(),
+          data: created,
+        );
+      }).toList();
     } finally {
       if (mounted) setState(() => _carregando = false);
     }
@@ -134,7 +144,7 @@ class _HistoricoTelaState extends State<HistoricoTela> {
   Widget _tipoDropdown() {
     const tipos = ['Todos', 'Upload', 'Análise', 'Entrevista', 'Aprovação', 'Reprovação', 'Edição'];
     return DropdownButtonFormField<String>(
-      value: _filtroTipo,
+      initialValue: _filtroTipo,
       decoration: InputDecoration(
         prefixIcon: const Icon(Icons.filter_alt, size: 18),
         border: OutlineInputBorder(
@@ -155,7 +165,7 @@ class _HistoricoTelaState extends State<HistoricoTela> {
   Widget _entidadeDropdown() {
     const ents = ['Todas', 'Candidato', 'Vaga', 'Entrevista'];
     return DropdownButtonFormField<String>(
-      value: _filtroEntidade,
+      initialValue: _filtroEntidade,
       decoration: InputDecoration(
         prefixIcon: const Icon(Icons.filter_list, size: 18),
         border: OutlineInputBorder(
@@ -260,18 +270,18 @@ class _HistoricoTelaState extends State<HistoricoTela> {
     Color fg;
     switch (tipo) {
       case 'Upload':
-        icon = Icons.upload_file; bg = TMTokens.info.withOpacity(0.15); fg = TMTokens.info; break;
+  icon = Icons.upload_file; bg = TMTokens.info.withValues(alpha: 0.15); fg = TMTokens.info; break;
       case 'Análise':
-        icon = Icons.psychology; bg = TMTokens.secondary.withOpacity(0.15); fg = TMTokens.secondary; break;
+  icon = Icons.psychology; bg = TMTokens.secondary.withValues(alpha: 0.15); fg = TMTokens.secondary; break;
       case 'Entrevista':
-        icon = Icons.calendar_today; bg = TMTokens.warning.withOpacity(0.15); fg = TMTokens.warning; break;
+  icon = Icons.calendar_today; bg = TMTokens.warning.withValues(alpha: 0.15); fg = TMTokens.warning; break;
       case 'Aprovação':
-        icon = Icons.check_circle; bg = TMTokens.success.withOpacity(0.15); fg = TMTokens.success; break;
+  icon = Icons.check_circle; bg = TMTokens.success.withValues(alpha: 0.15); fg = TMTokens.success; break;
       case 'Reprovação':
-        icon = Icons.cancel; bg = TMTokens.error.withOpacity(0.15); fg = TMTokens.error; break;
+  icon = Icons.cancel; bg = TMTokens.error.withValues(alpha: 0.15); fg = TMTokens.error; break;
       case 'Edição':
       default:
-        icon = Icons.edit_square; bg = TMTokens.textMuted.withOpacity(0.15); fg = TMTokens.textMuted; break;
+  icon = Icons.edit_square; bg = TMTokens.textMuted.withValues(alpha: 0.15); fg = TMTokens.textMuted; break;
     }
     return Container(
       width: 40,
@@ -286,12 +296,12 @@ class _HistoricoTelaState extends State<HistoricoTela> {
     Color bg;
     switch (entidade) {
       case 'Vaga':
-        fg = TMTokens.primary; bg = TMTokens.primary.withOpacity(0.08); break;
+  fg = TMTokens.primary; bg = TMTokens.primary.withValues(alpha: 0.08); break;
       case 'Entrevista':
-        fg = TMTokens.warning; bg = TMTokens.warning.withOpacity(0.15); break;
+  fg = TMTokens.warning; bg = TMTokens.warning.withValues(alpha: 0.15); break;
       case 'Candidato':
       default:
-        fg = TMTokens.secondary; bg = TMTokens.secondary.withOpacity(0.15); break;
+  fg = TMTokens.secondary; bg = TMTokens.secondary.withValues(alpha: 0.15); break;
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),

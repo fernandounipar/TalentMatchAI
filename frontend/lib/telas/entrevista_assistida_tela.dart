@@ -29,7 +29,9 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
   final ScrollController _scrollController = ScrollController();
   bool _enviando = false;
   final List<Map<String, dynamic>> _mensagens = [];
-  List<String> _sugeridas = const [];
+  List<Map<String, dynamic>> _perguntas = const [];
+  String? _perguntaSelecionadaId;
+  List<Map<String, dynamic>> _respostas = const [];
   bool _gerandoPerguntas = false;
   bool _finalizando = false;
 
@@ -54,6 +56,15 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
           ..clear()
           ..addAll(msgs.map((m) => _fromApiMsg(m)));
       });
+      // carrega perguntas e respostas persistidas
+      try {
+        final qs = await widget.api.listarPerguntasEntrevista(widget.entrevistaId);
+        final asw = await widget.api.listarRespostasEntrevista(widget.entrevistaId);
+        setState(() {
+          _perguntas = qs.cast<Map<String, dynamic>>();
+          _respostas = asw.cast<Map<String, dynamic>>();
+        });
+      } catch (_) {}
     } catch (_) {}
   }
 
@@ -78,6 +89,15 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
       final r = await widget.api.enviarMensagem(widget.entrevistaId, texto);
       final resp = r['resposta'] ?? {};
       setState(() => _mensagens.add(_fromApiMsg(resp)));
+      // Se uma pergunta estiver selecionada, persiste como resposta
+      if (_perguntaSelecionadaId != null) {
+        try {
+          final saved = await widget.api.responderPergunta(widget.entrevistaId, questionId: _perguntaSelecionadaId!, texto: texto);
+          setState(() {
+            _respostas = List.from(_respostas)..add(saved);
+          });
+        } catch (_) {}
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Falha ao enviar: $e')));
@@ -233,15 +253,28 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        if (_sugeridas.isEmpty)
+                        if (_perguntas.isEmpty)
                           Text(
                             'Nenhuma pergunta gerada ainda. Clique no botão abaixo para gerar.',
                             style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                           )
                         else
-                          ..._sugeridas.map((q) => Padding(
+                          ..._perguntas.map((q) => Padding(
                                 padding: const EdgeInsets.only(bottom: 8),
-                                child: Text('• $q'),
+                                child: InkWell(
+                                  onTap: () => setState(() => _perguntaSelecionadaId = q['id'].toString()),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        _perguntaSelecionadaId == q['id'].toString() ? Icons.radio_button_checked : Icons.radio_button_off,
+                                        size: 16,
+                                        color: const Color(0xFF4F46E5),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Expanded(child: Text(q['prompt']?.toString() ?? '')),
+                                    ],
+                                  ),
+                                ),
                               )),
                         const SizedBox(height: 12),
                         ElevatedButton.icon(
@@ -250,8 +283,9 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                               : () async {
                                   setState(() => _gerandoPerguntas = true);
                                   try {
-                                    final qs = await widget.api.gerarPerguntas(widget.entrevistaId);
-                                    setState(() => _sugeridas = qs.map<String>((e) => e.toString()).toList());
+                                    await widget.api.gerarPerguntasAIParaEntrevista(widget.entrevistaId);
+                                    final qs = await widget.api.listarPerguntasEntrevista(widget.entrevistaId);
+                                    setState(() { _perguntas = qs.cast<Map<String, dynamic>>(); if (_perguntaSelecionadaId == null && _perguntas.isNotEmpty) _perguntaSelecionadaId = _perguntas.first['id'].toString(); });
                                   } catch (e) {
                                     if (!mounted) return;
                                     ScaffoldMessenger.of(context).showSnackBar(
@@ -264,6 +298,36 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                           icon: const Icon(Icons.psychology),
                           label: Text(_gerandoPerguntas ? 'Gerando...' : 'Gerar perguntas (IA)'),
                         ),
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            final ctrl = TextEditingController();
+                            await showDialog<void>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Adicionar Pergunta Manual'),
+                                content: TextField(controller: ctrl, decoration: const InputDecoration(hintText: 'Escreva a pergunta...')),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
+                                  ElevatedButton(onPressed: () async { try { await widget.api.criarPerguntaManual(widget.entrevistaId, prompt: ctrl.text.trim()); Navigator.of(context).pop(); final qs = await widget.api.listarPerguntasEntrevista(widget.entrevistaId); if (!mounted) return; setState(() { _perguntas = qs.cast<Map<String, dynamic>>(); }); } catch (_) {} }, child: const Text('Adicionar')),
+                                ],
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.add),
+                          label: const Text('Adicionar manualmente'),
+                        ),
+                        const SizedBox(height: 12),
+                        const Text('Respostas', style: TextStyle(fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 8),
+                        if (_respostas.isEmpty)
+                          Text('Sem respostas registradas', style: TextStyle(color: Colors.grey.shade600, fontSize: 12))
+                        else ...[
+                          ..._respostas.map((a) => Padding(
+                                padding: const EdgeInsets.only(bottom: 6),
+                                child: Text('• ${(a['raw_text'] ?? '')}'),
+                              )),
+                        ],
                         const SizedBox(height: 8),
                         OutlinedButton.icon(
                           onPressed: () async {

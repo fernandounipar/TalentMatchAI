@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../servicos/dados_mockados.dart';
+import '../servicos/api_cliente.dart';
 import '../modelos/vaga.dart';
 import '../componentes/tm_button.dart';
 import '../componentes/tm_chip.dart';
@@ -7,7 +7,8 @@ import '../design_system/tm_tokens.dart';
 
 /// Tela de Gerenciamento de Vagas
 class VagasTela extends StatefulWidget {
-  const VagasTela({super.key});
+  final ApiCliente api;
+  const VagasTela({super.key, required this.api});
 
   @override
   State<VagasTela> createState() => _VagasTelaState();
@@ -15,6 +16,7 @@ class VagasTela extends StatefulWidget {
 
 class _VagasTelaState extends State<VagasTela> {
   List<Vaga> _vagas = [];
+  int _page = 1;
   String _searchTerm = '';
   String _filterStatus = 'all';
   bool _carregando = true;
@@ -52,15 +54,31 @@ class _VagasTelaState extends State<VagasTela> {
   Future<void> _carregarVagas() async {
     setState(() => _carregando = true);
     try {
-      // Usar dados mockados
-      await Future.delayed(const Duration(milliseconds: 300));
+      final status = _filterStatus == 'all' ? null : (_filterStatus.toLowerCase() == 'aberta' ? 'open' : _filterStatus.toLowerCase());
+      final q = _searchTerm.trim().isEmpty ? null : _searchTerm.trim();
+      final itens = await widget.api.vagas(page: _page, limit: 20, status: status, q: q);
+      final vagas = itens.map((j) => Vaga(
+        id: (j['id'] ?? '').toString(),
+        titulo: j['title']?.toString() ?? '',
+        descricao: j['description']?.toString() ?? '',
+        requisitos: j['requirements']?.toString() ?? '',
+        requisitosList: (j['requirements']?.toString() ?? '').split('\n'),
+        senioridade: j['seniority']?.toString(),
+        regime: j['location_type']?.toString(),
+        local: null,
+        status: (() { final s = (j['status'] ?? '').toString(); return s == 'open' ? 'aberta' : s; })(),
+        salario: null,
+        tags: const [],
+        criadoEm: DateTime.tryParse(j['created_at']?.toString() ?? '') ?? DateTime.now(),
+        candidatos: 0,
+      )).toList();
       if (mounted) {
         setState(() {
-          _vagas = List.from(mockVagas);
+          _vagas = vagas;
           _carregando = false;
         });
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) setState(() => _carregando = false);
     }
   }
@@ -103,44 +121,37 @@ class _VagasTelaState extends State<VagasTela> {
     );
   }
 
-  void _handleSave() {
+  void _handleSave() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final vagaData = Vaga(
-      id: _editingVaga?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-      titulo: _tituloController.text,
-      descricao: _descricaoController.text,
-      requisitos: _requisitosController.text,
-      requisitosList: _requisitosController.text.split('\n').where((r) => r.trim().isNotEmpty).toList(),
-      senioridade: _senioridade,
-      regime: _regime,
-      local: _localController.text,
-      status: _editingVaga?.status ?? 'Aberta',
-      salario: _salarioController.text.isEmpty ? null : _salarioController.text,
-      tags: _tagsController.text.split(',').map((t) => t.trim()).where((t) => t.isNotEmpty).toList(),
-      criadoEm: _editingVaga?.criadoEm ?? DateTime.now(),
-      candidatos: _editingVaga?.candidatos ?? 0,
-    );
-
-    setState(() {
+    try {
+      final payload = {
+        'titulo': _tituloController.text,
+        'descricao': _descricaoController.text,
+        'requisitos': _requisitosController.text,
+        'status': (_editingVaga?.status ?? 'aberta').toLowerCase(),
+        'tecnologias': _tagsController.text,
+        'nivel': _senioridade,
+      };
       if (_editingVaga != null) {
-        final index = _vagas.indexWhere((v) => v.id == _editingVaga!.id);
-        if (index != -1) {
-          _vagas[index] = vagaData;
-        }
+        await widget.api.atualizarVaga(_editingVaga!.id, payload);
       } else {
-        _vagas.insert(0, vagaData);
+        await widget.api.criarVaga(payload);
       }
-    });
-
-    Navigator.of(context).pop();
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(_editingVaga != null ? 'Vaga atualizada com sucesso!' : 'Vaga criada com sucesso!'),
-        backgroundColor: Colors.green,
-      ),
-    );
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      await _carregarVagas();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_editingVaga != null ? 'Vaga atualizada com sucesso!' : 'Vaga criada com sucesso!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Falha ao salvar vaga'), backgroundColor: Colors.red),
+      );
+    }
   }
 
   void _handleDelete(String id) {
@@ -155,17 +166,28 @@ class _VagasTelaState extends State<VagasTela> {
             child: const Text('Cancelar'),
           ),
           ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _vagas.removeWhere((v) => v.id == id);
-              });
-              Navigator.of(context).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Vaga excluída com sucesso!'),
-                  backgroundColor: Colors.red,
-                ),
-              );
+            onPressed: () async {
+              try {
+                await widget.api.deletarVaga(id);
+                await _carregarVagas();
+                if (!mounted) return;
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Vaga excluída com sucesso!'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              } catch (e) {
+                if (!mounted) return;
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Falha ao excluir vaga'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Excluir'),
@@ -222,6 +244,21 @@ class _VagasTelaState extends State<VagasTela> {
                     );
                   },
                 ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton(
+                    onPressed: _page > 1 ? () { setState(() { _page -= 1; }); _carregarVagas(); } : null,
+                    child: const Text('Anterior'),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () { setState(() { _page += 1; }); _carregarVagas(); },
+                    child: const Text('Próxima'),
+                  ),
+                ],
+              ),
             ],
           ),
         );

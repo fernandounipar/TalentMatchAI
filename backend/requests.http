@@ -1,0 +1,47 @@
+### Auth register
+POST http://localhost:4000/api/auth/registrar
+Content-Type: application/json
+
+{
+  "nome": "Admin",
+  "email": "admin@example.com",
+  "senha": "secret123",
+  "aceitouLGPD": true,
+  "company": {"tipo": "CNPJ", "documento": "00000000000000", "nome": "Default Company"}
+}
+
+### Auth login
+POST http://localhost:4000/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "senha": "secret123"
+}
+
+### Refresh
+POST http://localhost:4000/api/auth/refresh
+Content-Type: application/json
+
+{
+  "refresh_token": "<paste-refresh-token>"
+}
+
+### List vagas
+GET http://localhost:4000/api/vagas
+Authorization: Bearer <paste-access-token>
+
+### Create vaga
+POST http://localhost:4000/api/vagas
+Authorization: Bearer <paste-access-token>
+Content-Type: application/json
+
+{
+  "titulo": "Desenvolvedor Full Stack",
+  "descricao": "Criar app",
+  "requisitos": "Node, Flutter",
+  "status": "aberta",
+  "tecnologias": "Node, Flutter",
+  "nivel": "Pleno"
+}
+

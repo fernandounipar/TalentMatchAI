@@ -1,6 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'telas/landing_tela.dart';
 import 'telas/login_tela.dart';
+import 'telas/registro_tela.dart';
 import 'telas/dashboard_tela.dart';
 import 'telas/vagas_tela.dart';
 import 'telas/candidatos_tela.dart';
@@ -12,7 +13,7 @@ import 'telas/relatorio_final_tela.dart';
 import 'telas/relatorios_tela.dart';
 import 'telas/usuarios_admin_tela.dart';
 import 'telas/historico_tela.dart';
-import 'telas/configuracoes_tela.dart';
+import 'telas/configuracoes_nova_tela.dart'; // Importa nova tela de configurações
 import 'servicos/api_cliente.dart';
 import 'design_system/tm_theme.dart';
 import 'componentes/tm_app_shell.dart';
@@ -23,6 +24,7 @@ void main() => runApp(const TalentMatchIA());
 enum RouteKey {
   landing,
   login,
+  register,
   dashboard,
   vagas,
   novaVaga,
@@ -55,6 +57,7 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
   static const String apiBase = String.fromEnvironment('API_BASE_URL', defaultValue: 'http://localhost:4000');
   RouteKey route = RouteKey.landing;
   Map<String, dynamic> auth = {'logged': false, 'name': null};
+  Map<String, dynamic>? userData; // Dados completos do usuário (incluindo empresa)
   Map<String, String> vagaForm = {
     'titulo': '',
     'descricao': '',
@@ -73,12 +76,51 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
 
   // ApiCliente simples para satisfazer os requisitos das telas
   late final ApiCliente api;
-  static const bool useMockApi = bool.fromEnvironment('USE_MOCK_API', defaultValue: true);
 
   @override
   void initState() {
     super.initState();
-    api = ApiCliente(baseUrl: apiBase, usarMock: useMockApi);
+    api = ApiCliente(baseUrl: apiBase);
+  }
+
+  /// Busca dados do usuário logado (com ou sem empresa)
+  Future<void> _carregarDadosUsuario() async {
+    try {
+      final dados = await api.obterUsuario();
+      setState(() {
+        userData = dados;
+        auth['name'] = dados['user']?['full_name'] ?? 'Usuário';
+        perfil = dados['user']?['role'];
+      });
+    } catch (e) {
+      debugPrint('Erro ao carregar dados do usuário: $e');
+    }
+  }
+
+  /// Realiza logout e limpa o estado
+  void _logout() {
+    setState(() {
+      auth = {'logged': false, 'name': null};
+      userData = null;
+      perfil = null;
+      route = RouteKey.landing;
+      api.token = null;
+      api.refreshToken = null;
+    });
+  }
+
+  /// Formata o role do usuário para exibição
+  String _formatarRole(String? role) {
+    if (role == null) return 'usuário';
+    switch (role.toUpperCase()) {
+      case 'ADMIN':
+        return 'Administrador';
+      case 'SUPER_ADMIN':
+        return 'Super Admin';
+      case 'USER':
+      default:
+        return 'Recrutador';
+    }
   }
 
   void go(RouteKey to) {
@@ -115,6 +157,7 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
         return 'vagas';
       case RouteKey.landing:
       case RouteKey.login:
+      case RouteKey.register:
       case RouteKey.analise:
         return 'dashboard';
     }
@@ -155,39 +198,61 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
           ? TMAppShell(
               activeSection: _sectionFromRoute(route),
               onSectionChange: (s) => go(_routeFromSection(s)),
+              userName: userData?['user']?['full_name'] ?? auth['name'] ?? 'Usuário',
+              userRole: _formatarRole(userData?['user']?['role']),
+              onLogout: _logout,
               child: _buildContent(),
             )
-          : route == RouteKey.landing
-              ? LandingTela(
+          : () {
+              if (route == RouteKey.landing) {
+                return LandingTela(
                   onLogin: () => go(RouteKey.login),
                   onDemo: () => go(RouteKey.login),
-                )
-              : LoginTela(
-                  onVoltar: () => go(RouteKey.landing),
-                  onSubmit: (email, senha) async {
-                    try {
-                      final r = await api.entrar(email: email, senha: senha);
-                      setState(() {
-                        auth = {
-                          'logged': true,
-                          'name': r['usuario']?['nome'] ?? email.split('@')[0],
-                        };
-                        perfil = r['usuario']?['perfil'];
-                        route = RouteKey.dashboard;
-                      });
-                    } catch (e) {
-                      // fallback mock
-                      setState(() {
-                        auth = {
-                          'logged': true,
-                          'name': email.split('@')[0],
-                        };
-                        perfil = 'ADMIN';
-                        route = RouteKey.dashboard;
-                      });
-                    }
+                );
+              }
+              if (route == RouteKey.register) {
+                return RegistroTela(
+                  api: api,
+                  onCancel: () => go(RouteKey.login),
+                  onSuccess: (resp) async {
+                    setState(() {
+                      auth = {
+                        'logged': true,
+                        'name': resp['usuario']?['nome'] ?? resp['user']?['full_name'] ?? 'Usuário',
+                      };
+                      perfil = resp['usuario']?['perfil'];
+                      route = RouteKey.dashboard;
+                    });
+                    // Carrega dados completos do usuário após registro
+                    await _carregarDadosUsuario();
                   },
-                ),
+                );
+              }
+              return LoginTela(
+                onVoltar: () => go(RouteKey.landing),
+                onSolicitarAcesso: () => go(RouteKey.register),
+                onSubmit: (email, senha) async {
+                  try {
+                    final r = await api.entrar(email: email, senha: senha);
+                    setState(() {
+                      auth = {
+                        'logged': true,
+                        'name': r['usuario']?['nome'] ?? email.split('@')[0],
+                      };
+                      perfil = r['usuario']?['perfil'];
+                      route = RouteKey.dashboard;
+                    });
+                    // Carrega dados completos do usuário após login
+                    await _carregarDadosUsuario();
+                  } catch (e) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Falha no login')),
+                    );
+                  }
+                },
+              );
+            }(),
     );
   }
 
@@ -195,8 +260,20 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
     switch (route) {
       case RouteKey.dashboard:
         return DashboardTela(api: api);
+      case RouteKey.register:
+        return RegistroTela(
+          api: api,
+          onCancel: () => go(RouteKey.login),
+          onSuccess: (resp) {
+            setState(() {
+              auth = {'logged': true, 'name': resp['usuario']?['nome'] ?? ''};
+              perfil = resp['usuario']?['perfil'];
+              route = RouteKey.dashboard;
+            });
+          },
+        );
       case RouteKey.vagas:
-        return const VagasTela();
+        return VagasTela(api: api);
       case RouteKey.novaVaga:
         return _buildNovaVagaTela();
       case RouteKey.candidatos:
@@ -259,6 +336,7 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
           vaga: ctx['vagaSelecionada']!,
           candidato: ctx['candidato']!,
           arquivo: curriculoNome.isEmpty ? 'curriculo_joao_silva.pdf' : curriculoNome,
+          fileUrl: (ultimoUpload != null) ? (ultimoUpload!['file']?['url'] as String?) : null,
           analise: (ultimoUpload != null) ? (ultimoUpload!['curriculo']?['analise_json'] as Map<String, dynamic>?) : null,
           onVoltar: () => go(RouteKey.upload),
           onEntrevistar: () => go(RouteKey.entrevista),
@@ -287,7 +365,7 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
       case RouteKey.historico:
         return HistoricoTela(api: api);
       case RouteKey.config:
-        return const ConfiguracoesTela();
+        return ConfiguracoesNovaTela(api: api);
       case RouteKey.usuarios:
         return UsuariosAdminTela(api: api, isAdmin: (perfil == 'ADMIN'));
       default:
