@@ -58,12 +58,22 @@ function exigirAdmin(req, res, next) {
 function exigirRole(...roles) {
   return (req, res, next) => {
     try {
+      console.log('🔐 exigirRole middleware');
+      console.log('   Roles permitidas:', roles);
+      console.log('   req.usuario:', req.usuario);
+      
       const role = req.usuario?.perfil || '';
+      console.log('   Role do usuário:', role);
+      
       if (!roles.includes(role)) {
+        console.log('❌ Permissão negada - role não está na lista');
         return res.status(403).json({ erro: 'Permissão insuficiente' });
       }
+      
+      console.log('✅ Permissão concedida');
       return next();
-    } catch (_) {
+    } catch (err) {
+      console.error('❌ Erro no middleware exigirRole:', err.message);
       return res.status(403).json({ erro: 'Permissão insuficiente' });
     }
   };

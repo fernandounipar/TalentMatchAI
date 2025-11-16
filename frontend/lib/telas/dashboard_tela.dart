@@ -10,7 +10,15 @@ import '../design_system/tm_tokens.dart';
 /// Grid responsivo de 12 colunas com estatísticas, tabelas e insights
 class DashboardTela extends StatefulWidget {
   final ApiCliente api;
-  const DashboardTela({super.key, required this.api});
+  final Map<String, dynamic>? userData;
+  final VoidCallback? onIrConfiguracoes;
+
+  const DashboardTela({
+    super.key,
+    required this.api,
+    this.userData,
+    this.onIrConfiguracoes,
+  });
 
   @override
   State<DashboardTela> createState() => _DashboardTelaState();
@@ -56,6 +64,12 @@ class _DashboardTelaState extends State<DashboardTela> {
           children: [
             // Header com título e botões de ação
             _buildHeader(context),
+            const SizedBox(height: 12),
+
+            // Call to action quando não houver empresa cadastrada
+            if (widget.userData != null && widget.userData!['company'] == null)
+              _buildOnboardingBanner(context),
+
             const SizedBox(height: 24),
 
             if (_carregando)
@@ -132,6 +146,11 @@ class _DashboardTelaState extends State<DashboardTela> {
   }
 
   Widget _buildHeader(BuildContext context) {
+    final usuario = widget.userData?['user'] as Map<String, dynamic>?;
+    final empresa = widget.userData?['company'] as Map<String, dynamic>?;
+    final nome = usuario?['full_name']?.toString() ?? 'Bem-vindo(a)';
+    final companyName = empresa?['name']?.toString();
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,9 +158,9 @@ class _DashboardTelaState extends State<DashboardTela> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Bem-vinda! 👋',
-              style: TextStyle(
+            Text(
+              '$nome 👋',
+              style: const TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF0F172A),
@@ -149,7 +168,9 @@ class _DashboardTelaState extends State<DashboardTela> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Resumo do seu dia. Domingo, 12 de outubro de 2025',
+              companyName != null && companyName.isNotEmpty
+                  ? 'Resumo do seu dia na $companyName'
+                  : 'Resumo do seu dia',
               style: TextStyle(
                 fontSize: 16,
                 color: Colors.grey[500],
@@ -182,6 +203,56 @@ class _DashboardTelaState extends State<DashboardTela> {
             ],
           ),
       ],
+    );
+  }
+
+  Widget _buildOnboardingBanner(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF6FF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFBFDBFE)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline, color: Color(0xFF1D4ED8)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
+                  'Complete o cadastro da empresa',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1E3A8A),
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Para desbloquear todas as funcionalidades do TalentMatchIA, cadastre sua empresa ou CPF na tela de Configurações.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF1E40AF),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          ElevatedButton(
+            onPressed: widget.onIrConfiguracoes,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: TMTokens.primary,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Ir para Configurações'),
+          ),
+        ],
+      ),
     );
   }
 

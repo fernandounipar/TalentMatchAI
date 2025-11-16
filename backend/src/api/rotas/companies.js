@@ -10,6 +10,7 @@ router.post('/', exigirAutenticacao, async (req, res) => {
     const { type, document, name } = req.body || {};
     const tipo = String(type || '').toUpperCase();
     const documento = normalizaDocumento(document || '');
+
     if (!['CPF', 'CNPJ'].includes(tipo)) {
       return res.status(400).json({ erro: 'Tipo inválido. Use CPF ou CNPJ.' });
     }
@@ -17,17 +18,19 @@ router.post('/', exigirAutenticacao, async (req, res) => {
       return res.status(400).json({ erro: 'Documento inválido.' });
     }
     const up = await db.query(
-      `INSERT INTO companies (tipo, documento, nome)
+      `INSERT INTO companies (type, document, name)
        VALUES ($1,$2,$3)
-       ON CONFLICT (documento) DO UPDATE SET tipo=EXCLUDED.tipo, nome=EXCLUDED.nome
-       RETURNING id, tipo, documento, nome, criado_em`,
+       ON CONFLICT (document) DO UPDATE SET type = EXCLUDED.type, name = EXCLUDED.name
+       RETURNING id, type, document, name, criado_em`,
       [tipo, documento, name || null]
     );
     res.status(201).json(up.rows[0]);
   } catch (e) {
+    if (e.code === '23505') {
+      return res.status(409).json({ erro: 'Este CPF/CNPJ já está cadastrado.' });
+    }
     res.status(500).json({ erro: 'Falha ao criar empresa' });
   }
 });
 
 module.exports = router;
-

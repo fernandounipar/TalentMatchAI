@@ -109,18 +109,122 @@ class ApiCliente {
       'document': documento,
       'name': nome,
     };
-    final r = await _execWithRefresh(() => http.post(
-      Uri.parse('$baseUrl/api/user/company'),
-      headers: _headers(),
-      body: jsonEncode(payload),
-    ));
-    if (r.statusCode >= 400) throw Exception(r.body);
+    final r = await _execWithRefresh(
+      () => http.post(
+        Uri.parse('$baseUrl/api/user/company'),
+        headers: _headers(),
+        body: jsonEncode(payload),
+      ),
+    );
+    if (r.statusCode >= 400) {
+      try {
+        final body = jsonDecode(r.body);
+        if (body is Map && body['erro'] is String) {
+          throw Exception(body['erro']);
+        }
+      } catch (_) {
+        // fallback para corpo bruto
+      }
+      throw Exception(r.body);
+    }
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  /// Atualiza perfil do usuário (nome, cargo)
+  Future<Map<String, dynamic>> atualizarPerfil({
+    String? fullName,
+    String? cargo,
+  }) async {
+    final payload = <String, dynamic>{};
+    if (fullName != null) payload['full_name'] = fullName;
+    if (cargo != null) payload['cargo'] = cargo;
+
+    final r = await _execWithRefresh(
+      () => http.put(
+        Uri.parse('$baseUrl/api/user/profile'),
+        headers: _headers(),
+        body: jsonEncode(payload),
+      ),
+    );
+    if (r.statusCode >= 400) {
+      try {
+        final body = jsonDecode(r.body);
+        if (body is Map && body['erro'] is String) {
+          throw Exception(body['erro']);
+        }
+      } catch (_) {}
+      throw Exception(r.body);
+    }
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  /// Atualiza foto/avatar do usuário
+  Future<Map<String, dynamic>> atualizarAvatar(String fotoUrl) async {
+    final payload = {'foto_url': fotoUrl};
+    final r = await _execWithRefresh(
+      () => http.post(
+        Uri.parse('$baseUrl/api/user/avatar'),
+        headers: _headers(),
+        body: jsonEncode(payload),
+      ),
+    );
+    if (r.statusCode >= 400) {
+      try {
+        final body = jsonDecode(r.body);
+        if (body is Map && body['erro'] is String) {
+          throw Exception(body['erro']);
+        }
+      } catch (_) {}
+      throw Exception(r.body);
+    }
     return jsonDecode(r.body) as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> dashboard() async {
     final r = await _execWithRefresh(() => http.get(Uri.parse('$baseUrl/api/dashboard'), headers: _headers()));
     if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  // API Keys (Integrações)
+  Future<List<dynamic>> listarApiKeys() async {
+    final r = await _execWithRefresh(
+      () => http.get(Uri.parse('$baseUrl/api/api-keys'), headers: _headers()),
+    );
+    if (r.statusCode >= 400) {
+      throw Exception(r.body);
+    }
+    return jsonDecode(r.body) as List<dynamic>;
+  }
+
+  Future<Map<String, dynamic>> criarApiKey({
+    required String provider,
+    required String token,
+    String? label,
+  }) async {
+    final payload = <String, dynamic>{
+      'provider': provider,
+      'token': token,
+      if (label != null && label.isNotEmpty) 'label': label,
+    };
+    final r = await _execWithRefresh(
+      () => http.post(
+        Uri.parse('$baseUrl/api/api-keys'),
+        headers: _headers(),
+        body: jsonEncode(payload),
+      ),
+    );
+    if (r.statusCode >= 400) {
+      try {
+        final body = jsonDecode(r.body);
+        if (body is Map && body['erro'] is String) {
+          throw Exception(body['erro']);
+        }
+      } catch (_) {
+        // fallback para corpo bruto
+      }
+      throw Exception(r.body);
+    }
     return jsonDecode(r.body) as Map<String, dynamic>;
   }
 
@@ -410,15 +514,47 @@ class ApiCliente {
     Map<String, dynamic>? candidato,
     String? vagaId,
   }) async {
-    final uri = Uri.parse('$baseUrl/api/curriculos/upload');
-    final req = http.MultipartRequest('POST', uri);
-    if (_token != null) req.headers['Authorization'] = 'Bearer $_token';
-    req.files.add(http.MultipartFile.fromBytes('arquivo', bytes, filename: filename));
-    if (candidato != null) req.fields['candidato'] = jsonEncode(candidato);
-    if (vagaId != null) req.fields['vagaId'] = vagaId;
-    final streamed = await req.send();
-    final resp = await http.Response.fromStream(streamed);
-    if (resp.statusCode >= 400) throw Exception(resp.body);
+    Future<http.Response> _send() async {
+      final uri = Uri.parse('$baseUrl/api/curriculos/upload');
+      final req = http.MultipartRequest('POST', uri);
+      if (_token != null) {
+        req.headers['Authorization'] = 'Bearer $_token';
+      }
+      req.files.add(
+        http.MultipartFile.fromBytes('arquivo', bytes, filename: filename),
+      );
+      if (candidato != null) {
+        req.fields['candidato'] = jsonEncode(candidato);
+      }
+      if (vagaId != null) {
+        req.fields['vagaId'] = vagaId;
+      }
+      final streamed = await req.send();
+      return http.Response.fromStream(streamed);
+    }
+
+    var resp = await _send();
+
+    // Tenta renovar o token em caso de 401 (sessão expirada)
+    if (resp.statusCode == 401 && _refresh != null) {
+      final ok = await _tryRefresh();
+      if (ok) {
+        resp = await _send();
+      }
+    }
+
+    if (resp.statusCode >= 400) {
+      try {
+        final body = jsonDecode(resp.body);
+        if (body is Map && body['erro'] is String) {
+          throw Exception(body['erro']);
+        }
+      } catch (_) {
+        // fallback para corpo bruto
+      }
+      throw Exception(resp.body);
+    }
+
     return jsonDecode(resp.body) as Map<String, dynamic>;
   }
 
@@ -445,6 +581,27 @@ class ApiCliente {
     final r = await _execWithRefresh(() => http.post(Uri.parse('$baseUrl/api/interviews/$entrevistaId/report'), headers: _headers()));
     if (r.statusCode >= 400) throw Exception(r.body);
     return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  // API Keys - deletar
+  Future<void> deletarApiKey(String id) async {
+    final r = await _execWithRefresh(
+      () => http.delete(Uri.parse('$baseUrl/api/api-keys/$id'), headers: _headers()),
+    );
+    if (r.statusCode >= 400) {
+      final contentType = r.headers['content-type'] ?? '';
+      if (contentType.contains('application/json')) {
+        try {
+          final body = jsonDecode(r.body);
+          if (body is Map && body['erro'] is String) {
+            throw Exception(body['erro']);
+          }
+        } catch (_) {
+          // ignorado, cai no fallback genérico
+        }
+      }
+      throw Exception('Erro ao deletar API Key (status ${r.statusCode})');
+    }
   }
 
   // Usuários - criar (admin only)

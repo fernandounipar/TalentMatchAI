@@ -53,20 +53,32 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
   Future<void> _carregarVagas() async {
     try {
       final lista = await widget.api.vagas();
-      if (mounted) {
-        // Filtrar apenas vagas abertas
-        final vagasAbertas = lista.where((vaga) {
-          final status = vaga['status']?.toString() ?? '';
-          return status.toLowerCase() == 'aberta';
-        }).toList();
-        
-        setState(() {
-          _vagas = List<Map<String, dynamic>>.from(vagasAbertas);
-          if (_vagas.isNotEmpty) {
-            _vagaSelecionadaId = _vagas.first['id']?.toString();
-          }
-        });
-      }
+      if (!mounted) return;
+
+      // Converter jobs da API em estrutura usada pelo dropdown
+      // e filtrar apenas vagas abertas (status = 'open' no backend)
+      final vagasAbertas = lista.where((vaga) {
+        final status = (vaga['status'] ?? '').toString().toLowerCase();
+        return status == 'open';
+      }).map<Map<String, dynamic>>((vaga) {
+        return {
+          'id': vaga['id']?.toString(),
+          'titulo': vaga['title']?.toString() ?? '',
+          'status': vaga['status']?.toString() ?? '',
+          // candidatos ainda não vem do backend; mantemos 0 até ter contagem real
+          'candidatos': vaga['candidatos'] ?? 0,
+        };
+      }).toList();
+
+      setState(() {
+        _vagas = vagasAbertas;
+        // Não seleciona vaga automaticamente; usuário deve escolher
+        // Mantém seleção atual se ainda existir na lista
+        if (_vagaSelecionadaId != null &&
+            !_vagas.any((vaga) => vaga['id']?.toString() == _vagaSelecionadaId)) {
+          _vagaSelecionadaId = null;
+        }
+      });
     } catch (_) {
       // mantém lista vazia em caso de erro
     }
@@ -103,53 +115,88 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
     }
   }
 
+  /// Converte progress (pode ser String, int ou double) para double
+  double? _parseProgress(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    if (value is String) {
+      final parsed = double.tryParse(value);
+      return parsed;
+    }
+    return null;
+  }
+
   Future<void> _simularUploadEAnalise() async {
     if (_arquivo == null || _vagaSelecionadaId == null) return;
     try {
-      setState(() { _uploadStatus = UploadStatus.uploading; _uploadProgress = 10; });
+      setState(() {
+        _uploadStatus = UploadStatus.uploading;
+        _uploadProgress = 10;
+      });
+
       final resp = await widget.api.uploadCurriculoBytes(
         bytes: _arquivo!.bytes!,
         filename: _arquivo!.name,
         candidato: {'nome': 'Candidato'},
         vagaId: _vagaSelecionadaId,
       );
-      final cur = (resp['curriculo'] ?? {}) as Map<String, dynamic>;
-      final analise = (cur['analise_json'] ?? {}) as Map<String, dynamic>;
-      final job = (resp['ingestion_job'] ?? {}) as Map<String, dynamic>;
+
+      // Cast correto para evitar erros de tipo LinkedHashMap
+      final cur = Map<String, dynamic>.from(resp['curriculo'] ?? {});
+      final analiseRaw = cur['analise_json'] ?? cur['parsed_json'];
+      final analiseMap = analiseRaw is Map<String, dynamic>
+          ? Map<String, dynamic>.from(analiseRaw)
+          : <String, dynamic>{};
+      final job = Map<String, dynamic>.from(resp['ingestion_job'] ?? {});
+
       if (job['id'] != null) {
-        setState(() { _uploadStatus = UploadStatus.parsing; _uploadProgress = (job['progress'] as num?)?.toDouble() ?? 20; });
+        // Converter progress para double de forma segura
+        final initialProgress = _parseProgress(job['progress']) ?? 20.0;
+        setState(() {
+          _uploadStatus = UploadStatus.parsing;
+          _uploadProgress = initialProgress;
+        });
+
         for (int i = 0; i < 10; i++) {
           await Future.delayed(const Duration(milliseconds: 400));
           try {
-            final j = await widget.api.getIngestionJob(job['id'].toString());
-            final prog = (j['progress'] as num?)?.toDouble() ?? _uploadProgress;
-            setState(() { _uploadProgress = prog; });
-            if ((j['status'] as String).toLowerCase() == 'completed') break;
+            final j =
+                await widget.api.getIngestionJob(job['id'].toString());
+            final prog = _parseProgress(j['progress']) ?? _uploadProgress;
+            setState(() {
+              _uploadProgress = prog;
+            });
+            if ((j['status'] as String).toLowerCase() == 'completed') {
+              break;
+            }
           } catch (_) {}
         }
       }
-      final a = AnaliseCurriculo(
-        matchingScore: analise['matchingScore'] is int ? analise['matchingScore'] as int : 0,
-        recomendacao: (analise['recomendacao'] ?? '').toString(),
-        resumo: (analise['summary'] ?? analise['resumo'] ?? '').toString(),
-        pontosFortes: (analise['pontosFortes'] as List?)?.map((e) => e.toString()).toList() ?? const [],
-        pontosAtencao: (analise['pontosAtencao'] as List?)?.map((e) => e.toString()).toList() ?? const [],
-        aderenciaRequisitos: const [],
-      );
+
+      final a = AnaliseCurriculo.fromJson(analiseMap);
       if (!mounted) return;
-      setState(() { _uploadStatus = UploadStatus.complete; _analise = a; });
+      setState(() {
+        _uploadStatus = UploadStatus.complete;
+        _analise = a;
+      });
+
       widget.onUploaded(resp);
     } catch (e) {
       if (!mounted) return;
       setState(() => _uploadStatus = UploadStatus.error);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Falha ao enviar/analizar currículo')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Falha ao enviar/analisar currículo: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
   void _resetarUpload() {
     setState(() {
       _arquivo = null;
-      _vagaSelecionadaId = _vagas.isNotEmpty ? _vagas.first['id']?.toString() : null;
+      _vagaSelecionadaId = null;
       _uploadStatus = UploadStatus.idle;
       _uploadProgress = 0.0;
       _analise = null;

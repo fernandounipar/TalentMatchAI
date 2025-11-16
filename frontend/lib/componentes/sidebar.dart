@@ -5,6 +5,7 @@ class Sidebar extends StatefulWidget {
   final Function(String) onSectionChange;
   final String userName;
   final String userRole;
+  final String? userPhotoUrl;
   final VoidCallback onLogout;
 
   const Sidebar({
@@ -13,6 +14,7 @@ class Sidebar extends StatefulWidget {
     required this.onSectionChange,
     required this.userName,
     required this.userRole,
+    this.userPhotoUrl,
     required this.onLogout,
   });
 
@@ -246,16 +248,21 @@ class _SidebarState extends State<Sidebar> {
             children: [
               CircleAvatar(
                 radius: 20,
+                backgroundImage: widget.userPhotoUrl != null && widget.userPhotoUrl!.isNotEmpty
+                    ? NetworkImage(widget.userPhotoUrl!)
+                    : null,
                 backgroundColor: const Color(0xFF2563EB),
-                child: Text(
-                  widget.userName.isNotEmpty
-                      ? widget.userName.substring(0, 1).toUpperCase()
-                      : 'U',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                child: widget.userPhotoUrl == null || widget.userPhotoUrl!.isEmpty
+                    ? Text(
+                        widget.userName.isNotEmpty
+                            ? widget.userName.substring(0, 1).toUpperCase()
+                            : 'U',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      )
+                    : null,
               ),
               const SizedBox(width: 12),
               Expanded(

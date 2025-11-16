@@ -313,9 +313,12 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
 
   Widget _statusDropdown(_InterviewCardData item) {
     const options = ['scheduled', 'completed', 'cancelled', 'no_show'];
+    // Garante que o status atual está na lista de opções
+    final currentStatus = options.contains(item.status) ? item.status : 'scheduled';
+    
     return DropdownButtonHideUnderline(
       child: DropdownButton<String>(
-        value: item.status,
+        value: currentStatus,
         onChanged: (v) async {
           if (v == null) return;
           try {
@@ -326,7 +329,10 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Falha ao atualizar status')));
           }
         },
-        items: options.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+        items: options.map((s) => DropdownMenuItem(
+          value: s, 
+          child: Text(_displayStatus(s), style: const TextStyle(fontSize: 12)),
+        )).toList(),
       ),
     );
   }

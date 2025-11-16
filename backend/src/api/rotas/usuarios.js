@@ -15,7 +15,7 @@ router.post('/', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
     if (!nome || !email || !senha) return res.status(400).json({ erro: 'Campos obrigatórios: nome, email, senha' });
     if (!['USER', 'ADMIN', 'SUPER_ADMIN'].includes(perfil)) return res.status(400).json({ erro: 'Perfil inválido' });
     // Resolver company_id: usa a mesma do admin por padrão, ou cria/pega pela combinação tipo/documento
-  let companyId = req.usuario.company_id;
+    let companyId = req.usuario.company_id;
     if (company && company.documento && company.tipo) {
       const tipo = String(company.tipo).toUpperCase();
       const documento = normalizaDocumento(company.documento);
@@ -23,10 +23,11 @@ router.post('/', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
         return res.status(400).json({ erro: 'Company inválida (tipo/documento)' });
       }
       const up = await db.query(
-        `INSERT INTO companies (tipo, documento, nome)
+        `INSERT INTO companies (type, document, name)
          VALUES ($1,$2,$3)
-         ON CONFLICT (documento) DO UPDATE SET tipo=EXCLUDED.tipo, nome=EXCLUDED.nome
-         RETURNING id`, [tipo, documento, company.nome || null]
+         ON CONFLICT (document) DO UPDATE SET type = EXCLUDED.type, name = EXCLUDED.name
+         RETURNING id`,
+        [tipo, documento, company.nome || null]
       );
       companyId = up.rows[0].id;
     }

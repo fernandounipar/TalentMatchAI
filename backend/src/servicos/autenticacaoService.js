@@ -427,18 +427,22 @@ async function trocarSenha(user_id, senha_atual, nova_senha) {
  * @returns {object} - { company }
  */
 async function criarOuAtualizarEmpresa(user_id, data) {
-  const { type, document, name } = data;
-  
+  const { type, document, name } = data || {};
+
   if (!type || !document || !name) {
     throw new Error('Dados incompletos (type, document, name).');
   }
-  
-  // Valida documento
-  const documentoNormalizado = normalizarDocumento(document);
-  if (!validarDocumento(type, documentoNormalizado)) {
-    throw new Error(`${type} inválido.`);
+
+  const tipoUpper = String(type).toUpperCase();
+
+  // Valida CPF/CNPJ usando utilitário central
+  const validacao = validarDocumento(document, tipoUpper);
+  if (!validacao.valid) {
+    throw new Error(`${tipoUpper} inválido.`);
   }
-  
+
+  const documentoNormalizado = validacao.normalized || normalizarDocumento(document);
+
   // Busca usuário
   const userResult = await db.query(
     `SELECT id, company_id FROM users WHERE id = $1 AND deleted_at IS NULL`,
@@ -455,20 +459,21 @@ async function criarOuAtualizarEmpresa(user_id, data) {
     if (user.company_id) {
       // Atualiza empresa existente
       const result = await db.query(
-        `UPDATE companies SET tipo = $1, documento = $2, nome = $3 
+        `UPDATE companies 
+         SET type = $1, document = $2, name = $3 
          WHERE id = $4 
-         RETURNING id, tipo, documento, nome, criado_em`,
-        [type, documentoNormalizado, name, user.company_id]
+         RETURNING id, type, document, name, criado_em`,
+        [tipoUpper, documentoNormalizado, name, user.company_id]
       );
       
       return { company: result.rows[0] };
     } else {
       // Cria nova empresa
       const companyResult = await db.query(
-        `INSERT INTO companies (tipo, documento, nome) 
+        `INSERT INTO companies (type, document, name) 
          VALUES ($1, $2, $3) 
-         RETURNING id, tipo, documento, nome, criado_em`,
-        [type, documentoNormalizado, name]
+         RETURNING id, type, document, name, criado_em`,
+        [tipoUpper, documentoNormalizado, name]
       );
       
       const company = companyResult.rows[0];
@@ -482,7 +487,8 @@ async function criarOuAtualizarEmpresa(user_id, data) {
       return { company };
     }
   } catch (error) {
-    if (error.message.includes('companies_documento_key')) {
+    // Chave única de documento já cadastrada
+    if (error.code === '23505') {
       throw new Error('Este CPF/CNPJ já está cadastrado.');
     }
     throw error;

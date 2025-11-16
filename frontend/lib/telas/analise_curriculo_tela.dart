@@ -27,16 +27,26 @@ class AnaliseCurriculoTela extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final summary = (analise?['summary'] as String?) ??
+        (analise?['resumo'] as String?) ??
         'O candidato possui boa compatibilidade com a vaga. Experiência sólida nas tecnologias principais.';
     final skills = (analise?['skills'] as List?)?.cast<String>() ??
-        ['React', 'Node.js', 'PostgreSQL', 'Docker', 'Git'];
-    final experiencias = (analise?['experiences'] as List?)?.cast<String>() ?? [
-      'Desenvolvedor Full Stack na TechCorp (3 anos)',
-      'Desenvolvedor Backend na StartupXYZ (2 anos)',
-      'Freelancer em projetos web (1 ano)',
-    ];
+        const ['React', 'Node.js', 'PostgreSQL', 'Docker', 'Git'];
+    final experiencias = (analise?['experiences'] as List?)?.cast<String>() ??
+        const [
+          'Desenvolvedor Full Stack na TechCorp (3 anos)',
+          'Desenvolvedor Backend na StartupXYZ (2 anos)',
+          'Freelancer em projetos web (1 ano)',
+        ];
 
-    const pontuacao = 85.0;
+    final pontuacao = () {
+      final raw = analise?['matchingScore'];
+      if (raw is num) return raw.toDouble().clamp(0, 100);
+      if (raw is String) {
+        final parsed = double.tryParse(raw);
+        if (parsed != null) return parsed.clamp(0, 100);
+      }
+      return 0.0;
+    }();
 
     return SingleChildScrollView(
       child: Column(
@@ -56,7 +66,7 @@ class AnaliseCurriculoTela extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Row(children: [
-                const BadgePontuacao(pontuacao: pontuacao, tamanho: 80),
+                BadgePontuacao(pontuacao: pontuacao, tamanho: 80),
                 const SizedBox(width: 24),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

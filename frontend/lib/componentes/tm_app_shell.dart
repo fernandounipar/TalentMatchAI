@@ -10,6 +10,7 @@ class TMAppShell extends StatelessWidget {
   final Widget child;
   final String userName;
   final String userRole;
+  final String? userPhotoUrl;
   final VoidCallback onLogout;
 
   const TMAppShell({
@@ -19,6 +20,7 @@ class TMAppShell extends StatelessWidget {
     required this.child,
     this.userName = 'Usuário',
     this.userRole = 'usuário',
+    this.userPhotoUrl,
     required this.onLogout,
   });
 
@@ -35,6 +37,7 @@ class TMAppShell extends StatelessWidget {
               onSectionChange: onSectionChange,
               userName: userName,
               userRole: userRole,
+              userPhotoUrl: userPhotoUrl,
               onLogout: onLogout,
             ),
           ),

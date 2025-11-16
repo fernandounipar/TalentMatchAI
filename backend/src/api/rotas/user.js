@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authService = require('../../servicos/autenticacaoService');
 const { exigirAutenticacao } = require('../../middlewares/autenticacao');
+const db = require('../../config/database');
 
 /**
  * POST /api/user/company
@@ -27,41 +28,182 @@ router.post('/company', exigirAutenticacao, async (req, res) => {
  */
 router.get('/me', exigirAutenticacao, async (req, res) => {
   try {
-    const user_id = req.usuario.id;
-    const db = require('../../config/database');
-    
+    const userId = req.usuario.id;
+
     const result = await db.query(
-      `SELECT u.id, u.company_id, u.full_name, u.email, u.role, u.is_active,
-              c.tipo as company_type, c.documento as company_document, c.nome as company_name
+      `SELECT 
+         u.id,
+         u.company_id,
+         u.full_name,
+         u.email,
+         u.role,
+         u.is_active,
+         u.cargo,
+         u.foto_url,
+         -- Colunas de companies (sempre em português conforme schema atual)
+         c.id as company_id_db,
+         c.tipo AS company_type,
+         c.documento AS company_document,
+         c.nome AS company_name
        FROM users u
        LEFT JOIN companies c ON c.id = u.company_id
        WHERE u.id = $1 AND u.deleted_at IS NULL`,
-      [user_id]
+      [userId]
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ erro: 'Usuário não encontrado' });
     }
-    
-    const user = result.rows[0];
-    
+
+    const row = result.rows[0];
+
+    const company =
+      row.company_id_db && row.company_type && row.company_document
+        ? {
+            id: row.company_id_db,
+            type: row.company_type,
+            document: row.company_document,
+            name: row.company_name
+          }
+        : null;
+
+    const user = {
+      id: row.id,
+      company_id: row.company_id,
+      full_name: row.full_name,
+      email: row.email,
+      role: row.role,
+      is_active: row.is_active,
+      cargo: row.cargo || null,
+      foto_url: row.foto_url || null
+    };
+
     res.json({
+      user,
+      company,
+      // Campo legado para compatibilidade com clientes antigos
       usuario: {
-        id: user.id,
-        nome: user.full_name,
-        email: user.email,
-        perfil: user.role,
-        company: user.company_id ? {
-          id: user.company_id,
-          type: user.company_type,
-          document: user.company_document,
-          name: user.company_name
-        } : null
+        id: row.id,
+        nome: row.full_name,
+        email: row.email,
+        perfil: row.role,
+        cargo: row.cargo,
+        foto_url: row.foto_url,
+        company
       }
     });
   } catch (error) {
-    console.error('❌ Erro ao buscar usuário:', error.message);
+    console.error('❌ Erro ao buscar usuário:', error);
+    console.error('Stack trace:', error.stack);
     res.status(500).json({ erro: 'Erro ao buscar dados do usuário' });
+  }
+});
+
+/**
+ * PUT /api/user/profile
+ * Atualiza dados do perfil do usuário logado
+ * Body: { full_name?, cargo? }
+ * Requer autenticação
+ */
+router.put('/profile', exigirAutenticacao, async (req, res) => {
+  try {
+    const userId = req.usuario.id;
+    const { full_name, cargo } = req.body;
+
+    console.log('📝 PUT /api/user/profile - Dados recebidos:', { full_name, cargo, userId });
+
+    // Validar cargo se fornecido (aceita null para remover cargo)
+    const cargosValidos = ['Admin', 'Recrutador(a)', 'Gestor(a)', null];
+    if (cargo !== undefined && !cargosValidos.includes(cargo)) {
+      return res.status(400).json({
+        erro: `Cargo inválido. Valores aceitos: ${cargosValidos.filter(c => c !== null).join(', ')} ou null`
+      });
+    }
+
+    // Construir query dinamicamente
+    const updates = [];
+    const values = [];
+    let paramCount = 1;
+
+    if (full_name !== undefined) {
+      updates.push(`full_name = $${paramCount++}`);
+      values.push(full_name);
+    }
+
+    if (cargo !== undefined) {
+      updates.push(`cargo = $${paramCount++}`);
+      values.push(cargo);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ erro: 'Nenhum campo para atualizar' });
+    }
+
+    updates.push(`updated_at = NOW()`);
+    values.push(userId);
+
+    const query = `
+      UPDATE users 
+      SET ${updates.join(', ')}
+      WHERE id = $${paramCount} AND deleted_at IS NULL
+      RETURNING id, full_name, email, role, cargo, foto_url
+    `;
+
+    console.log('📊 Query SQL:', query);
+    console.log('📊 Valores:', values);
+
+    const result = await db.query(query, values);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ erro: 'Usuário não encontrado' });
+    }
+
+    console.log('✅ Perfil atualizado:', result.rows[0]);
+
+    res.json({
+      mensagem: 'Perfil atualizado com sucesso',
+      user: result.rows[0]
+    });
+  } catch (error) {
+    console.error('❌ Erro ao atualizar perfil:', error.message);
+    res.status(500).json({ erro: 'Erro ao atualizar perfil' });
+  }
+});
+
+/**
+ * POST /api/user/avatar
+ * Atualiza URL da foto do usuário logado
+ * Body: { foto_url: string }
+ * Requer autenticação
+ */
+router.post('/avatar', exigirAutenticacao, async (req, res) => {
+  try {
+    const userId = req.usuario.id;
+    const { foto_url } = req.body;
+
+    if (!foto_url) {
+      return res.status(400).json({ erro: 'foto_url é obrigatório' });
+    }
+
+    const result = await db.query(
+      `UPDATE users 
+       SET foto_url = $1, updated_at = NOW()
+       WHERE id = $2 AND deleted_at IS NULL
+       RETURNING id, full_name, foto_url`,
+      [foto_url, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ erro: 'Usuário não encontrado' });
+    }
+
+    res.json({
+      mensagem: 'Foto atualizada com sucesso',
+      user: result.rows[0]
+    });
+  } catch (error) {
+    console.error('❌ Erro ao atualizar foto:', error.message);
+    res.status(500).json({ erro: 'Erro ao atualizar foto' });
   }
 });
 
