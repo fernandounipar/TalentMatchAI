@@ -54,7 +54,7 @@ class AnaliseCurriculo {
           ? json['matchingScore'] as int
           : int.tryParse(json['matchingScore']?.toString() ?? '') ?? 0,
       recomendacao: json['recomendacao']?.toString() ?? '',
-      resumo: json['resumo']?.toString() ?? '',
+      resumo: (json['resumo'] ?? json['summary'])?.toString() ?? '',
       pontosFortes: (json['pontosFortes'] as List?)
               ?.map((e) => e.toString())
               .toList() ??

@@ -104,7 +104,7 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
     } finally {
       if (mounted) setState(() => _enviando = false);
     }
-    await Future.delayed(const Duration(milliseconds: 100));
+      await Future.delayed(const Duration(milliseconds: 100));
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
         _scrollController.position.maxScrollExtent,
@@ -114,7 +114,419 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
     }
   }
 
-  @override
+  // Tab 1: Lista de Perguntas e Respostas
+  Widget _buildPerguntasTab() {
+    return Card(
+      child: _perguntas.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.question_answer, size: 64, color: Colors.grey.shade400),
+                  const SizedBox(height: 16),
+                  const Text('Nenhuma pergunta gerada', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  const Text('Use a aba "Assistente" para gerar perguntas com IA', style: TextStyle(color: Colors.grey)),
+                ],
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _perguntas.length,
+              itemBuilder: (context, index) {
+                final pergunta = _perguntas[index];
+                final perguntaId = pergunta['id'].toString();
+                final resposta = _respostas.firstWhere(
+                  (r) => r['question_id'] == perguntaId,
+                  orElse: () => <String, dynamic>{},
+                );
+                
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  elevation: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF4F46E5).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'Pergunta ${index + 1}',
+                                style: const TextStyle(
+                                  color: Color(0xFF4F46E5),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                pergunta['kind']?.toString().toUpperCase() ?? 'TÉCNICA',
+                                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          pergunta['prompt']?.toString() ?? '',
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                        ),
+                        if (resposta.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Resposta:',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade600,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(resposta['raw_text']?.toString() ?? ''),
+                              ],
+                            ),
+                          ),
+                        ] else ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            'Aguardando resposta...',
+                            style: TextStyle(fontSize: 13, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+    );
+  }
+
+  // Tab 2: Chat com IA
+  Widget _buildChatTab() {
+    return Card(
+      child: Column(
+        children: [
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: _mensagens.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey.shade400),
+                          const SizedBox(height: 16),
+                          const Text('Inicie a conversa', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 8),
+                          const Text('A IA está pronta para auxiliar na entrevista', style: TextStyle(color: Colors.grey)),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: _scrollController,
+                      itemCount: _mensagens.length,
+                      itemBuilder: (context, index) => _BolhaMensagem(mensagem: _mensagens[index]),
+                    ),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              border: Border(top: BorderSide(color: Colors.grey.shade200)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _controlador,
+                    minLines: 1,
+                    maxLines: 4,
+                    decoration: InputDecoration(
+                      hintText: 'Digite sua mensagem para a IA...',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      filled: true,
+                      fillColor: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: _enviando ? null : () => _enviarMensagem(_controlador.text),
+                  icon: const Icon(Icons.send, size: 18),
+                  label: Text(_enviando ? 'Enviando...' : 'Enviar'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4F46E5),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Tab 3: Assistente IA (Gerar Perguntas)
+  Widget _buildAssistenteTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Card: Gerar Perguntas com IA
+          Card(
+            elevation: 2,
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF4F46E5).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.psychology, color: Color(0xFF4F46E5), size: 24),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Gerar Perguntas com IA', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                            SizedBox(height: 4),
+                            Text(
+                              'A IA pode sugerir perguntas baseadas no perfil do candidato e requisitos da vaga',
+                              style: TextStyle(color: Colors.grey, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: _gerandoPerguntas
+                        ? null
+                        : () async {
+                            setState(() => _gerandoPerguntas = true);
+                            try {
+                              await widget.api.gerarPerguntasAIParaEntrevista(widget.entrevistaId);
+                              final qs = await widget.api.listarPerguntasEntrevista(widget.entrevistaId);
+                              setState(() {
+                                _perguntas = qs.cast<Map<String, dynamic>>();
+                                if (_perguntaSelecionadaId == null && _perguntas.isNotEmpty) {
+                                  _perguntaSelecionadaId = _perguntas.first['id'].toString();
+                                }
+                              });
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('✨ ${_perguntas.length} perguntas geradas com sucesso!')),
+                              );
+                            } catch (e) {
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Falha ao gerar perguntas: $e')),
+                              );
+                            } finally {
+                              if (mounted) setState(() => _gerandoPerguntas = false);
+                            }
+                          },
+                    icon: _gerandoPerguntas
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.auto_awesome),
+                    label: Text(_gerandoPerguntas ? 'Gerando Perguntas...' : 'Gerar Perguntas Personalizadas'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF4F46E5),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Card: Adicionar Pergunta Manual
+          Card(
+            elevation: 2,
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.add_circle_outline, color: Color(0xFF4F46E5)),
+                      SizedBox(width: 8),
+                      Text('Adicionar Pergunta Manual', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final ctrl = TextEditingController();
+                      await showDialog<void>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Adicionar Pergunta Manual'),
+                          content: SizedBox(
+                            width: 500,
+                            child: TextField(
+                              controller: ctrl,
+                              maxLines: 3,
+                              decoration: const InputDecoration(
+                                hintText: 'Escreva a pergunta...',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
+                            ElevatedButton(
+                              onPressed: () async {
+                                try {
+                                  await widget.api.criarPerguntaManual(widget.entrevistaId, prompt: ctrl.text.trim());
+                                  Navigator.of(context).pop();
+                                  final qs = await widget.api.listarPerguntasEntrevista(widget.entrevistaId);
+                                  if (!mounted) return;
+                                  setState(() {
+                                    _perguntas = qs.cast<Map<String, dynamic>>();
+                                  });
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Pergunta adicionada com sucesso!')),
+                                  );
+                                } catch (_) {
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Falha ao adicionar pergunta')),
+                                  );
+                                }
+                              },
+                              child: const Text('Adicionar'),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.edit),
+                    label: const Text('Escrever Pergunta'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      side: const BorderSide(color: Color(0xFF4F46E5)),
+                      foregroundColor: const Color(0xFF4F46E5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Card: Perguntas Atuais
+          if (_perguntas.isNotEmpty)
+            Card(
+              elevation: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Perguntas Atuais', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF4F46E5),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '${_perguntas.length}',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    ..._perguntas.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final q = entry.value;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF4F46E5).withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    '${index + 1}',
+                                    style: const TextStyle(
+                                      color: Color(0xFF4F46E5),
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(child: Text(q['prompt']?.toString() ?? '', style: const TextStyle(fontSize: 14))),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }  @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -181,178 +593,42 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
 
         const SizedBox(height: 16),
 
-        // Corpo: Chat + Lateral
+        // Corpo: Tabs com Perguntas, Chat e IA Assistente
         Expanded(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Chat principal
-              Expanded(
-                child: Card(
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: ListView.builder(
-                            controller: _scrollController,
-                            itemCount: _mensagens.length,
-                            itemBuilder: (context, index) => _BolhaMensagem(mensagem: _mensagens[index]),
-                          ),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _controlador,
-                                minLines: 1,
-                                maxLines: 4,
-                                decoration: const InputDecoration(
-                                  hintText: 'Digite sua pergunta/comentário...',
-                                  border: OutlineInputBorder(),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            ElevatedButton.icon(
-                              onPressed: _enviando ? null : () => _enviarMensagem(_controlador.text),
-                              icon: const Icon(Icons.send, size: 18),
-                              label: Text(_enviando ? 'Enviando...' : 'Enviar'),
-                            ),
-                          ],
-                        ),
-                      ),
+          child: DefaultTabController(
+            length: 3,
+            child: Column(
+              children: [
+                Card(
+                  margin: EdgeInsets.zero,
+                  child: TabBar(
+                    labelColor: const Color(0xFF4F46E5),
+                    unselectedLabelColor: Colors.grey.shade600,
+                    indicatorColor: const Color(0xFF4F46E5),
+                    tabs: const [
+                      Tab(icon: Icon(Icons.question_answer), text: 'Perguntas'),
+                      Tab(icon: Icon(Icons.chat_bubble_outline), text: 'Chat IA'),
+                      Tab(icon: Icon(Icons.psychology), text: 'Assistente'),
                     ],
                   ),
                 ),
-              ),
-
-              const SizedBox(width: 16),
-
-              // Painel lateral com perguntas sugeridas
-              SizedBox(
-                width: 320,
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Row(
-                          children: [
-                            Icon(Icons.lightbulb_outline, color: Color(0xFF4F46E5)),
-                            SizedBox(width: 8),
-                            Text('Perguntas Sugeridas', style: TextStyle(fontWeight: FontWeight.w600)),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        if (_perguntas.isEmpty)
-                          Text(
-                            'Nenhuma pergunta gerada ainda. Clique no botão abaixo para gerar.',
-                            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                          )
-                        else
-                          ..._perguntas.map((q) => Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: InkWell(
-                                  onTap: () => setState(() => _perguntaSelecionadaId = q['id'].toString()),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        _perguntaSelecionadaId == q['id'].toString() ? Icons.radio_button_checked : Icons.radio_button_off,
-                                        size: 16,
-                                        color: const Color(0xFF4F46E5),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Expanded(child: Text(q['prompt']?.toString() ?? '')),
-                                    ],
-                                  ),
-                                ),
-                              )),
-                        const SizedBox(height: 12),
-                        ElevatedButton.icon(
-                          onPressed: _gerandoPerguntas
-                              ? null
-                              : () async {
-                                  setState(() => _gerandoPerguntas = true);
-                                  try {
-                                    await widget.api.gerarPerguntasAIParaEntrevista(widget.entrevistaId);
-                                    final qs = await widget.api.listarPerguntasEntrevista(widget.entrevistaId);
-                                    setState(() { _perguntas = qs.cast<Map<String, dynamic>>(); if (_perguntaSelecionadaId == null && _perguntas.isNotEmpty) _perguntaSelecionadaId = _perguntas.first['id'].toString(); });
-                                  } catch (e) {
-                                    if (!mounted) return;
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Falha ao gerar perguntas: $e')),
-                                    );
-                                  } finally {
-                                    if (mounted) setState(() => _gerandoPerguntas = false);
-                                  }
-                                },
-                          icon: const Icon(Icons.psychology),
-                          label: Text(_gerandoPerguntas ? 'Gerando...' : 'Gerar perguntas (IA)'),
-                        ),
-                        const SizedBox(height: 8),
-                        OutlinedButton.icon(
-                          onPressed: () async {
-                            final ctrl = TextEditingController();
-                            await showDialog<void>(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: const Text('Adicionar Pergunta Manual'),
-                                content: TextField(controller: ctrl, decoration: const InputDecoration(hintText: 'Escreva a pergunta...')),
-                                actions: [
-                                  TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
-                                  ElevatedButton(onPressed: () async { try { await widget.api.criarPerguntaManual(widget.entrevistaId, prompt: ctrl.text.trim()); Navigator.of(context).pop(); final qs = await widget.api.listarPerguntasEntrevista(widget.entrevistaId); if (!mounted) return; setState(() { _perguntas = qs.cast<Map<String, dynamic>>(); }); } catch (_) {} }, child: const Text('Adicionar')),
-                                ],
-                              ),
-                            );
-                          },
-                          icon: const Icon(Icons.add),
-                          label: const Text('Adicionar manualmente'),
-                        ),
-                        const SizedBox(height: 12),
-                        const Text('Respostas', style: TextStyle(fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 8),
-                        if (_respostas.isEmpty)
-                          Text('Sem respostas registradas', style: TextStyle(color: Colors.grey.shade600, fontSize: 12))
-                        else ...[
-                          ..._respostas.map((a) => Padding(
-                                padding: const EdgeInsets.only(bottom: 6),
-                                child: Text('• ${(a['raw_text'] ?? '')}'),
-                              )),
-                        ],
-                        const SizedBox(height: 8),
-                        OutlinedButton.icon(
-                          onPressed: () async {
-                            try {
-                              await widget.api.gerarRelatorio(widget.entrevistaId);
-                              if (!mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Relatório gerado/atualizado.')),
-                              );
-                            } catch (e) {
-                              if (!mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Falha ao gerar relatório: $e')),
-                              );
-                            }
-                          },
-                          icon: const Icon(Icons.description_outlined),
-                          label: const Text('Gerar relatório'),
-                        ),
-                      ],
-                    ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      // Tab 1: Perguntas e Respostas
+                      _buildPerguntasTab(),
+                      
+                      // Tab 2: Chat com IA
+                      _buildChatTab(),
+                      
+                      // Tab 3: Assistente IA
+                      _buildAssistenteTab(),
+                    ],
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ],

@@ -87,10 +87,22 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
   Future<void> _carregarDadosUsuario() async {
     try {
       final dados = await api.obterUsuario();
+      // Compatibilidade com respostas antigas ({ usuario: { company } })
+      final rawUser = (dados['user'] ?? dados['usuario']) as Map<String, dynamic>?;
+      final rawCompany =
+          (dados['company'] ?? rawUser?['company']) as Map<String, dynamic>?;
       setState(() {
-        userData = dados;
-        auth['name'] = dados['user']?['full_name'] ?? 'Usuário';
-        perfil = dados['user']?['role'];
+        userData = {
+          'user': rawUser,
+          'company': rawCompany,
+        };
+        auth['name'] =
+            rawUser?['full_name'] ?? rawUser?['nome'] ?? auth['name'] ?? 'Usuário';
+        perfil = rawUser?['role'] ?? rawUser?['perfil'];
+        // Onboarding bloqueante: sem empresa, força rota de configurações
+        if (auth['logged'] == true && rawCompany == null) {
+          route = RouteKey.config;
+        }
       });
     } catch (e) {
       debugPrint('Erro ao carregar dados do usuário: $e');
@@ -109,10 +121,22 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
     });
   }
 
-  /// Formata o role do usuário para exibição
-  String _formatarRole(String? role) {
-    if (role == null) return 'usuário';
-    switch (role.toUpperCase()) {
+  /// Formata o cargo do usuário para exibição na sidebar
+  /// Prioriza o campo 'cargo' (Admin/Recrutador(a)/Gestor(a))
+  /// Se não houver cargo, usa o role (ADMIN/USER/SUPER_ADMIN)
+  String _formatarCargo() {
+    final cargo = userData?['user']?['cargo'];
+    
+    // Se tem cargo definido, retorna direto
+    if (cargo != null && cargo.toString().isNotEmpty) {
+      return cargo.toString();
+    }
+    
+    // Fallback: formata o role se não houver cargo
+    final role = userData?['user']?['role'];
+    if (role == null) return 'Usuário';
+    
+    switch (role.toString().toUpperCase()) {
       case 'ADMIN':
         return 'Administrador';
       case 'SUPER_ADMIN':
@@ -125,7 +149,14 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
 
   void go(RouteKey to) {
     setState(() {
-      route = to;
+      // Se usuário está logado mas ainda não possui empresa,
+      // bloqueia navegação para outras telas além de Configurações
+      final semEmpresa = auth['logged'] == true && (userData != null && userData!['company'] == null);
+      if (semEmpresa && to != RouteKey.config) {
+        route = RouteKey.config;
+      } else {
+        route = to;
+      }
     });
   }
 
@@ -199,7 +230,8 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
               activeSection: _sectionFromRoute(route),
               onSectionChange: (s) => go(_routeFromSection(s)),
               userName: userData?['user']?['full_name'] ?? auth['name'] ?? 'Usuário',
-              userRole: _formatarRole(userData?['user']?['role']),
+              userRole: _formatarCargo(),
+              userPhotoUrl: userData?['user']?['foto_url'],
               onLogout: _logout,
               child: _buildContent(),
             )
@@ -240,6 +272,7 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
                         'name': r['usuario']?['nome'] ?? email.split('@')[0],
                       };
                       perfil = r['usuario']?['perfil'];
+                      // rota temporária; após carregar dados o onboarding pode redirecionar
                       route = RouteKey.dashboard;
                     });
                     // Carrega dados completos do usuário após login
@@ -259,7 +292,11 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
   Widget _buildContent() {
     switch (route) {
       case RouteKey.dashboard:
-        return DashboardTela(api: api);
+        return DashboardTela(
+          api: api,
+          userData: userData,
+          onIrConfiguracoes: () => go(RouteKey.config),
+        );
       case RouteKey.register:
         return RegistroTela(
           api: api,
@@ -294,7 +331,6 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
               }
               entrevistaId = ent != null ? ent['id'] : null;
               ultimoUpload = resultado;
-              route = RouteKey.analise;
             });
           },
           onBack: () => go(RouteKey.dashboard),
@@ -365,7 +401,10 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
       case RouteKey.historico:
         return HistoricoTela(api: api);
       case RouteKey.config:
-        return ConfiguracoesNovaTela(api: api);
+        return ConfiguracoesNovaTela(
+          api: api,
+          onCompanyUpdated: _carregarDadosUsuario,
+        );
       case RouteKey.usuarios:
         return UsuariosAdminTela(api: api, isAdmin: (perfil == 'ADMIN'));
       default:

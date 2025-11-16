@@ -21,6 +21,7 @@ const rotasInterviews = require('./rotas/interviews');
 const rotasFiles = require('./rotas/files');
 const rotasIngestion = require('./rotas/ingestion');
 const rotasResumes = require('./rotas/resumes');
+const rotasApiKeys = require('./rotas/api_keys');
 
 // Montar rotas
 router.use('/usuarios', rotasUsuarios);
@@ -42,5 +43,6 @@ router.use('/interviews', rotasInterviews);
 router.use('/files', rotasFiles);
 router.use('/ingestion', rotasIngestion);
 router.use('/resumes', rotasResumes);
+router.use('/api-keys', rotasApiKeys);
 
 module.exports = router;
