@@ -66,8 +66,8 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
   };
   String curriculoNome = '';
   Map<String, String> ctx = {
-    'vagaSelecionada': 'Desenvolvedor Full Stack',
-    'candidato': 'João Silva',
+    'vagaSelecionada': 'Vaga',
+    'candidato': 'Candidato',
   };
   String? entrevistaId;
   Map<String, dynamic>? ultimoUpload;
@@ -310,7 +310,10 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
           },
         );
       case RouteKey.vagas:
-        return VagasTela(api: api);
+        return VagasTela(
+          api: api,
+          isAdmin: (perfil == 'ADMIN' || perfil == 'SUPER_ADMIN'),
+        );
       case RouteKey.novaVaga:
         return _buildNovaVagaTela();
       case RouteKey.candidatos:
@@ -350,18 +353,19 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
       case RouteKey.entrevistas:
         return EntrevistasTela(
           api: api,
-          onAbrirAssistida: (candidato, vaga) {
+          onAbrirAssistida: (id, candidato, vaga) {
             setState(() {
               ctx['candidato'] = candidato;
               ctx['vagaSelecionada'] = vaga;
-              entrevistaId = entrevistaId ?? 'ent-1';
+              entrevistaId = id;
               route = RouteKey.entrevista;
             });
           },
-          onAbrirRelatorio: (candidato, vaga) {
+          onAbrirRelatorio: (id, candidato, vaga) {
             setState(() {
               ctx['candidato'] = candidato;
               ctx['vagaSelecionada'] = vaga;
+              entrevistaId = id;
               relatorioFinal = null;
               route = RouteKey.relatorio;
             });
@@ -371,7 +375,7 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
         return AnaliseCurriculoTela(
           vaga: ctx['vagaSelecionada']!,
           candidato: ctx['candidato']!,
-          arquivo: curriculoNome.isEmpty ? 'curriculo_joao_silva.pdf' : curriculoNome,
+          arquivo: curriculoNome.isEmpty ? 'Arquivo não informado' : curriculoNome,
           fileUrl: (ultimoUpload != null) ? (ultimoUpload!['file']?['url'] as String?) : null,
           analise: (ultimoUpload != null) ? (ultimoUpload!['curriculo']?['analise_json'] as Map<String, dynamic>?) : null,
           onVoltar: () => go(RouteKey.upload),

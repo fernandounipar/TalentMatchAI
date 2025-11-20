@@ -1,7 +1,51 @@
 const OpenAI = require('openai');
 const { openaiApiKey } = require('../config');
+const db = require('../config/database');
+const groqService = require('./groqService');
 
-const openai = openaiApiKey ? new OpenAI({ apiKey: openaiApiKey }) : null;
+// Cache simples de clientes OpenAI por token para evitar recriar em cada chamada
+const openaiClientsByToken = new Map();
+
+async function getOpenAIClientForCompany(companyId) {
+  let token = null;
+
+  // 1) Tenta buscar API Key específica do tenant (provider = 'OPENAI')
+  if (companyId) {
+    try {
+      const r = await db.query(
+        `SELECT token
+           FROM api_keys
+          WHERE company_id = $1
+            AND provider = 'OPENAI'
+            AND is_active = true
+          ORDER BY created_at DESC
+          LIMIT 1`,
+        [companyId]
+      );
+      if (r.rows[0]?.token) {
+        token = r.rows[0].token;
+      }
+    } catch (e) {
+      // Falha em buscar do banco não deve quebrar o fluxo; cai para fallback .env
+      // eslint-disable-next-line no-console
+      console.error('❌ Erro ao buscar OPENAI_API_KEY em api_keys:', e.message);
+    }
+  }
+
+  // 2) Fallback: usa variável de ambiente global (caso não haja registro por empresa)
+  if (!token) {
+    token = openaiApiKey || null;
+  }
+
+  if (!token) return null;
+
+  if (openaiClientsByToken.has(token)) {
+    return openaiClientsByToken.get(token);
+  }
+  const client = new OpenAI({ apiKey: token });
+  openaiClientsByToken.set(token, client);
+  return client;
+}
 
 /**
  * Analisa o texto de um currículo com contexto opcional da vaga.
@@ -10,7 +54,7 @@ const openai = openaiApiKey ? new OpenAI({ apiKey: openaiApiKey }) : null;
  *  - um objeto com { titulo, descricao, requisitos, ... }
  *  - ou qualquer outro valor legacy (ex.: apenas vagaId), que será ignorado
  */
-async function gerarAnaliseCurriculo(texto, vagaCtx) {
+async function gerarAnaliseCurriculo(texto, vagaCtx, opts = {}) {
   // Normaliza contexto da vaga recebido do caller (curriculos.js)
   let vagaTitulo = '';
   let vagaDescricao = '';
@@ -34,8 +78,36 @@ async function gerarAnaliseCurriculo(texto, vagaCtx) {
       '';
   }
 
-  // Fallback seguro quando a API não está configurada
-  if (!openai) {
+  const client = await getOpenAIClientForCompany(opts.companyId);
+
+  // Fallback automático para Groq se OpenAI não estiver disponível
+  if (!client && process.env.GROQ_API_KEY) {
+    console.log('⚠️  OpenAI não configurada. Usando Groq como fallback...');
+    try {
+      return await groqService.analisarCurriculo(texto, {
+        titulo: vagaTitulo,
+        descricao: vagaDescricao,
+        requisitos: vagaRequisitos
+      });
+    } catch (groqError) {
+      console.error('❌ Erro ao usar Groq:', groqError.message);
+      return {
+        summary: 'Análise de IA indisponível no momento.',
+        skills: [],
+        keywords: [],
+        experiences: [],
+        matchingScore: 0,
+        recomendacao: 'Análise indisponível',
+        pontosFortes: [],
+        pontosAtencao: [],
+        aderenciaRequisitos: [],
+        error: 'AI_UNAVAILABLE',
+      };
+    }
+  }
+
+  // Fallback final quando nem OpenAI nem Groq estão configurados
+  if (!client) {
     return {
       summary: 'OPENAI não configurado. Análise automática indisponível.',
       skills: [],
@@ -80,7 +152,7 @@ Requisitos: ${vagaRequisitos}
 `.trim();
 
   try {
-    const resp = await openai.chat.completions.create({
+    const resp = await client.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         {
@@ -133,7 +205,22 @@ Requisitos: ${vagaRequisitos}
     }
   } catch (e) {
     console.error('❌ Erro ao chamar OpenAI para análise de currículo:', e.message);
-    // Fallback seguro quando a API de IA estiver sem crédito/quota ou indisponível
+    
+    // Tenta Groq como fallback automático
+    if (process.env.GROQ_API_KEY && (e.message.includes('429') || e.message.includes('quota'))) {
+      console.log('⚠️  OpenAI com erro 429 (quota exceeded). Tentando Groq...');
+      try {
+        return await groqService.analisarCurriculo(texto, {
+          titulo: vagaTitulo,
+          descricao: vagaDescricao,
+          requisitos: vagaRequisitos
+        });
+      } catch (groqError) {
+        console.error('❌ Erro ao usar Groq como fallback:', groqError.message);
+      }
+    }
+    
+    // Fallback seguro quando todas as APIs falharem
     return {
       summary:
         'Análise automática indisponível no momento (limite de uso da API de IA ou erro de conexão).',
@@ -151,11 +238,12 @@ Requisitos: ${vagaRequisitos}
 }
 
 async function gerarPerguntasEntrevista({ resumo, skills = [], vaga = '', quantidade = 8 }) {
-  if (!openai) return ['OPENAI não configurado'];
+  const client = await getOpenAIClientForCompany((arguments[0] && arguments[0].companyId) || null);
+  if (!client) return ['OPENAI não configurado'];
   const prompt = `Gere ${quantidade} perguntas (técnicas e comportamentais) em português, como JSON array de strings. Resumo:${resumo}\nSkills:${skills.join(
     ', ',
   )}\nVaga:${vaga}`;
-  const resp = await openai.chat.completions.create({
+  const resp = await client.chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [
       { role: 'system', content: 'Você é um entrevistador técnico sênior.' },
@@ -179,8 +267,11 @@ async function responderChatEntrevista({
   analise = {},
   vagaDesc = '',
   textoCurriculo = '',
+  companyId = null,
 }) {
-  if (!openai) {
+  const client = await getOpenAIClientForCompany(companyId);
+
+  if (!client) {
     // fallback simples
     return 'OPENAI não configurado. (Resposta mock) Sugestão: aprofunde pedindo exemplos específicos e resultados mensuráveis.';
   }
@@ -212,7 +303,7 @@ async function responderChatEntrevista({
     { role: 'user', content: String(mensagemAtual) },
   ];
 
-  const resp = await openai.chat.completions.create({
+  const resp = await client.chat.completions.create({
     model: 'gpt-4o-mini',
     messages: msgs,
     temperature: 0.3,
@@ -221,8 +312,10 @@ async function responderChatEntrevista({
   return content.trim();
 }
 
-async function avaliarResposta({ pergunta, resposta }) {
-  if (!openai) {
+async function avaliarResposta({ pergunta, resposta, companyId = null }) {
+  const client = await getOpenAIClientForCompany(companyId);
+
+  if (!client) {
     // fallback simples sem IA
     return {
       score: 70,
@@ -232,7 +325,7 @@ async function avaliarResposta({ pergunta, resposta }) {
     };
   }
   const prompt = `Avalie a resposta do candidato à pergunta da entrevista. Retorne um JSON com campos: score (0..100), verdict em ['FORTE','ADEQUADO','FRACO','INCONSISTENTE'], rationale_text (string), suggested_followups (array de strings).\nPergunta: ${pergunta}\nResposta: ${resposta}`;
-  const resp = await openai.chat.completions.create({
+  const resp = await client.chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [
       { role: 'system', content: 'Você é um avaliador técnico. Responda apenas JSON válido.'},
@@ -244,9 +337,11 @@ async function avaliarResposta({ pergunta, resposta }) {
   try { return JSON.parse(content); } catch { return { score: 60, verdict: 'ADEQUADO', rationale_text: content, suggested_followups: [] }; }
 }
 
-async function gerarRelatorioEntrevista({ candidato, vaga, respostas = [], feedbacks = [] }) {
+async function gerarRelatorioEntrevista({ candidato, vaga, respostas = [], feedbacks = [], companyId = null }) {
   // Fusão simples: sumariza com base nos feedbacks
-  if (!openai) {
+  const client = await getOpenAIClientForCompany(companyId);
+
+  if (!client) {
     const strengths = feedbacks.filter(f => (f.verdict || '').toUpperCase() === 'FORTE').map(f => f.topic || 'Ponto forte');
     const risks = feedbacks.filter(f => (f.verdict || '').toUpperCase() === 'FRACO' || (f.verdict || '').toUpperCase() === 'INCONSISTENTE').map(f => f.topic || 'Risco');
     const score = Math.round((feedbacks.reduce((a, b) => a + (Number(b.score)||60), 0) / Math.max(1, feedbacks.length)));
@@ -259,7 +354,7 @@ async function gerarRelatorioEntrevista({ candidato, vaga, respostas = [], feedb
     };
   }
   const prompt = `Com base nas respostas e feedbacks abaixo, gere um relatório de entrevista em JSON com campos: summary_text (string), strengths (array de strings), risks (array de strings), recommendation em ['APROVAR','DÚVIDA','REPROVAR'].\nRespostas: ${JSON.stringify(respostas).slice(0, 6000)}\nFeedbacks: ${JSON.stringify(feedbacks).slice(0, 6000)}`;
-  const resp = await openai.chat.completions.create({
+  const resp = await client.chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [
       { role: 'system', content: 'Você é um tech lead avaliando entrevistas. Responda apenas JSON válido.'},

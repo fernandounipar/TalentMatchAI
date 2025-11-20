@@ -19,18 +19,30 @@ router.get('/', async (req, res) => {
   try {
     const { status, q, page = 1, limit = 50 } = req.query;
     const params = [req.usuario.company_id];
-    let sql = 'SELECT * FROM jobs WHERE company_id = $1';
+    let sql = `
+      SELECT
+        j.*,
+        COALESCE(apps.cnt, 0)::int AS candidates_count
+      FROM jobs j
+      LEFT JOIN (
+        SELECT job_id, COUNT(*)::int AS cnt
+          FROM applications
+         WHERE company_id = $1
+           AND deleted_at IS NULL
+         GROUP BY job_id
+      ) apps ON apps.job_id = j.id
+      WHERE j.company_id = $1`;
     if (status) {
       params.push(String(status).toLowerCase());
-      sql += ` AND status = $${params.length}`;
+      sql += ` AND j.status = $${params.length}`;
     }
     if (q) {
       params.push(`%${String(q).toLowerCase()}%`);
-      sql += ` AND lower(title) LIKE $${params.length}`;
+      sql += ` AND lower(j.title) LIKE $${params.length}`;
     }
     params.push(Number(limit));
     params.push((Number(page) - 1) * Number(limit));
-    sql += ` ORDER BY created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`;
+    sql += ` ORDER BY j.created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`;
     const r = await db.query(sql, params);
     res.json(r.rows);
   } catch (e) {

@@ -31,14 +31,33 @@ class _HistoricoTelaState extends State<HistoricoTela> {
       final hist = await widget.api.historico();
       _atividades = hist.map<AtividadeHistorico>((e) {
         final m = e as Map<String, dynamic>;
-        final created = DateTime.tryParse(m['criado_em']?.toString() ?? '') ?? DateTime.now();
+        final created = DateTime.tryParse(m['criado_em']?.toString() ?? m['data']?.toString() ?? '') ?? DateTime.now();
+        final tipo = m['tipo']?.toString() ?? (m['vaga'] != null ? 'Entrevista' : 'Edição');
+        final entidade = m['entidade']?.toString() ?? (tipo == 'Upload' ? 'Currículo' : 'Entrevista');
+        final entidadeId = (m['entidade_id'] ?? m['entidadeId'] ?? m['id'] ?? '').toString();
+        final usuario = (m['usuario'] ?? m['candidato'] ?? '').toString();
+        final vaga = m['vaga']?.toString();
+        final temRelatorio = m['tem_relatorio'] == true;
+
+        final descricaoBackend = m['descricao']?.toString();
+        final descricao = descricaoBackend ?? (() {
+          if (tipo == 'Upload') {
+            final filename = m['filename']?.toString();
+            return 'Upload de currículo ${filename ?? ''}'.trim();
+          }
+          if (tipo == 'Entrevista') {
+            return 'Entrevista ${temRelatorio ? 'com relatório' : 'registrada'} para ${vaga ?? 'Vaga'}';
+          }
+          return vaga ?? '';
+        })();
+
         return AtividadeHistorico(
           id: (m['id'] ?? '').toString(),
-          usuario: m['candidato']?.toString() ?? '—',
-          descricao: 'Entrevista ${m['tem_relatorio'] == true ? 'com relatório' : ''} para ${m['vaga'] ?? 'Vaga'}',
-          tipo: 'Entrevista',
-          entidade: 'Entrevista',
-          entidadeId: (m['id'] ?? '').toString(),
+          usuario: usuario.isEmpty ? '—' : usuario,
+          descricao: descricao,
+          tipo: tipo,
+          entidade: entidade,
+          entidadeId: entidadeId,
           data: created,
         );
       }).toList();

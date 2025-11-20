@@ -37,7 +37,8 @@ router.post('/:id/perguntas', async (req, res) => {
     resumo: analise.summary || '',
     skills: analise.skills || [],
     vaga: row.vaga_desc || '',
-    quantidade: Number(req.query.qtd || 8)
+    quantidade: Number(req.query.qtd || 8),
+    companyId: req.usuario.company_id,
   });
   const inserts = await Promise.all(qs.map(q => db.query('INSERT INTO perguntas (entrevista_id, texto, company_id) VALUES ($1,$2,$3) RETURNING *', [id, q, req.usuario.company_id])));
   res.json(inserts.map(i => i.rows[0]));
@@ -108,6 +109,7 @@ router.post('/:id/chat', async (req, res) => {
     analise: row.analise_json || {},
     vagaDesc: row.vaga_desc || '',
     textoCurriculo: row.texto ? String(row.texto).slice(0, 5000) : '',
+    companyId: req.usuario.company_id,
   });
 
   // Persistir resposta do assistant

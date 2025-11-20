@@ -110,14 +110,20 @@ router.post('/upload', exigirAutenticacao, upload.single('arquivo'), async (req,
     }
 
     // Análise IA – agora com contexto da vaga selecionada (quando existir)
-    const analise = await gerarAnaliseCurriculo(texto, vaga ? {
-      vagaId,
-      titulo: vaga.title,
-      descricao: vaga.description,
-      requisitos: vaga.requirements,
-      seniority: vaga.seniority,
-      location_type: vaga.location_type,
-    } : { vagaId });
+    const analise = await gerarAnaliseCurriculo(
+      texto,
+      vaga
+        ? {
+            vagaId,
+            titulo: vaga.title,
+            descricao: vaga.description,
+            requisitos: vaga.requirements,
+            seniority: vaga.seniority,
+            location_type: vaga.location_type,
+          }
+        : { vagaId },
+      { companyId: req.usuario.company_id }
+    );
 
     // Metadados do arquivo em files
     const relPath = path.posix.join(String(req.usuario.company_id), path.basename(filepath));
