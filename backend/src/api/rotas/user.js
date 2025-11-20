@@ -40,11 +40,11 @@ router.get('/me', exigirAutenticacao, async (req, res) => {
          u.is_active,
          u.cargo,
          u.foto_url,
-         -- Colunas de companies (sempre em português conforme schema atual)
+         -- Colunas de companies (schema normalizado em inglês)
          c.id as company_id_db,
-         c.tipo AS company_type,
-         c.documento AS company_document,
-         c.nome AS company_name
+         c.type AS company_type,
+         c.document AS company_document,
+         c.name AS company_name
        FROM users u
        LEFT JOIN companies c ON c.id = u.company_id
        WHERE u.id = $1 AND u.deleted_at IS NULL`,

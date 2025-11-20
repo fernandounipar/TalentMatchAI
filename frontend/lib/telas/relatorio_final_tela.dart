@@ -18,62 +18,59 @@ class RelatorioFinalTela extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pontuacaoGeral = (relatorio?['pontuacao_geral'] as num?)?.toDouble() ?? 85.0;
-    final recomendacao = relatorio?['recomendacao']?.toString() ?? 'Contratar';
-    final resumo = relatorio?['resumo']?.toString() ??
-        'O candidato $candidato demonstrou excelente adequação à vaga de $vaga, apresentando sólido conhecimento técnico e boa capacidade de comunicação.';
+    // Mapeia estrutura do backend (interview_reports) e mantém compatibilidade com formatos antigos
+    final rawScore = relatorio?['pontuacao_geral'];
+    double pontuacaoGeral;
+    if (rawScore is num) {
+      pontuacaoGeral = rawScore.toDouble();
+    } else {
+      final rec = (relatorio?['recomendacao'] ?? relatorio?['recommendation'])?.toString().toUpperCase() ?? '';
+      if (rec == 'APROVAR') {
+        pontuacaoGeral = 90;
+      } else if (rec == 'DÚVIDA' || rec == 'DUVIDA') {
+        pontuacaoGeral = 70;
+      } else if (rec == 'REPROVAR') {
+        pontuacaoGeral = 40;
+      } else {
+        pontuacaoGeral = 0;
+      }
+    }
+
+    final recomendacaoRaw = (relatorio?['recomendacao'] ?? relatorio?['recommendation'])?.toString().toUpperCase() ?? '';
+    final recomendacao = () {
+      switch (recomendacaoRaw) {
+        case 'APROVAR':
+          return 'Aprovar';
+        case 'DÚVIDA':
+        case 'DUVIDA':
+          return 'Considerar';
+        case 'REPROVAR':
+          return 'Não recomendar';
+        default:
+          return recomendacaoRaw.isEmpty ? 'Sem recomendação' : recomendacaoRaw;
+      }
+    }();
+
+    final resumo = (relatorio?['resumo'] ?? relatorio?['summary_text'])?.toString() ??
+        'Resumo não disponível para esta entrevista.';
 
     final analiseDetalhada = <String, num>{
       if (relatorio?['competencias'] is List)
         for (final item in relatorio!['competencias'] as List)
           if (item is Map && item['nome'] != null && item['nota'] != null)
             item['nome'].toString(): (item['nota'] as num),
-      if (relatorio == null) ...{
-        'Conhecimento Técnico': 88,
-        'Experiência Prática': 85,
-        'Comunicação': 82,
-        'Resolução de Problemas': 90,
-        'Fit Cultural': 78,
-      },
     };
 
-    final pontosFortes = (relatorio?['pontos_fortes'] as List?)?.cast<String>() ?? [
-      'Excelente domínio de tecnologias do stack (React, Node.js, PostgreSQL)',
-      'Demonstrou raciocínio lógico sólido na resolução de problemas técnicos',
-      'Boa comunicação e capacidade de explicar conceitos complexos',
-      'Experiência comprovada com boas práticas de desenvolvimento (testes, Git)',
-      'Perfil proativo com contribuições open source no GitHub',
-    ];
+    final pontosFortes =
+        (relatorio?['pontos_fortes'] as List?)?.cast<String>() ?? (relatorio?['strengths'] as List?)?.map((e) => e.toString()).toList() ?? const <String>[];
 
-    final pontosMelhoria = (relatorio?['pontos_melhoria'] as List?)?.cast<String>() ?? [
-      'Poderia aprofundar conhecimento em otimização de queries SQL',
-      'Experiência com metodologias ágeis poderia ser mais aprofundada',
-      'Considerar certificações em cloud computing (AWS, Azure)',
-    ];
+    final pontosMelhoria =
+        (relatorio?['pontos_melhoria'] as List?)?.cast<String>() ?? (relatorio?['risks'] as List?)?.map((e) => e.toString()).toList() ?? const <String>[];
 
     final respostasDestaque = (relatorio?['respostas_destaque'] as List?)
             ?.whereType<Map<String, dynamic>>()
             .toList() ??
-        [
-          {
-            'pergunta': 'Explique o conceito de idempotência em APIs RESTful',
-            'categoria': 'técnica',
-            'nota': 8,
-            'feedback': 'Resposta clara e objetiva, demonstrando conhecimento sólido sobre o conceito.',
-          },
-          {
-            'pergunta': 'Como você estrutura testes automatizados?',
-            'categoria': 'técnica',
-            'nota': 9,
-            'feedback': 'Excelente! Mencionou ferramentas adequadas e boas práticas de cobertura.',
-          },
-          {
-            'pergunta': 'Conte sobre um projeto desafiador que você liderou',
-            'categoria': 'comportamental',
-            'nota': 8,
-            'feedback': 'Demonstrou liderança e capacidade de resolver conflitos em equipe.',
-          },
-        ];
+        const <Map<String, dynamic>>[];
 
     return SingleChildScrollView(
       child: Column(
@@ -106,12 +103,12 @@ class RelatorioFinalTela extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Candidato: ${relatorio?['candidato'] ?? candidato} • Vaga: ${relatorio?['vaga'] ?? vaga}',
+                          'Candidato: $candidato • Vaga: $vaga',
                           style: const TextStyle(color: Colors.white70, fontSize: 14),
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Gerado em: ${_formatarData(relatorio?['gerado_em'])}',
+                          'Gerado em: ${_formatarData(relatorio?['gerado_em'] ?? relatorio?['created_at'])}',
                           style: const TextStyle(color: Colors.white60, fontSize: 12),
                         ),
                       ],
@@ -349,96 +346,18 @@ class RelatorioFinalTela extends StatelessWidget {
               feedback: resposta['feedback']?.toString() ?? '',
             ),
           ),
+          if (respostasDestaque.isEmpty)
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Text(
+                'Nenhuma resposta em destaque disponível.',
+                style: TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+            ),
 
           const SizedBox(height: 24),
 
-          // Próximos Passos
-          Card(
-            color: Colors.blue.shade50,
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.next_plan, color: Colors.blue.shade700),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'Próximos Passos Recomendados',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _buildProximoPasso('1', 'Agendar segunda entrevista técnica com o time de desenvolvimento'),
-                  _buildProximoPasso('2', 'Solicitar referências profissionais'),
-                  _buildProximoPasso('3', 'Preparar proposta salarial competitiva'),
-                  _buildProximoPasso('4', 'Verificar disponibilidade para início imediato'),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 32),
-
-          // Botões de Ação
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              OutlinedButton.icon(
-                onPressed: onVoltar,
-                icon: const Icon(Icons.arrow_back),
-                label: const Text('Voltar ao Dashboard'),
-              ),
-              Row(
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      // Rejeitar candidato
-                    },
-                    icon: const Icon(Icons.close),
-                    label: const Text('Não Aprovar'),
-                    style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      showDialog(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Aprovar Candidato'),
-                          content: Text('Deseja aprovar $candidato para a próxima etapa?'),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text('Cancelar'),
-                            ),
-                            ElevatedButton(
-                              onPressed: () {
-                                Navigator.pop(context);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('$candidato aprovado com sucesso!')),
-                                );
-                              },
-                              child: const Text('Confirmar'),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.check_circle),
-                    label: const Text('Aprovar Candidato'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+          // Próximos passos e ações podem ser derivados futuramente a partir do relatório
         ],
       ),
     );

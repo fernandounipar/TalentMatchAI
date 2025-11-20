@@ -8,7 +8,13 @@ import '../design_system/tm_tokens.dart';
 /// Tela de Gerenciamento de Vagas
 class VagasTela extends StatefulWidget {
   final ApiCliente api;
-  const VagasTela({super.key, required this.api});
+  final bool isAdmin;
+
+  const VagasTela({
+    super.key,
+    required this.api,
+    this.isAdmin = false,
+  });
 
   @override
   State<VagasTela> createState() => _VagasTelaState();
@@ -57,21 +63,30 @@ class _VagasTelaState extends State<VagasTela> {
       final status = _filterStatus == 'all' ? null : (_filterStatus.toLowerCase() == 'aberta' ? 'open' : _filterStatus.toLowerCase());
       final q = _searchTerm.trim().isEmpty ? null : _searchTerm.trim();
       final itens = await widget.api.vagas(page: _page, limit: 20, status: status, q: q);
-      final vagas = itens.map((j) => Vaga(
-        id: (j['id'] ?? '').toString(),
-        titulo: j['title']?.toString() ?? '',
-        descricao: j['description']?.toString() ?? '',
-        requisitos: j['requirements']?.toString() ?? '',
-        requisitosList: (j['requirements']?.toString() ?? '').split('\n'),
-        senioridade: j['seniority']?.toString(),
-        regime: j['location_type']?.toString(),
-        local: null,
-        status: (() { final s = (j['status'] ?? '').toString(); return s == 'open' ? 'aberta' : s; })(),
-        salario: null,
-        tags: const [],
-        criadoEm: DateTime.tryParse(j['created_at']?.toString() ?? '') ?? DateTime.now(),
-        candidatos: 0,
-      )).toList();
+      final vagas = itens.map((j) {
+        final createdAt = DateTime.tryParse(j['created_at']?.toString() ?? '');
+        final candidatosCount = j['candidates_count'] ?? j['candidatos'] ?? 0;
+        return Vaga(
+          id: (j['id'] ?? '').toString(),
+          titulo: j['title']?.toString() ?? '',
+          descricao: j['description']?.toString() ?? '',
+          requisitos: j['requirements']?.toString() ?? '',
+          requisitosList: (j['requirements']?.toString() ?? '').split('\n'),
+          senioridade: j['seniority']?.toString(),
+          regime: j['location_type']?.toString(),
+          local: null,
+          status: (() {
+            final s = (j['status'] ?? '').toString();
+            return s == 'open' ? 'aberta' : s;
+          })(),
+          salario: null,
+          tags: const [],
+          criadoEm: createdAt ?? DateTime.now(),
+          candidatos: candidatosCount is int
+              ? candidatosCount
+              : int.tryParse(candidatosCount.toString()) ?? 0,
+        );
+      }).toList();
       if (mounted) {
         setState(() {
           _vagas = vagas;
@@ -289,7 +304,8 @@ class _VagasTelaState extends State<VagasTela> {
         ),
       ),
       const SizedBox(width: 16),
-      TMButton('Nova Vaga', icon: Icons.add, onPressed: () => _openDialog()),
+      if (widget.isAdmin)
+        TMButton('Nova Vaga', icon: Icons.add, onPressed: () => _openDialog()),
     ];
 
     if (isCompact) {
@@ -310,7 +326,8 @@ class _VagasTelaState extends State<VagasTela> {
             style: TextStyle(fontSize: 16, color: Color(0xFF6B7280)),
           ),
           const SizedBox(height: 16),
-          TMButton('Nova Vaga', icon: Icons.add, onPressed: () => _openDialog()),
+          if (widget.isAdmin)
+            TMButton('Nova Vaga', icon: Icons.add, onPressed: () => _openDialog()),
         ],
       );
     }
@@ -589,10 +606,12 @@ class _VagasTelaState extends State<VagasTela> {
               Text(
                 _searchTerm.isNotEmpty || _filterStatus != 'all'
                     ? 'Tente ajustar os filtros de busca'
-                    : 'Comece criando sua primeira vaga',
+                    : (widget.isAdmin
+                        ? 'Comece criando sua primeira vaga'
+                        : 'Nenhuma vaga cadastrada ainda'),
                 style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
               ),
-              if (_searchTerm.isEmpty && _filterStatus == 'all') ...[
+              if (_searchTerm.isEmpty && _filterStatus == 'all' && widget.isAdmin) ...[
                 const SizedBox(height: 16),
                 TMButton('Nova Vaga', icon: Icons.add, onPressed: () => _openDialog()),
               ],

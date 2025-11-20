@@ -175,7 +175,8 @@ router.post('/:id/questions', async (req, res) => {
         resumo: analise.summary || '',
         skills: analise.skills || [],
         vaga: row.vaga_desc || '',
-        quantidade: Number(req.query.qtd || 8)
+        quantidade: Number(req.query.qtd || 8),
+        companyId,
       });
       const inserted = [];
       for (const text of qs) {
@@ -247,7 +248,11 @@ router.post('/:id/ai-feedback', async (req, res) => {
     );
     const inserted = [];
     for (const row of ans.rows) {
-      const fb = await avaliarResposta({ pergunta: row.prompt, resposta: row.raw_text });
+      const fb = await avaliarResposta({
+        pergunta: row.prompt,
+        resposta: row.raw_text,
+        companyId: req.usuario.company_id,
+      });
       const ins = await db.query(
         `INSERT INTO ai_feedback (company_id, answer_id, score, verdict, rationale_text, suggested_followups, created_at)
          VALUES ($1,$2,$3,$4,$5,$6::jsonb, now()) RETURNING *`,
@@ -318,6 +323,7 @@ router.post('/:id/report', async (req, res) => {
       vaga: base.rows[0].vaga,
       respostas: respostas.rows,
       feedbacks: feedbacks.rows,
+      companyId: req.usuario.company_id,
     });
     // Persistir em interview_reports
     const ins = await db.query(

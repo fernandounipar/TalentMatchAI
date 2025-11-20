@@ -134,7 +134,7 @@ async function login(email, senha) {
   // Busca usuário (LEFT JOIN para permitir usuários sem empresa)
   const result = await db.query(
     `SELECT u.id, u.company_id, u.full_name, u.email, u.password_hash, u.role, u.is_active,
-            c.nome as company_name, c.tipo as company_type
+            c.name as company_name, c.type as company_type
      FROM users u
      LEFT JOIN companies c ON c.id = u.company_id
      WHERE u.email = $1 AND u.deleted_at IS NULL`,

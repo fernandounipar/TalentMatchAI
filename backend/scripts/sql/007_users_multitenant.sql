@@ -68,9 +68,18 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
   expires_at TIMESTAMP NOT NULL,
   revoked_at TIMESTAMP
 );
-DO $$ BEGIN
-  CREATE UNIQUE INDEX uniq_refresh_token_hash ON refresh_tokens(token_hash);
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $idx$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE c.relkind = 'i'
+       AND c.relname = 'uniq_refresh_token_hash'
+       AND n.nspname = 'public'
+  ) THEN
+    CREATE UNIQUE INDEX uniq_refresh_token_hash ON refresh_tokens(token_hash);
+  END IF;
+END $idx$;
 DO $$ BEGIN
   CREATE INDEX IF NOT EXISTS idx_refresh_company_user ON refresh_tokens(company_id, user_id, created_at DESC);
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
@@ -85,9 +94,18 @@ CREATE TABLE IF NOT EXISTS password_resets (
   expires_at TIMESTAMP NOT NULL,
   used_at TIMESTAMP
 );
-DO $$ BEGIN
-  CREATE UNIQUE INDEX uniq_password_resets_token ON password_resets(token_hash);
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $idx$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE c.relkind = 'i'
+       AND c.relname = 'uniq_password_resets_token'
+       AND n.nspname = 'public'
+  ) THEN
+    CREATE UNIQUE INDEX uniq_password_resets_token ON password_resets(token_hash);
+  END IF;
+END $idx$;
 
 -- AUDIT LOGS (trilha de auditoria)
 CREATE TABLE IF NOT EXISTS audit_logs (
@@ -142,9 +160,18 @@ CREATE TABLE IF NOT EXISTS files (
   size BIGINT,
   created_at TIMESTAMP NOT NULL DEFAULT now()
 );
-DO $$ BEGIN
-  CREATE UNIQUE INDEX uniq_files_company_storage ON files(company_id, storage_key);
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $idx$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE c.relkind = 'i'
+       AND c.relname = 'uniq_files_company_storage'
+       AND n.nspname = 'public'
+  ) THEN
+    CREATE UNIQUE INDEX uniq_files_company_storage ON files(company_id, storage_key);
+  END IF;
+END $idx$;
 
 -- JOBS (vagas)
 CREATE TABLE IF NOT EXISTS jobs (
@@ -555,4 +582,3 @@ CREATE TABLE IF NOT EXISTS transcriptions (
 DO $$ BEGIN
   CREATE INDEX IF NOT EXISTS idx_transcriptions_company ON transcriptions(company_id, created_at DESC);
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-

@@ -29,6 +29,7 @@ class _DashboardTelaState extends State<DashboardTela> {
   bool _carregando = false;
   List<Map<String, dynamic>> _vagas = const [];
   List<Map<String, dynamic>> _historico = const [];
+  String? _erro;
 
   @override
   void initState() {
@@ -37,16 +38,40 @@ class _DashboardTelaState extends State<DashboardTela> {
   }
 
   Future<void> _carregarDados() async {
-    setState(() => _carregando = true);
+    setState(() {
+      _carregando = true;
+      _erro = null;
+    });
     try {
       final stats = await widget.api.dashboard();
-      final vagas = await widget.api.vagas();
+
+      // Vagas recentes (jobs) normalizadas para o grid do dashboard
+      final vagasRaw = await widget.api.vagas(page: 1, limit: 5);
+      final vagas = vagasRaw.map<Map<String, dynamic>>((vaga) {
+        final status = (vaga['status'] ?? '').toString();
+        final atualizado =
+            vaga['updated_at']?.toString() ?? vaga['created_at']?.toString();
+        return {
+          'titulo': vaga['title']?.toString() ?? '',
+          'status': status,
+          'candidatos': vaga['candidatos'] ?? 0,
+          'atualizado_em': atualizado,
+        };
+      }).toList();
+
+      // Histórico recente de entrevistas
       final historico = await widget.api.historico();
+
       if (!mounted) return;
       setState(() {
         _stats = stats;
-        _vagas = vagas.cast<Map<String, dynamic>>();
+        _vagas = vagas;
         _historico = historico.cast<Map<String, dynamic>>();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _erro = 'Falha ao carregar dados do dashboard';
       });
     } finally {
       if (mounted) setState(() => _carregando = false);
@@ -72,8 +97,12 @@ class _DashboardTelaState extends State<DashboardTela> {
 
             const SizedBox(height: 24),
 
-            if (_carregando)
-              const LinearProgressIndicator(minHeight: 2),
+            if (_carregando) const LinearProgressIndicator(minHeight: 2),
+
+            if (_erro != null) ...[
+              const SizedBox(height: 12),
+              _buildErroBanner(),
+            ],
 
             const SizedBox(height: 12),
 
@@ -256,11 +285,39 @@ class _DashboardTelaState extends State<DashboardTela> {
     );
   }
 
+  Widget _buildErroBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFFDBA74)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: Color(0xFFEA580C), size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _erro ?? 'Falha ao carregar informações do dashboard.',
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF9A3412),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildStatsGrid() {
-    final vagas = _stats?['vagas'] ?? 12;
-    final curriculos = _stats?['curriculos'] ?? 87;
-    final entrevistas = _stats?['entrevistas'] ?? 5;
-    final relatorios = _stats?['relatorios'] ?? 3;
+    int _int(dynamic v) => v is num ? v.toInt() : int.tryParse(v?.toString() ?? '') ?? 0;
+    final vagas = _int(_stats?['vagas']);
+    final curriculos = _int(_stats?['curriculos']);
+    final entrevistas = _int(_stats?['entrevistas']);
+    final relatorios = _int(_stats?['relatorios']);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -326,8 +383,18 @@ class _DashboardTelaState extends State<DashboardTela> {
     final rows = _vagas.take(5).map((vaga) {
       final titulo = vaga['titulo']?.toString() ?? 'Vaga';
       final candidatos = vaga['candidatos']?.toString() ?? '-';
-      final status = vaga['status']?.toString() ?? 'Aberta';
-      final atualizado = vaga['atualizado_em']?.toString() ?? 'Recente';
+      final statusRaw = vaga['status']?.toString() ?? 'open';
+      final status = statusRaw == 'open' ? 'aberta' : statusRaw;
+      final rawData = vaga['atualizado_em'];
+      DateTime? dt;
+      if (rawData is DateTime) {
+        dt = rawData;
+      } else if (rawData != null) {
+        dt = DateTime.tryParse(rawData.toString());
+      }
+      final atualizado = dt != null
+          ? '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}'
+          : 'Recente';
       return DataRow(cells: [
         DataCell(Text(titulo, style: const TextStyle(fontWeight: FontWeight.w500))),
         DataCell(Text(candidatos)),

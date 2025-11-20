@@ -68,33 +68,370 @@ Para garantir uma plataforma escalável e segura, a arquitetura técnica será b
 * **RNF8**: Acurácia mínima de 85% na análise de IA.
 * **RNF9**: Registro de logs para auditoria.
 
-1. Comece definindo que a arquitetura será multi-tenant com banco único e isolamento lógico por `company_id`. No seu domínio, “company” pode representar tanto Pessoa Jurídica (CNPJ) quanto Pessoa Física (CPF). O `company_id` será um UUID técnico, imutável e usado como chave estrangeira em todas as tabelas de negócio, garantindo que qualquer consulta possa ser filtrada por esse identificador.
+Vou organizar isso como um plano de implementação mesmo, já pensando no que vi no teu projeto (Flutter Web + Node.js + PostgreSQL) **e** no layout “TalentMatchIA Layout Design – Figma” (aquele projeto em React/Vite que simula o Figma).
 
-2. Crie a tabela `companies` com os campos: `id` (UUID, PK), `type` (`'CPF'` ou `'CNPJ'`), `document` (VARCHAR, único, armazenado sem máscara), `name` (razão social ou nome completo) e `created_at`. Usar VARCHAR para `document` simplifica a entrada de CPF/CNPJ, permite validações no backend e evita problemas de formatação. Deixe a apresentação formatada (com pontos e traços) para a camada de front.
+> Foco: deixar tudo alinhado com o layout do Figma, **sem dados mockados**, só vindo do banco via API.
 
-3. Crie a tabela `users` vinculada à `companies` por `company_id` (FK). Inclua `full_name`, `email` (único), `password_hash`, `role` (`USER`, `ADMIN`, `SUPER_ADMIN`), `is_active` e `created_at`. Isso permite ter um ou vários usuários associados ao mesmo `company_id`. Garanta índices em `email` e, quando fizer listagens administrativas, em `(company_id, created_at)`.
+---
 
-4. Em todas as tabelas de negócio (ex.: `jobs`, `resumes`, `interviews`, `applications`, `webhooks_logs`), adicione o campo `company_id` como FK para `companies(id)`. Crie índices compostos começando por `company_id` (por exemplo, `(company_id, created_at)`), pois a maioria das consultas filtrará por empresa; isso melhora muito a performance e a previsibilidade do plano de execução.
+## 1. FrontEnd – Flutter Web (lib/…)
 
-5. No backend, implemente validação de CPF/CNPJ no momento do cadastro de `companies`. Se `type='CPF'`, valide com o dígito verificador de CPF; se `type='CNPJ'`, valide como CNPJ. Normalize `document` removendo qualquer máscara antes de salvar e aplique a unicidade no banco (constraint UNIQUE), impedindo duplicidade de pessoa/empresa.
+### Task FE-01 – Shell de navegação igual ao Figma
 
-6. Estruture o fluxo de autenticação para retornar, no JWT, tanto o `sub` (id do usuário) quanto o `company_id` e o `role`. Ao efetuar login, o backend carrega o usuário pelo e-mail, valida a senha (Argon2id/bcrypt) e assina um access token curto e um refresh token rotativo. O payload deve incluir `company_id` para que o middleware possa isolar dados automaticamente.
+Aplicar o mesmo “esqueleto” visual do projeto Figma (Sidebar + Header + conteúdo).
 
-7. Crie um middleware de autorização que leia o JWT, recupere `company_id` e `role`, injete isso no contexto da requisição e aplique o filtro em todas as queries. No ORM (Prisma/TypeORM/Sequelize), centralize funções repositório/serviço que sempre recebem `company_id` e o propagam para `where: { company_id }`. Esse ponto único evita “esquecimentos” de filtro em endpoints novos.
+* [ ] Criar um widget `AppShell` (ou equivalente) com:
 
-8. Opcionalmente, ative Row-Level Security (RLS) no PostgreSQL para uma segunda barreira no nível do banco. Ao abrir a conexão por requisição autenticada, execute `set_config('app.tenant_id', '<company_id>', true)` e crie políticas do tipo `USING (company_id = current_setting('app.tenant_id')::uuid)`. Assim, mesmo se alguém esquecer o filtro na aplicação, o banco impedirá vazamento entre empresas.
+  * Sidebar fixa (ícones + textos: Dashboard, Vagas, Currículos, Entrevistas, Relatórios, Configurações).
+  * Header/topbar com:
 
-9. Modele os fluxos de cadastro. Primeiro, um endpoint para criar `companies` aceita `{ type: 'CPF'|'CNPJ', document: 'somente_dígitos', name }`. Depois, um endpoint para criar `users` recebe `{ company_id, full_name, email, password, role }`. Permita criar vários usuários para o mesmo `company_id`. Opcionalmente, ofereça convite por e-mail com token de primeiro acesso.
+    * Logo do TalentMatchIA,
+    * Título da página atual,
+    * Busca global (campo de pesquisa),
+    * Avatar/ícone do usuário logado.
+* [ ] Envolver as telas principais (`dashboard_tela.dart`, `vagas_tela.dart`, `candidatos_tela...dart`, `entrevistas_tela.dart`, `historico_tela.dart`) dentro desse `AppShell`.
+* [ ] Garantir que cores, tipografia, espaçamentos usem apenas o `design_system` (`tm_colors.dart`, `tm_text.dart`) para ficar consistente com o Figma.
 
-10. Implemente os fluxos de senha: “primeiro acesso” (token de criação com expiração curta que leva a uma tela para definir senha), “esqueci minha senha” (gera `reset_token` de uso único) e “trocar senha” (logado, exige `old_password`). Ao trocar senha, invalide sessões/refresh tokens anteriores (rotation + versioning) para mitigar sequestro de sessão.
+---
 
-11. Defina regras de permissão claras. `SUPER_ADMIN` enxerga dados de todos os `company_id` (para suporte e auditoria). `ADMIN` gerencia apenas usuários e recursos do próprio `company_id`. `USER` acessa e altera somente o que lhe for permitido dentro do tenant. Crie um guard `requireRole()` e aplique nos endpoints sensíveis, além de sempre validar a aderência do `company_id` da rota/registro ao `company_id` do token.
+### Task FE-02 – Dashboard alinhado ao layout Figma
 
-12. No front, ofereça ao criar a empresa um seletor de tipo (CPF/CNPJ), inputs com máscara apenas visual, mas envie ao backend apenas dígitos. Armazene a sessão preferencialmente em cookies `httpOnly` + `Secure` (especialmente no Flutter Web). Use guards de rota com base em `role` e exiba menus e dados sempre filtrados pelo `company_id` do usuário autenticado.
+Deixar `dashboard_tela.dart` parecido com o `DashboardOverview` do projeto Figma.
 
-13. Complemente com camadas operacionais: crie uma tabela de auditoria (`audit_logs`) registrando `user_id`, `company_id`, `action`, `entity`, `entity_id`, `diff`, `ip`, `ua` e `created_at`. Adicione rate limiting em `/auth/login` e `/auth/forgot-password`. Programe backups automáticos e testes de restauração. Versione migrações com ferramenta (Prisma Migrate, Flyway, Liquibase).
+* [ ] Criar cards de métricas principais:
 
-14. Por fim, estabeleça um roteiro de testes: (a) criar `company` CPF e CNPJ; (b) criar múltiplos `users` no mesmo `company_id`; (c) logar como `USER` e garantir que só vê dados do próprio `company_id`; (d) logar como `ADMIN` e validar gestão de usuários apenas do seu tenant; (e) logar como `SUPER_ADMIN` e validar acesso global; (f) tentar intencionalmente acessar recursos de outro tenant e confirmar bloqueio pelo middleware e, se habilitado, pelo RLS.
+  * Vagas abertas,
+  * Processos em andamento,
+  * Entrevistas realizadas no período,
+  * Taxa de aprovação / conversão (ou outra métrica que o backend entregar).
+* [ ] Implementar blocos de lista:
 
+  * Lista de vagas recentes com status,
+  * Lista de candidatos em destaque / últimos analisados.
+* [ ] Conectar tudo com **endpoint real** do backend (`GET /dashboard/overview` por exemplo), sem arrays fixos na tela.
+* [ ] Adicionar estados de carregamento/erro (loading spinner, mensagem de erro, etc.).
 
-Partindo da base multi-tenant já definida (banco único com isolamento lógico por `company_id` e fluxo de autenticação/autorização carregando `sub`, `company_id` e `role` no JWT), o DER do TalentMatchIA deve organizar-se em um núcleo de identidade e segurança e um domínio de recrutamento/entrevistas, sempre propagando `company_id` como FK e com índices compostos começando por `company_id`. No núcleo, além de `companies(id, type, document, name, created_at)`, `users(id, company_id, full_name, email, password_hash, role, is_active, created_at, updated_at, deleted_at)` e tabelas de suporte como `sessions/refresh_tokens` e `password_resets`, inclua `audit_logs(id, company_id, user_id, entity, entity_id, action, payload, created_at)` para trilha de auditoria e `webhooks_endpoints(id, company_id, url, secret, is_active, created_at)` + `webhooks_events(id, company_id, event_type, entity, entity_id, payload, created_at, delivered_at, status)` para integrações; arquivos devem ser tratados via `files(id, company_id, storage_key, filename, mime, size, created_at)` para centralizar metadados (currículos, relatórios, áudios). No domínio de recrutamento, modele `jobs(id, company_id, title, description, requirements, seniority, location_type, status, created_at, updated_at, slug)` como a entidade de vaga; `candidates(id, company_id, full_name, email, phone, linkedin, github_url, created_at, updated_at, unique(email, company_id))` como o cadastro do candidato; e um vínculo de candidatura `applications(id, company_id, job_id, candidate_id, source, stage, status, created_at, updated_at)` com histórico `application_status_history(id, company_id, application_id, from_status, to_status, note, created_at)` e anotações `notes(id, company_id, entity, entity_id, user_id, text, created_at)`. Para suportar o upload/parse de currículo e buscas no front, desdobre o currículo em `resumes(id, company_id, candidate_id, file_id, original_filename, parsed_text, parsed_json, created_at)` e, para facilitar filtros, normalize habilidades e experiências: `skills(id, company_id, name)`; `candidate_skills(candidate_id, skill_id, level)`; `job_skills(job_id, skill_id, must_have boolean)`; `experiences(id, company_id, candidate_id, company_name, role, start_date, end_date, description)`; `educations(id, company_id, candidate_id, institution, degree, start_date, end_date, description)`; crie índices GIN/trigrama em `resumes.parsed_text` e em colunas textuais de busca. A tela principal de entrevista do front pede uma estrutura explícita para sessões e QA: `interviews(id, company_id, application_id, scheduled_at, mode, status, created_at)`; `interview_sessions(id, company_id, interview_id, started_at, ended_at, transcript_file_id)`; `interview_questions(id, company_id, interview_id, origin enum['AI','MANUAL'], kind enum['TECNICA','COMPORTAMENTAL','SITUACIONAL'], prompt, created_at)`; `interview_answers(id, company_id, question_id, session_id, raw_text, audio_file_id, created_at)`; e a camada de avaliação da IA em `ai_feedback(id, company_id, answer_id, score numeric, verdict enum['FORTE','ADEQUADO','FRACO','INCONSISTENTE'], rationale_text, suggested_followups jsonb, created_at)`. Para refletir as telas de relatório e histórico, armazene `interview_reports(id, company_id, interview_id, summary_text, strengths jsonb, risks jsonb, recommendation enum['APROVAR','DÚVIDA','REPROVAR'], file_id, created_at)` e permita versionamento se o front re-gerar relatórios. A aba de GitHub/análise opcional no front mapeia `github_profiles(id, company_id, candidate_id, username, profile_url, fetched_at, stats jsonb)` e `github_repositories(id, company_id, profile_id, name, url, language, stars, forks, last_commit_at, metrics jsonb)`, servindo de insumo à geração de perguntas. Recursos transversais que aparecem em dashboards e filtros devem ter taxonomias reutilizáveis: `tags(id, company_id, name)` com tabelas de junção `job_tags(job_id, tag_id)` e `candidate_tags(candidate_id, tag_id)`; pipelines kanban por vaga em `pipelines(id, company_id, job_id, name)` e `pipeline_stages(id, company_id, pipeline_id, name, position)` vinculando em `application_stages(application_id, stage_id, entered_at)`. Para notificações/agenda exibidas no front (convites, lembretes), inclua `notifications(id, company_id, user_id, type, payload jsonb, read_at, created_at)` e `calendar_events(id, company_id, interview_id, ics_uid, starts_at, ends_at, created_at)`. Em todas as tabelas de negócio, padronize `id` UUID, `company_id` (FK → `companies`), `created_at/updated_at` e `deleted_at` para soft delete; imponha unicidades contextuais como `(company_id, slug)` em `jobs` e `(company_id, email)` em `candidates/users`; crie índices seletivos `(company_id, created_at)`, `(company_id, job_id)`, `(company_id, candidate_id)` e, para listagens administrativas, `(company_id, status)`; se optar por RLS no PostgreSQL, adote políticas `USING (company_id = current_setting('app.tenant_id')::uuid)` em todas as tabelas; por fim, complemente com `webhooks_logs`, `ingestion_jobs` e `transcriptions` se o front exibir progresso de processamento, garantindo que cada ação visível na UI tenha sua entidade de persistência correspondente no DER.
+---
+
+### Task FE-03 – Tela de Vagas seguindo o “VagasPage”
+
+Refinar `vagas_tela.dart` com base em `VagasPage.tsx` / `VacancyManagement.tsx`.
+
+* [ ] Layout:
+
+  * Cabeçalho com título, botão **“Nova vaga”** e filtros (status, senioridade, palavra-chave).
+  * Listagem em cards ou tabela, com colunas semelhantes ao Figma: título, nível, tipo, status, data.
+* [ ] Integração:
+
+  * Usar somente `ApiCliente.vagas()` (ou equivalente) para listar vagas, sem listas mockadas.
+  * Conectar formulário de criação/edição com endpoints `POST/PUT /jobs` (ou `/vagas` – definir padrão no backend).
+* [ ] Adicionar paginação/scroll infinito simples, se o backend já expuser `page/limit`.
+
+---
+
+### Task FE-04 – Upload & Análise de Currículo (RF1)
+
+Ajustar `upload_curriculo_tela.dart` para ficar próximo à `CurriculosPage` + `CurriculumAnalysis` do Figma.
+
+* [ ] Criar área de upload com:
+
+  * Zona de “arrastar e soltar” + botão “Selecionar arquivo”,
+  * Indicação de formatos suportados (PDF/TXT) e limite de tamanho.
+* [ ] Após o upload:
+
+  * Mostrar card de análise com:
+
+    * Nome do candidato,
+    * Vaga relacionada (se houver),
+    * Principais skills extraídas,
+    * Score/aderência à vaga (se backend retornar).
+* [ ] Integração:
+
+  * Enviar arquivo para endpoint real `POST /curriculos/upload` (ou definido no backend).
+  * Exibir progresso de envio (se possível) e resultado retornado via JSON (sem nenhum dado fixo na tela).
+* [ ] Tratar erros da IA/análise (mensagem amigável para o recrutador).
+
+---
+
+### Task FE-05 – Tela de Entrevistas & Perguntas (RF3, RF5, RF6, RF8)
+
+Refinar `entrevistas_tela.dart` com base em `EntrevistasPage`, `InterviewQuestions` e `InterviewHistory`.
+
+* [ ] Seções:
+
+  * Lista de entrevistas (cards ou tabela),
+  * Painel de detalhes à direita (informações do candidato + vaga),
+  * Aba de perguntas geradas pela IA + respostas do candidato.
+* [ ] Integração:
+
+  * Listar entrevistas via `GET /interviews`.
+  * Ao criar uma nova entrevista:
+
+    * Selecionar vaga + candidato,
+    * Chamar endpoint de geração de perguntas (`POST /interviews/{id}/perguntas` ou similar).
+  * Mostrar avaliação da resposta (score, tags: pontos fortes, pontos de atenção).
+* [ ] Preparar espaço/UI para futura integração de transcrição de áudio (RF5),
+  mesmo que no MVP ainda seja só texto.
+
+---
+
+### Task FE-06 – Histórico & Relatórios (RF7, RF8, RF9)
+
+Trabalhar `historico_tela.dart` e uma possível tela de relatórios.
+
+* [ ] Tabela de histórico de entrevistas:
+
+  * Filtros por vaga, candidato, período, status.
+  * Colunas com data, vaga, candidato, resultado (Aprovado/Em análise/Reprovado).
+* [ ] Tela/aba de Relatórios:
+
+  * Gráficos ou cards de:
+
+    * Tempo médio por etapa,
+    * Taxa de aprovação por vaga,
+    * Volume de currículos analisados.
+* [ ] Integração:
+
+  * Histórico via `GET /interviews/history` (ou similar).
+  * Resumo/relatórios via endpoint `/reports/overview` ou `/dashboard/relatorios`.
+* [ ] Nada de dados estáticos: tudo vem do banco.
+
+---
+
+### Task FE-07 – Autenticação, Usuários e Multitenant (RF10)
+
+Ajustar login e contexto do usuário para usar o backend real.
+
+* [ ] Garantir que `login_tela.dart` esteja usando o endpoint real de login (`POST /auth/login`), salvando:
+
+  * access_token,
+  * refresh_token,
+  * dados do usuário (nome, e-mail, empresa).
+* [ ] Configurar interceptors de HTTP em Flutter para:
+
+  * anexar o token em cada requisição,
+  * tentar refresh automático se o token expirar.
+* [ ] Exibir no header:
+
+  * Nome do usuário,
+  * Empresa atual (company),
+  * Futuro seletor de empresa (se tiver multitenant com mais de uma company por usuário).
+* [ ] Garantir que as telas só exibam dados da company do usuário logado.
+
+---
+
+### Task FE-08 – Remoção de qualquer mock restante
+
+Varredura geral no frontend Flutter e no projeto Figma em React.
+
+* [ ] Remover:
+
+  * listas estáticas de vagas/candidatos/histórico usadas só para protótipo,
+  * dados de exemplo deixados em `AppState` ou `ChangeNotifier`.
+* [ ] Onde precisar de dados para componentes visuais (ex.: cards do dashboard), criar endpoints específicos no backend e ajustar o Flutter para chamá-los.
+* [ ] Manter o projeto React/Vite apenas como **referência visual**, sem impactar a aplicação final.
+
+---
+
+## 2. BackEnd – Node.js (backend/src/…)
+
+### Task BE-01 – Consolidar modelo de domínio (Jobs vs Vagas, Candidates, etc.)
+
+Hoje aparecem nomes como `jobs`, `vagas`, `candidates`, `applications`. É hora de consolidar.
+
+* [ ] Definir nomenclatura oficial:
+
+  * `jobs` = `vagas`?
+  * `applications` = candidaturas do candidato à vaga?
+* [ ] Ajustar:
+
+  * Tabelas no banco (renomear se necessário),
+  * Models/queries SQL nos repositórios,
+  * Rotas (`/jobs`, `/candidates`, `/applications`, `/curriculos`, `/interviews`).
+* [ ] Atualizar o Flutter para chamar os endpoints com os nomes finais.
+
+---
+
+### Task BE-02 – Fechar CRUDs principais (RF1, RF2, RF3, RF7, RF8, RF10)
+
+Para cada recurso, garantir CRUD completo e alinhado ao front:
+
+1. **Usuários / Autenticação**
+
+   * [ ] `/auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/forgot`, `/auth/reset`.
+   * [ ] `/usuarios` para gestão de usuários (apenas admins).
+   * [ ] Garantir hash de senha, roles, vínculo com `company_id`.
+
+2. **Companies (Multitenant)**
+
+   * [ ] `/companies` – criação de empresa, associação de usuário à empresa.
+   * [ ] Middleware para carregar `company_id` a partir do token.
+
+3. **Vagas (Jobs)**
+
+   * [ ] `/jobs` – listar, criar, atualizar, arquivar/excluir.
+   * [ ] Filtros por status, senioridade, palavra-chave.
+
+4. **Candidatos**
+
+   * [ ] `/candidates` – CRUD básico.
+   * [ ] Vínculo com currículos e candidaturas.
+
+5. **Currículos**
+
+   * [ ] `/curriculos/upload` – upload + criação de registro no banco.
+   * [ ] `/curriculos/{id}` – detalhes e análise aplicada.
+
+6. **Entrevistas**
+
+   * [ ] `/interviews` – criar entrevista vinculando vaga + candidato.
+   * [ ] Endpoints para geração de perguntas, registro de respostas, encerramento da entrevista.
+
+7. **Relatórios / Dashboard**
+
+   * [ ] `/dashboard/overview` – métricas agregadas.
+   * [ ] `/reports/…` – endpoints específicos de relatório se necessário.
+
+---
+
+### Task BE-03 – IA Service alinhado aos requisitos (RF1, RF3, RF6, RF8)
+
+Deixar `iaService.js` sólido e padronizado:
+
+* [ ] Definir **contrato de entrada e saída** para:
+
+  * `analisarCurriculo` (skills, experiência, aderência à vaga, senioridade sugerida),
+  * `gerarPerguntasEntrevista` (lista de perguntas classificadas por competência),
+  * `avaliarResposta` (score + observações + tags).
+* [ ] Garantir que os endpoints de currículos/entrevistas chamem o `iaService` e gravem:
+
+  * resultado estruturado em tabelas específicas (`analysis`, `interview_questions`, `interview_feedbacks` etc.).
+* [ ] Tratar:
+
+  * timeouts da OpenAI,
+  * respostas inválidas,
+  * logs para debugging (sem gravar dados sensíveis em log).
+
+---
+
+### Task BE-04 – Autenticação, segurança e multitenant (RNF3, RNF5, RNF9)
+
+* [ ] Confirmar que o middleware de autenticação:
+
+  * extrai `user_id` e `company_id` do token,
+  * injeta isso no `req` para todas as rotas.
+* [ ] Garantir que **todas as queries** usam `company_id` como filtro.
+* [ ] Implementar:
+
+  * rate limiting (já existe algo, revisar configuração),
+  * logs estruturados (request ID, usuário, rota).
+* [ ] Auditar dados sensíveis:
+
+  * não retornar e-mails/senhas onde não for necessário,
+  * aplicar LGPD/GDPR na devolução de dados.
+
+---
+
+### Task BE-05 – Integração com PostgreSQL (sem mocks)
+
+* [ ] Remover quaisquer repositórios em memória usados só para teste.
+* [ ] Garantir que todos os serviços leiam/escrevam exclusivamente no PostgreSQL (JDBC/pg-promise/knex, conforme o que você já está usando).
+* [ ] Ajustar repositórios para:
+
+  * usar transações quando criar registros em cascata (ex.: entrevista + perguntas + análise),
+  * tratar erros de constraint (FKs, unique) de forma amigável.
+
+---
+
+### Task BE-06 – Endpoints para Dashboard e Relatórios (RF7, RF8, RF9)
+
+* [ ] Criar funções SQL (ou views) para:
+
+  * contagem de vagas abertas/fechadas,
+  * número de entrevistas no período,
+  * taxa de aprovação por vaga ou por etapa.
+* [ ] Expor esses dados em endpoints:
+
+  * `GET /dashboard/overview`,
+  * `GET /dashboard/kpis` (se precisar segmentar).
+* [ ] Ajustar contratos de resposta de forma simples para o Flutter consumir.
+
+---
+
+## 3. Banco de Dados – PostgreSQL (scripts/sql/…)
+
+### Task DB-01 – Revisar e aplicar o schema completo
+
+* [ ] Rodar os scripts na ordem correta (ex.: `001_schema.sql`, depois os demais de roles, multitenant, domain tables).
+* [ ] Conferir se todas as tabelas necessárias para os requisitos estão presentes:
+
+  * users, companies, jobs/vagas,
+  * candidates, resumes/curriculos,
+  * interviews, interview_questions, interview_answers,
+  * analysis/relatorios, ingestion_jobs (se usado).
+* [ ] Ajustar tipos (ex.: `UUID` para IDs, `JSONB` para campos de análise IA) conforme necessidade.
+
+---
+
+### Task DB-02 – Multitenant & segurança de dados
+
+* [ ] Garantir que todos os registros possuem `company_id`.
+* [ ] Configurar Row-Level Security (RLS) ou políticas equivalentes:
+
+  * cada usuário só enxerga dados da própria empresa.
+* [ ] Criar índices em:
+
+  * `company_id`,
+  * campos mais filtrados (status, vaga_id, candidate_id, created_at).
+
+---
+
+### Task DB-03 – Suporte ao Dashboard e Relatórios
+
+* [ ] Criar **views** ou **materialized views** para:
+
+  * resumo do dashboard (KPIs),
+  * histórico de entrevistas,
+  * taxa de conversão por vaga.
+* [ ] Otimizar consultas pesadas com índices e, se necessário, agregações pré-calculadas.
+
+---
+
+### Task DB-04 – Dados de exemplo reais (sem mocks no código)
+
+> Lembrando: os dados de teste podem existir **somente no banco**, nunca codificados no frontend/backend.
+
+* [ ] Criar script de seed (ex.: `009_seed_mvp.sql`) com:
+
+  * 1 empresa de exemplo,
+  * 1–2 usuários recrutadores,
+  * algumas vagas,
+  * alguns candidatos + currículos,
+  * algumas entrevistas concluídas.
+* [ ] Usar esses dados de seed para alimentar as telas (Dashboard, Vagas, Currículos, Entrevistas, Histórico).
+
+---
+
+### Task DB-05 – Logs & auditoria (RNF9)
+
+* [ ] Criar tabelas de log/auditoria (se ainda não existir):
+
+  * login/logout,
+  * ações críticas (criação de vaga, exclusão de entrevista etc.).
+* [ ] Garantir que o backend grave os registros nessas tabelas.
+
+---
+
+## 4. Como seguir a partir daqui
+
+Se quiser, no próximo passo eu posso:
+
+* pegar **uma tela por vez** (por exemplo, Dashboard) e
+* te entregar:
+
+  * o contrato da API,
+  * o SQL da view no Postgres,
+  * o endpoint Node.js,
+  * e o ajuste no Flutter (widget) já com exemplo de código.
+
+Assim você vai fechando o ciclo **FrontEnd → BackEnd → Banco** funcional, tela por tela, sempre sem mocks.

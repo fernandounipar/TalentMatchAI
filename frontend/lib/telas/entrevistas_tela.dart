@@ -7,8 +7,8 @@ import '../servicos/api_cliente.dart';
 
 class EntrevistasTela extends StatefulWidget {
   final ApiCliente api;
-  final void Function(String candidato, String vaga) onAbrirAssistida;
-  final void Function(String candidato, String vaga) onAbrirRelatorio;
+  final void Function(String entrevistaId, String candidato, String vaga) onAbrirAssistida;
+  final void Function(String entrevistaId, String candidato, String vaga) onAbrirRelatorio;
 
   const EntrevistasTela({
     super.key,
@@ -184,9 +184,9 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
           borderRadius: BorderRadius.circular(12),
           onTap: () {
             if (item.tipo == _InterviewType.scheduled) {
-              widget.onAbrirAssistida(item.candidato, item.vaga);
+              widget.onAbrirAssistida(item.id, item.candidato, item.vaga);
             } else {
-              widget.onAbrirRelatorio(item.candidato, item.vaga);
+              widget.onAbrirRelatorio(item.id, item.candidato, item.vaga);
             }
           },
           child: Padding(

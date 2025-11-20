@@ -33,6 +33,8 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
   List<Map<String, dynamic>> _vagas = [];
   AnaliseCurriculo? _analise;
   bool _dragActive = false;
+  String? _nomeCandidato;
+  String? _tituloVaga;
 
   void _setDragActive(bool value) {
     if (_uploadStatus != UploadStatus.idle) {
@@ -148,6 +150,8 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
           ? Map<String, dynamic>.from(analiseRaw)
           : <String, dynamic>{};
       final job = Map<String, dynamic>.from(resp['ingestion_job'] ?? {});
+      final cand = Map<String, dynamic>.from(resp['candidato'] ?? {});
+      final vaga = Map<String, dynamic>.from(resp['vaga'] ?? {});
 
       if (job['id'] != null) {
         // Converter progress para double de forma segura
@@ -178,6 +182,10 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
       setState(() {
         _uploadStatus = UploadStatus.complete;
         _analise = a;
+        _nomeCandidato =
+            cand['nome']?.toString() ?? cand['full_name']?.toString();
+        _tituloVaga =
+            vaga['titulo']?.toString() ?? vaga['title']?.toString();
       });
 
       widget.onUploaded(resp);
@@ -201,6 +209,8 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
       _uploadProgress = 0.0;
       _analise = null;
       _dragActive = false;
+      _nomeCandidato = null;
+      _tituloVaga = null;
     });
   }
 
@@ -265,10 +275,10 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Column(
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'Análise de Currículo',
                     style: TextStyle(
                       fontSize: 28,
@@ -276,11 +286,26 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
                       color: Color(0xFF111827),
                     ),
                   ),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Text(
                     'Resultado da análise por IA',
-                    style: TextStyle(fontSize: 16, color: Color(0xFF6B7280)),
+                    style:
+                        const TextStyle(fontSize: 16, color: Color(0xFF6B7280)),
                   ),
+                  if (_nomeCandidato != null || _tituloVaga != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      [
+                        if (_nomeCandidato != null)
+                          'Candidato: $_nomeCandidato',
+                        if (_tituloVaga != null) 'Vaga: $_tituloVaga',
+                      ].join(' • '),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF6B7280),
+                      ),
+                    ),
+                  ],
                 ],
               ),
               OutlinedButton.icon(
