@@ -1,46 +1,50 @@
 /**
- * Serviço de IA usando Groq (alternativa gratuita e rápida)
+ * Serviço de IA usando OpenRouter (acesso a múltiplos modelos via API única)
  * 
- * Groq oferece acesso gratuito a modelos de IA como:
- * - Llama 3 (70B) - muito poderoso
- * - Mixtral (8x7B) - ótimo custo-benefício
+ * OpenRouter oferece acesso a diversos modelos incluindo:
+ * - x-ai/grok-4.1-fast (rápido e eficiente)
+ * - anthropic/claude-3.5-sonnet
+ * - openai/gpt-4o
  * 
- * Docs: https://console.groq.com/docs/quickstart
+ * Docs: https://openrouter.ai/docs
  */
 
 const https = require('https');
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
-const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'; // Modelo atualizado (Nov 2024)
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'x-ai/grok-4.1-fast'; // Modelo padrão
 
 /**
- * Faz chamada para Groq API
+ * Faz chamada para OpenRouter API
  */
-async function chamarGroq(mensagens, options = {}) {
-  if (!GROQ_API_KEY) {
-    throw new Error('GROQ_API_KEY não configurada no .env');
+async function chamarOpenRouter(mensagens, options = {}) {
+  if (!OPENROUTER_API_KEY) {
+    throw new Error('OPENROUTER_API_KEY não configurada no .env');
   }
 
   const payload = JSON.stringify({
-    model: options.model || GROQ_MODEL,
+    model: options.model || OPENROUTER_MODEL,
     messages: mensagens,
     temperature: options.temperature ?? 0.7,
     max_tokens: options.max_tokens || 2048,
     top_p: options.top_p ?? 1,
-    stream: false
+    // Adiciona suporte a reasoning se necessário
+    ...(options.reasoning ? { reasoning: { enabled: true } } : {})
   });
 
   return new Promise((resolve, reject) => {
     const reqOptions = {
-      hostname: 'api.groq.com',
-      path: '/openai/v1/chat/completions',
+      hostname: 'openrouter.ai',
+      path: '/api/v1/chat/completions',
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://talentmatchia.app', // Opcional: para estatísticas
+        'X-Title': 'TalentMatchIA', // Opcional: nome da aplicação
         'Content-Length': Buffer.byteLength(payload)
       },
-      timeout: 30000 // 30 segundos
+      timeout: 60000 // 60 segundos (alguns modelos podem demorar mais)
     };
 
     const req = https.request(reqOptions, (res) => {
@@ -54,27 +58,35 @@ async function chamarGroq(mensagens, options = {}) {
         if (res.statusCode === 200) {
           try {
             const response = JSON.parse(data);
-            resolve(response.choices[0].message.content);
+            const message = response.choices[0].message;
+            
+            // Retorna objeto com conteúdo e reasoning_details se disponível
+            resolve({
+              content: message.content,
+              reasoning_details: message.reasoning_details || null
+            });
           } catch (error) {
-            reject(new Error(`Erro ao parsear resposta Groq: ${error.message}`));
+            reject(new Error(`Erro ao parsear resposta OpenRouter: ${error.message}`));
           }
         } else if (res.statusCode === 429) {
-          reject(new Error('Limite de requisições do Groq atingido. Aguarde alguns segundos.'));
+          reject(new Error('Limite de requisições do OpenRouter atingido. Aguarde alguns segundos.'));
         } else if (res.statusCode === 401) {
-          reject(new Error('GROQ_API_KEY inválida. Verifique sua chave em https://console.groq.com/keys'));
+          reject(new Error('OPENROUTER_API_KEY inválida. Verifique sua chave em https://openrouter.ai/keys'));
+        } else if (res.statusCode === 402) {
+          reject(new Error('Créditos insuficientes no OpenRouter. Adicione créditos em https://openrouter.ai/credits'));
         } else {
-          reject(new Error(`Erro Groq ${res.statusCode}: ${data}`));
+          reject(new Error(`Erro OpenRouter ${res.statusCode}: ${data}`));
         }
       });
     });
 
     req.on('error', (error) => {
-      reject(new Error(`Erro de conexão com Groq: ${error.message}`));
+      reject(new Error(`Erro de conexão com OpenRouter: ${error.message}`));
     });
 
     req.on('timeout', () => {
       req.destroy();
-      reject(new Error('Timeout na requisição para Groq (30s)'));
+      reject(new Error('Timeout na requisição para OpenRouter (60s)'));
     });
 
     req.write(payload);
@@ -83,7 +95,7 @@ async function chamarGroq(mensagens, options = {}) {
 }
 
 /**
- * Analisa currículo usando Groq
+ * Analisa currículo usando OpenRouter
  */
 async function analisarCurriculo(textoCurriculo, vaga = null) {
   // Helper para processar requisitos (pode ser string ou array)
@@ -126,13 +138,13 @@ Retorne um JSON com a seguinte estrutura (APENAS o JSON, sem texto adicional):
 }`;
 
   try {
-    const resposta = await chamarGroq(
+    const resposta = await chamarOpenRouter(
       [{ role: 'user', content: prompt }],
       { temperature: 0.3, max_tokens: 1500 }
     );
 
     // Remove markdown code blocks se houver
-    let jsonText = resposta.trim();
+    let jsonText = resposta.content.trim();
     if (jsonText.startsWith('```json')) {
       jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?$/g, '');
     } else if (jsonText.startsWith('```')) {
@@ -151,13 +163,13 @@ Retorne um JSON com a seguinte estrutura (APENAS o JSON, sem texto adicional):
       pontosFracosVaga: resultado.pontosFracosVaga || []
     };
   } catch (error) {
-    console.error('❌ Erro ao analisar currículo com Groq:', error.message);
+    console.error('❌ Erro ao analisar currículo com OpenRouter:', error.message);
     throw error;
   }
 }
 
 /**
- * Gera perguntas para entrevista usando Groq
+ * Gera perguntas para entrevista usando OpenRouter
  */
 async function gerarPerguntasEntrevista(vaga, curriculo = null) {
   const prompt = curriculo
@@ -192,12 +204,12 @@ Retorne um JSON array com a seguinte estrutura (APENAS o JSON, sem texto adicion
 ]`;
 
   try {
-    const resposta = await chamarGroq(
+    const resposta = await chamarOpenRouter(
       [{ role: 'user', content: prompt }],
       { temperature: 0.7, max_tokens: 1500 }
     );
 
-    let jsonText = resposta.trim();
+    let jsonText = resposta.content.trim();
     if (jsonText.startsWith('```json')) {
       jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?$/g, '');
     } else if (jsonText.startsWith('```')) {
@@ -206,13 +218,13 @@ Retorne um JSON array com a seguinte estrutura (APENAS o JSON, sem texto adicion
 
     return JSON.parse(jsonText);
   } catch (error) {
-    console.error('❌ Erro ao gerar perguntas com Groq:', error.message);
+    console.error('❌ Erro ao gerar perguntas com OpenRouter:', error.message);
     throw error;
   }
 }
 
 /**
- * Avalia resposta de entrevista usando Groq
+ * Avalia resposta de entrevista usando OpenRouter
  */
 async function avaliarResposta(pergunta, resposta) {
   const prompt = `Você é um especialista em recrutamento. Avalie a resposta do candidato para a pergunta da entrevista.
@@ -229,12 +241,12 @@ Retorne um JSON com a seguinte estrutura (APENAS o JSON, sem texto adicional):
 }`;
 
   try {
-    const respostaIA = await chamarGroq(
+    const respostaIA = await chamarOpenRouter(
       [{ role: 'user', content: prompt }],
       { temperature: 0.3, max_tokens: 800 }
     );
 
-    let jsonText = respostaIA.trim();
+    let jsonText = respostaIA.content.trim();
     if (jsonText.startsWith('```json')) {
       jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?$/g, '');
     } else if (jsonText.startsWith('```')) {
@@ -243,13 +255,13 @@ Retorne um JSON com a seguinte estrutura (APENAS o JSON, sem texto adicional):
 
     return JSON.parse(jsonText);
   } catch (error) {
-    console.error('❌ Erro ao avaliar resposta com Groq:', error.message);
+    console.error('❌ Erro ao avaliar resposta com OpenRouter:', error.message);
     throw error;
   }
 }
 
 module.exports = {
-  chamarGroq,
+  chamarOpenRouter,
   analisarCurriculo,
   gerarPerguntasEntrevista,
   avaliarResposta
