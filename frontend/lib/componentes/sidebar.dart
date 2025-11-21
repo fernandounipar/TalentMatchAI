@@ -29,7 +29,7 @@ class _SidebarState extends State<Sidebar> {
     {'id': 'dashboard', 'label': 'Dashboard', 'icon': Icons.home},
     {'id': 'vagas', 'label': 'Vagas', 'icon': Icons.work},
     {'id': 'candidatos', 'label': 'Candidatos', 'icon': Icons.people},
-    {'id': 'upload', 'label': 'Upload de Currículo', 'icon': Icons.upload_file},
+    {'id': 'upload', 'label': 'Análise de Currículos', 'icon': Icons.upload_file},
     {'id': 'entrevistas', 'label': 'Entrevistas', 'icon': Icons.calendar_today},
     {'id': 'relatorios', 'label': 'Relatórios', 'icon': Icons.assessment},
     {'id': 'historico', 'label': 'Histórico', 'icon': Icons.history},

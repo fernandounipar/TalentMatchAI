@@ -1,6 +1,10 @@
+import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../componentes/analise_curriculo_resultado.dart';
+import '../design_system/tm_tokens.dart';
 import '../modelos/analise_curriculo.dart';
 import '../servicos/api_cliente.dart';
 import '../componentes/tm_upload.dart';
@@ -33,8 +37,12 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
   List<Map<String, dynamic>> _vagas = [];
   AnaliseCurriculo? _analise;
   bool _dragActive = false;
-  String? _nomeCandidato;
-  String? _tituloVaga;
+  Map<String, dynamic>? _analiseBruta;
+  Map<String, dynamic>? _candidato;
+  Map<String, dynamic>? _vaga;
+  String? _iaProvider;
+  DateTime? _inicioUpload;
+  double? _duracaoSegundos;
 
   void _setDragActive(bool value) {
     if (_uploadStatus != UploadStatus.idle) {
@@ -100,12 +108,25 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
       // Validar tipo de arquivo
       final validTypes = ['pdf', 'txt', 'docx'];
       final extension = file.extension?.toLowerCase();
+      const maxSizeBytes = 5 * 1024 * 1024; // 5MB
       
       if (extension == null || !validTypes.contains(extension)) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Por favor, envie um arquivo PDF, DOCX ou TXT'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      if ((file.size) > maxSizeBytes) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('O arquivo excede o limite de 5MB.'),
               backgroundColor: Colors.orange,
             ),
           );
@@ -134,6 +155,8 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
       setState(() {
         _uploadStatus = UploadStatus.uploading;
         _uploadProgress = 10;
+        _inicioUpload = DateTime.now();
+        _duracaoSegundos = null;
       });
 
       final resp = await widget.api.uploadCurriculoBytes(
@@ -146,12 +169,28 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
       // Cast correto para evitar erros de tipo LinkedHashMap
       final cur = Map<String, dynamic>.from(resp['curriculo'] ?? {});
       final analiseRaw = cur['analise_json'] ?? cur['parsed_json'];
-      final analiseMap = analiseRaw is Map<String, dynamic>
-          ? Map<String, dynamic>.from(analiseRaw)
-          : <String, dynamic>{};
+      
+      // Parse do JSON se vier como string
+      Map<String, dynamic> analiseMap;
+      if (analiseRaw is String) {
+        try {
+          analiseMap = Map<String, dynamic>.from(
+            jsonDecode(analiseRaw) as Map
+          );
+        } catch (e) {
+          debugPrint('❌ Erro ao parsear análise JSON: $e');
+          analiseMap = <String, dynamic>{};
+        }
+      } else if (analiseRaw is Map<String, dynamic>) {
+        analiseMap = Map<String, dynamic>.from(analiseRaw);
+      } else {
+        analiseMap = <String, dynamic>{};
+      }
+      
       final job = Map<String, dynamic>.from(resp['ingestion_job'] ?? {});
       final cand = Map<String, dynamic>.from(resp['candidato'] ?? {});
       final vaga = Map<String, dynamic>.from(resp['vaga'] ?? {});
+      final iaProvider = resp['ia_provider'] ?? resp['provider'] ?? analiseMap['provider'];
 
       if (job['id'] != null) {
         // Converter progress para double de forma segura
@@ -175,23 +214,33 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
             }
           } catch (_) {}
         }
+
+        if (mounted) {
+          setState(() => _uploadStatus = UploadStatus.analyzing);
+        }
       }
 
       final a = AnaliseCurriculo.fromJson(analiseMap);
       if (!mounted) return;
+      final fim = DateTime.now();
       setState(() {
         _uploadStatus = UploadStatus.complete;
         _analise = a;
-        _nomeCandidato =
-            cand['nome']?.toString() ?? cand['full_name']?.toString();
-        _tituloVaga =
-            vaga['titulo']?.toString() ?? vaga['title']?.toString();
+        _analiseBruta = analiseMap;
+        _candidato = cand;
+        _vaga = vaga;
+        _iaProvider = iaProvider?.toString();
+        if (_inicioUpload != null) {
+          _duracaoSegundos =
+              fim.difference(_inicioUpload!).inMilliseconds / 1000.0;
+        }
       });
 
       widget.onUploaded(resp);
     } catch (e) {
       if (!mounted) return;
       setState(() => _uploadStatus = UploadStatus.error);
+      _duracaoSegundos = null;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Falha ao enviar/analisar currículo: $e'),
@@ -209,731 +258,364 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
       _uploadProgress = 0.0;
       _analise = null;
       _dragActive = false;
-      _nomeCandidato = null;
-      _tituloVaga = null;
+      _analiseBruta = null;
+      _candidato = null;
+      _vaga = null;
+      _iaProvider = null;
+      _inicioUpload = null;
+      _duracaoSegundos = null;
     });
-  }
-
-  Color _getRecomendacaoColor(String recomendacao) {
-    switch (recomendacao) {
-      case 'Forte Recomendação':
-        return Colors.green.shade800;
-      case 'Recomendado':
-        return Colors.blue.shade800;
-      case 'Considerar':
-        return Colors.yellow.shade800;
-      case 'Não Recomendado':
-        return Colors.red.shade800;
-      default:
-        return Colors.grey.shade800;
-    }
-  }
-
-  Color _getRecomendacaoBgColor(String recomendacao) {
-    switch (recomendacao) {
-      case 'Forte Recomendação':
-        return Colors.green.shade100;
-      case 'Recomendado':
-        return Colors.blue.shade100;
-      case 'Considerar':
-        return Colors.yellow.shade100;
-      case 'Não Recomendado':
-        return Colors.red.shade100;
-      default:
-        return Colors.grey.shade100;
-    }
-  }
-
-  Color _getScoreColor(int score) {
-    if (score >= 85) return Colors.green.shade600;
-    if (score >= 70) return Colors.orange.shade600;
-    return Colors.red.shade600;
   }
 
   @override
   Widget build(BuildContext context) {
-    // Se a análise estiver completa, mostra resultado
-    if (_uploadStatus == UploadStatus.complete && _analise != null) {
-      return _buildResultadoAnalise();
-    }
+    final resultadoDisponivel =
+        _uploadStatus == UploadStatus.complete && _analise != null;
+    final isWide = MediaQuery.of(context).size.width > 1080;
 
-    // Senão, mostra formulário de upload
-    return _buildFormularioUpload();
-  }
-
-  Widget _buildResultadoAnalise() {
-    final analise = _analise!;
-    final matchingScore = analise.matchingScore;
-    final recomendacao = analise.recomendacao;
+    final uploadCard = _buildUploadCard(resultadoDisponivel);
+    final rightPane = Padding(
+      padding: EdgeInsets.only(left: isWide ? 20 : 0, top: isWide ? 0 : 20),
+      child: _buildResultadoPane(resultadoDisponivel),
+    );
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Análise de Currículo',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF111827),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Resultado da análise por IA',
-                    style:
-                        const TextStyle(fontSize: 16, color: Color(0xFF6B7280)),
-                  ),
-                  if (_nomeCandidato != null || _tituloVaga != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      [
-                        if (_nomeCandidato != null)
-                          'Candidato: $_nomeCandidato',
-                        if (_tituloVaga != null) 'Vaga: $_tituloVaga',
-                      ].join(' • '),
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Color(0xFF6B7280),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              OutlinedButton.icon(
-                onPressed: _resetarUpload,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Analisar Novo Currículo'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          // Score Card
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFEFF6FF), Colors.white],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFF93C5FD), width: 2),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 80,
-                      height: 80,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Color(0xFF2563EB),
-                      ),
-                      child: Center(
-                        child: Text(
-                          '$matchingScore',
-                          style: const TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Matching Score',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF111827),
-                          ),
-                        ),
-                        Text(
-                          'Compatibilidade com a vaga',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF6B7280),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: _getRecomendacaoBgColor(recomendacao),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    recomendacao,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: _getRecomendacaoColor(recomendacao),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Resumo
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.auto_awesome, color: Color(0xFF2563EB)),
-                      SizedBox(width: 8),
-                      Text(
-                        'Resumo da Análise',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    analise.resumo,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      height: 1.6,
-                      color: Color(0xFF374151),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Pontos Fortes e Atenção
-          Row(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1400),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Pontos Fortes
-              Expanded(
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.trending_up,
-                                color: Colors.green.shade700),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Pontos Fortes',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green.shade700,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        ...analise.pontosFortes.map((ponto) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Icon(Icons.check_circle,
-                                    color: Colors.green.shade600, size: 20),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    ponto,
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      color: Color(0xFF374151),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-                      ],
-                    ),
-                  ),
+              _buildHeader(),
+              const SizedBox(height: 16),
+              if (isWide)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: uploadCard),
+                    Expanded(flex: 2, child: rightPane),
+                  ],
+                )
+              else
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    uploadCard,
+                    const SizedBox(height: 20),
+                    rightPane,
+                  ],
                 ),
-              ),
-              const SizedBox(width: 16),
-
-              // Pontos de Atenção
-              Expanded(
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.warning_amber,
-                                color: Colors.orange.shade700),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Pontos de Atenção',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.orange.shade700,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        ...analise.pontosAtencao.map((ponto) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Icon(Icons.error_outline,
-                                    color: Colors.orange.shade600, size: 20),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    ponto,
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      color: Color(0xFF374151),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
             ],
           ),
-          const SizedBox(height: 24),
-
-          // Aderência aos Requisitos
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.track_changes, color: Color(0xFF2563EB)),
-                      SizedBox(width: 8),
-                      Text(
-                        'Aderência aos Requisitos',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Análise detalhada de cada requisito da vaga',
-                    style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
-                  ),
-                  const SizedBox(height: 24),
-                  ...analise.aderenciaRequisitos.map((item) {
-                    final requisito = item.requisito;
-                    final score = item.score;
-                    final evidencias = item.evidencias;
-
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  requisito,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF111827),
-                                  ),
-                                ),
-                              ),
-                              Text(
-                                '$score%',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: _getScoreColor(score),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          LinearProgressIndicator(
-                            value: score / 100,
-                            backgroundColor: Colors.grey.shade200,
-                            color: _getScoreColor(score),
-                            minHeight: 8,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          if (evidencias.isNotEmpty) ...[
-                            const SizedBox(height: 12),
-                            ...evidencias.map((evidencia) {
-                              return Padding(
-                                padding: const EdgeInsets.only(
-                                    left: 16, bottom: 6),
-                                child: Row(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      '•',
-                                      style: TextStyle(
-                                        color: Color(0xFF2563EB),
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        evidencia,
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          color: Color(0xFF6B7280),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }),
-                          ],
-                        ],
-                      ),
-                    );
-                  }),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Ações
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.calendar_today, size: 18),
-                  label: const Text('Agendar Entrevista'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2563EB),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                    textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.check_circle_outline, size: 18),
-                  label: const Text('Aprovar Candidato'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                    textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.cancel_outlined, size: 18),
-                  label: const Text('Reprovar'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                    textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildFormularioUpload() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-      child: Center(
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 1280), // max-w-7xl
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Upload de Currículo',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF111827),
-                    ),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    'Envie currículos para análise automática por IA',
-                    style: TextStyle(fontSize: 16, color: Color(0xFF6B7280)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
+  Widget _buildHeader() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: const [
+        Text(
+          'Análise de Currículos',
+          style: TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.w700,
+            color: TMTokens.text,
+          ),
+        ),
+        SizedBox(height: 4),
+        Text(
+          'Upload e análise inteligente de currículos com IA',
+          style: TextStyle(color: TMTokens.secondary),
+        ),
+      ],
+    );
+  }
 
-              // Seleção de Vaga
-              Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: const BorderSide(color: Color(0xFFE5E7EB)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Card Header
-                    Container(
-                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-                      child: const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Selecionar Vaga',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF111827),
-                              height: 1,
-                            ),
-                          ),
-                          SizedBox(height: 6),
-                          Text(
-                            'Escolha a vaga para qual está recrutando',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF6B7280),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Card Content
-                    Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: DropdownButtonFormField<String>(
-                        initialValue: _vagaSelecionadaId,
-                        decoration: InputDecoration(
-                          hintText: 'Selecione uma vaga...',
-                          hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(6),
-                            borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(6),
-                            borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(6),
-                            borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 1.5),
-                          ),
-                          filled: true,
-                          fillColor: Colors.white,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                        ),
-                        items: _vagas.isEmpty
-                            ? null
-                            : _vagas.map((vaga) {
-                                final candidatos = vaga['candidatos'] ?? 0;
-                                return DropdownMenuItem<String>(
-                                  value: vaga['id']?.toString(),
-                                  child: Text(
-                                    '${vaga['titulo']} ($candidatos candidatos)',
-                                    style: const TextStyle(fontSize: 14),
-                                  ),
-                                );
-                              }).toList(),
-                        onChanged: (value) {
-                          setState(() => _vagaSelecionadaId = value);
-                        },
-                      ),
+  Widget _buildUploadCard(bool resultadoDisponivel) {
+    final canStartUpload = _arquivo != null &&
+        _vagaSelecionadaId != null &&
+        _uploadStatus == UploadStatus.idle;
+
+    final tempo = _duracaoSegundos != null
+        ? '${_duracaoSegundos!.toStringAsFixed(1)}s'
+        : '--';
+    final iaProvider = _iaProviderLabel();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: const [
+                    Icon(Icons.upload_file, color: TMTokens.primary),
+                    SizedBox(width: 8),
+                    Text(
+                      'Upload de Currículo',
+                      style: TextStyle(fontWeight: FontWeight.w700),
                     ),
                   ],
                 ),
+                if (resultadoDisponivel)
+                  TextButton.icon(
+                    onPressed: _resetarUpload,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Novo upload'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              initialValue: _vagaSelecionadaId,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Vaga',
+                hintText: 'Selecione uma vaga',
               ),
-              const SizedBox(height: 24),
-
-              // Área de Upload (Drag and Drop)
-              Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: const BorderSide(color: Color(0xFFE5E7EB)),
-                ),
-                child: Padding(
-                  padding: EdgeInsets.zero,
-                  child: Opacity(
-                    opacity: _uploadStatus != UploadStatus.idle ? 0.5 : 1.0,
-                    child: MouseRegion(
-                      onEnter: (_) => _setDragActive(true),
-                      onExit: (_) => _setDragActive(false),
-                      child: InkWell(
-                        onTap: _uploadStatus == UploadStatus.idle ? _selecionarArquivo : null,
-                        borderRadius: BorderRadius.circular(12),
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: _arquivo != null
-                              ? _buildArquivoSelecionado()
-                              : TMUploadArea(
-                                  dragActive: _dragActive,
-                                  onPick: _selecionarArquivo,
-                                  helper: 'PDF, DOCX, TXT (máx. 10MB)',
-                                ),
-                        ),
-                      ),
-                    ),
+              items: _vagas.map((vaga) {
+                final candidatos = vaga['candidatos'] ?? 0;
+                return DropdownMenuItem<String>(
+                  value: vaga['id']?.toString(),
+                  child: Text(
+                    '${vaga['titulo']} ($candidatos candidatos)',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                );
+              }).toList(),
+              selectedItemBuilder: (context) => _vagas.map((vaga) {
+                final candidatos = vaga['candidatos'] ?? 0;
+                return Text(
+                  '${vaga['titulo']} ($candidatos candidatos)',
+                  overflow: TextOverflow.ellipsis,
+                );
+              }).toList(),
+              onChanged: (value) {
+                setState(() => _vagaSelecionadaId = value);
+              },
+            ),
+            const SizedBox(height: 16),
+            Opacity(
+              opacity: _uploadStatus != UploadStatus.idle ? 0.6 : 1,
+              child: MouseRegion(
+                onEnter: (_) => _setDragActive(true),
+                onExit: (_) => _setDragActive(false),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(TMTokens.r12),
+                  onTap: _uploadStatus == UploadStatus.idle ? _selecionarArquivo : null,
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: _arquivo != null
+                        ? _buildArquivoSelecionado()
+                        : TMUploadArea(
+                            dragActive: _dragActive,
+                            onPick: _selecionarArquivo,
+                            helper: 'PDF, DOCX, TXT (máx. 5MB)',
+                          ),
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
-
-              // Progresso do Upload
-              if (_uploadStatus != UploadStatus.idle &&
-                  _uploadStatus != UploadStatus.complete)
-                _buildProgressoUpload(),
-
-              if (_uploadStatus != UploadStatus.idle &&
-                  _uploadStatus != UploadStatus.complete)
-                const SizedBox(height: 24),
-
-              // Informações (Alert)
+            ),
+            if (_uploadStatus != UploadStatus.idle &&
+                _uploadStatus != UploadStatus.complete) ...[
+              const SizedBox(height: 16),
+              _buildProgressoUpload(),
+            ],
+            if (resultadoDisponivel) ...[
+              const SizedBox(height: 16),
               Container(
-                padding: const EdgeInsets.all(16),
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
-                  borderRadius: BorderRadius.circular(8),
+                  color: const Color(0xFFECFDF3),
+                  borderRadius: BorderRadius.circular(TMTokens.r8),
+                  border: Border.all(color: const Color(0xFF22C55E)),
                 ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 16,
-                      height: 16,
-                      margin: const EdgeInsets.only(top: 2),
-                      child: const Icon(
-                        Icons.info_outline,
-                        size: 16,
-                        color: Color(0xFF6B7280),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Text.rich(
-                        TextSpan(
-                          children: [
-                            TextSpan(
-                              text: 'Como funciona: ',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                                color: Color(0xFF6B7280),
-                              ),
-                            ),
-                            TextSpan(
-                              text: 'Após o upload, nossa IA irá extrair as informações do currículo, analisar a experiência, habilidades e formação do candidato, e calcular um score de compatibilidade com os requisitos da vaga selecionada. O processo leva cerca de 10 segundos.',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Color(0xFF6B7280),
-                                height: 1.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Botão de Ação
-              Align(
-                alignment: Alignment.centerRight,
-                child: TMButton(
-                  'Analisar Currículo com IA',
-                  icon: Icons.auto_awesome,
-                  variant: TMButtonVariant.primary,
-                  onPressed: _arquivo != null &&
-                          _vagaSelecionadaId != null &&
-                          _uploadStatus == UploadStatus.idle
-                      ? _simularUploadEAnalise
-                      : null,
+                child: const Text(
+                  'Análise concluída com sucesso!',
+                  style: TextStyle(
+                    color: Color(0xFF166534),
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
-          ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(TMTokens.r8),
+                border: Border.all(color: TMTokens.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Informações da análise',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _infoTile('Tempo decorrido', tempo),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _infoTile(
+                          'Último score',
+                          _analise != null ? '${_analise!.matchingScore}%' : '--',
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _infoTile('IA utilizada', iaProvider),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TMButton(
+                'Analisar Currículo com IA',
+                icon: Icons.auto_awesome,
+                variant: TMButtonVariant.primary,
+                onPressed: canStartUpload ? _simularUploadEAnalise : null,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _infoTile(String title, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(color: TMTokens.secondary, fontSize: 13),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildResultadoPane(bool resultadoDisponivel) {
+    if (!resultadoDisponivel) {
+      if (_uploadStatus != UploadStatus.idle &&
+          _uploadStatus != UploadStatus.error) {
+        return _buildLoadingCard();
+      }
+      return _buildWaitingCard();
+    }
+
+    return AnaliseCurriculoResultado(
+      analise: _analise!,
+      analiseBruta: _analiseBruta,
+      candidato: _candidato,
+      vaga: _vaga,
+      onAprovar: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Candidato marcado como aprovado.')),
+        );
+      },
+      onGerarPerguntas: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Use a aba Entrevistas para gerar perguntas com IA.')),
+        );
+      },
+    );
+  }
+
+  Widget _buildWaitingCard() {
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(TMTokens.r16),
+        side: const BorderSide(
+          color: TMTokens.border,
+          style: BorderStyle.solid,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: const [
+            Icon(Icons.auto_awesome, size: 48, color: TMTokens.secondary),
+            SizedBox(height: 12),
+            Text(
+              'Aguardando Upload',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+            ),
+            SizedBox(height: 4),
+            Text(
+              'Faça upload de um currículo para iniciar a análise com IA',
+              style: TextStyle(color: TMTokens.secondary),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingCard() {
+    final status = () {
+      switch (_uploadStatus) {
+        case UploadStatus.uploading:
+          return 'Enviando arquivo...';
+        case UploadStatus.parsing:
+          return 'Extraindo informações...';
+        case UploadStatus.analyzing:
+          return 'Analisando com IA...';
+        default:
+          return 'Processando...';
+      }
+    }();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    status,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                Text('${_uploadProgress.toInt()}%'),
+              ],
+            ),
+            const SizedBox(height: 12),
+            LinearProgressIndicator(
+              value: _uploadProgress / 100,
+              backgroundColor: TMTokens.border,
+              color: TMTokens.primary,
+              minHeight: 8,
+            ),
+          ],
         ),
       ),
     );
@@ -998,73 +680,101 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
         break;
     }
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(0xFFEFF6FF),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(TMTokens.r12),
+        border: Border.all(color: TMTokens.border),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Color(0xFFEFF6FF),
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.auto_awesome,
+                    color: TMTokens.primary,
+                    size: 20,
                   ),
-                  child: const Center(
-                    child: Icon(
-                      Icons.auto_awesome,
-                      color: Color(0xFF2563EB),
-                      size: 20,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      statusTexto,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: TMTokens.text,
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        statusTexto,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF111827),
-                        ),
+                    const SizedBox(height: 4),
+                    Text(
+                      statusDescricao,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: TMTokens.secondary,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        statusDescricao,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Color(0xFF6B7280),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                Text(
-                  '${_uploadProgress.toInt()}%',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF6B7280),
-                  ),
+              ),
+              Text(
+                '${_uploadProgress.toInt()}%',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: TMTokens.secondary,
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            LinearProgressIndicator(
-              value: _uploadProgress / 100,
-              backgroundColor: Colors.grey.shade200,
-              color: const Color(0xFF2563EB),
-              minHeight: 8,
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          LinearProgressIndicator(
+            value: _uploadProgress / 100,
+            backgroundColor: TMTokens.border,
+            color: TMTokens.primary,
+            minHeight: 8,
+          ),
+        ],
       ),
     );
+  }
+
+  String _iaProviderLabel() {
+    final raw = (_iaProvider ?? _analiseBruta?['provider'] ?? '').toString();
+    if (raw.isNotEmpty) {
+      final lower = raw.toLowerCase();
+      if (lower.contains('openrouter') || lower.contains('router')) {
+        return 'OpenRouter';
+      }
+      if (lower.contains('groq')) {
+        return 'Groq';
+      }
+      if (lower.contains('openai')) {
+        return 'OpenAI';
+      }
+      return raw;
+    }
+
+    // Heurística: se veio campos típicos do OpenRouter, assume OpenRouter
+    if (_analiseBruta != null &&
+        (_analiseBruta!.containsKey('pontosFortesVaga') ||
+            _analiseBruta!.containsKey('pontosFracosVaga'))) {
+      return 'OpenRouter';
+    }
+
+    return 'OpenAI (padrão)';
   }
 }

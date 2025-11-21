@@ -61,8 +61,8 @@ console.log(`   Requisitos: ${vagaExemplo.requisitos.join(', ')}`);
 
 console.log('\n🤖 Enviando para análise da IA...\n');
 
-// Testa a análise
-iaService.analisarCurriculo(curriculoExemplo, vagaExemplo)
+// Testa a análise (função correta é gerarAnaliseCurriculo)
+iaService.gerarAnaliseCurriculo(curriculoExemplo, vagaExemplo)
   .then(resultado => {
     console.log('✅ Análise Concluída!\n');
     console.log('=' .repeat(60));

@@ -1,7 +1,7 @@
 const OpenAI = require('openai');
 const { openaiApiKey } = require('../config');
 const db = require('../config/database');
-const groqService = require('./groqService');
+const openRouterService = require('./openRouterService');
 
 // Cache simples de clientes OpenAI por token para evitar recriar em cada chamada
 const openaiClientsByToken = new Map();
@@ -80,17 +80,30 @@ async function gerarAnaliseCurriculo(texto, vagaCtx, opts = {}) {
 
   const client = await getOpenAIClientForCompany(opts.companyId);
 
-  // Fallback automático para Groq se OpenAI não estiver disponível
-  if (!client && process.env.GROQ_API_KEY) {
-    console.log('⚠️  OpenAI não configurada. Usando Groq como fallback...');
+  // Fallback automático para OpenRouter se OpenAI não estiver disponível
+  if (!client && process.env.OPENROUTER_API_KEY) {
+    console.log('⚠️  OpenAI não configurada. Usando OpenRouter como fallback...');
     try {
-      return await groqService.analisarCurriculo(texto, {
+      const resultadoOpenRouter = await openRouterService.analisarCurriculo(texto, {
         titulo: vagaTitulo,
         descricao: vagaDescricao,
         requisitos: vagaRequisitos
       });
-    } catch (groqError) {
-      console.error('❌ Erro ao usar Groq:', groqError.message);
+      
+      // Adapta formato do OpenRouter para o formato esperado pelo frontend
+      return {
+        summary: resultadoOpenRouter.experiencia || 'Análise realizada com sucesso',
+        skills: resultadoOpenRouter.skills || [],
+        keywords: resultadoOpenRouter.skills || [],
+        experiences: resultadoOpenRouter.experiencia ? [resultadoOpenRouter.experiencia] : [],
+        matchingScore: resultadoOpenRouter.aderenciaVaga || 0,
+        recomendacao: _determinarRecomendacao(resultadoOpenRouter.aderenciaVaga || 0),
+        pontosFortes: resultadoOpenRouter.pontosFortesVaga || [],
+        pontosAtencao: resultadoOpenRouter.pontosFracosVaga || [],
+        aderenciaRequisitos: _gerarAderenciaRequisitos(vagaRequisitos, resultadoOpenRouter),
+      };
+    } catch (openRouterError) {
+      console.error('❌ Erro ao usar OpenRouter:', openRouterError.message);
       return {
         summary: 'Análise de IA indisponível no momento.',
         skills: [],
@@ -206,17 +219,30 @@ Requisitos: ${vagaRequisitos}
   } catch (e) {
     console.error('❌ Erro ao chamar OpenAI para análise de currículo:', e.message);
     
-    // Tenta Groq como fallback automático
-    if (process.env.GROQ_API_KEY && (e.message.includes('429') || e.message.includes('quota'))) {
-      console.log('⚠️  OpenAI com erro 429 (quota exceeded). Tentando Groq...');
+    // Tenta OpenRouter como fallback automático
+    if (process.env.OPENROUTER_API_KEY && (e.message.includes('429') || e.message.includes('quota') || e.message.includes('401'))) {
+      console.log('⚠️  OpenAI com erro. Tentando OpenRouter...');
       try {
-        return await groqService.analisarCurriculo(texto, {
+        const resultadoOpenRouter = await openRouterService.analisarCurriculo(texto, {
           titulo: vagaTitulo,
           descricao: vagaDescricao,
           requisitos: vagaRequisitos
         });
-      } catch (groqError) {
-        console.error('❌ Erro ao usar Groq como fallback:', groqError.message);
+        
+        // Adapta formato do OpenRouter para o formato esperado pelo frontend
+        return {
+          summary: resultadoOpenRouter.experiencia || 'Análise realizada com sucesso',
+          skills: resultadoOpenRouter.skills || [],
+          keywords: resultadoOpenRouter.skills || [],
+          experiences: resultadoOpenRouter.experiencia ? [resultadoOpenRouter.experiencia] : [],
+          matchingScore: resultadoOpenRouter.aderenciaVaga || 0,
+          recomendacao: _determinarRecomendacao(resultadoOpenRouter.aderenciaVaga || 0),
+          pontosFortes: resultadoOpenRouter.pontosFortesVaga || [],
+          pontosAtencao: resultadoOpenRouter.pontosFracosVaga || [],
+          aderenciaRequisitos: _gerarAderenciaRequisitos(vagaRequisitos, resultadoOpenRouter),
+        };
+      } catch (openRouterError) {
+        console.error('❌ Erro ao usar OpenRouter como fallback:', openRouterError.message);
       }
     }
     
@@ -373,6 +399,88 @@ async function gerarRelatorioEntrevista({ candidato, vaga, respostas = [], feedb
       recommendation: 'DÚVIDA',
     };
   }
+}
+
+// Funções auxiliares para adaptar resposta do OpenRouter
+function _determinarRecomendacao(score) {
+  if (score >= 90) return 'Forte Recomendação';
+  if (score >= 75) return 'Recomendado';
+  if (score >= 60) return 'Considerar';
+  return 'Não Recomendado';
+}
+
+function _gerarAderenciaRequisitos(requisitosTexto, resultadoOpenRouter) {
+  if (!requisitosTexto) return [];
+  
+  // Normaliza requisitos para array
+  let requisitosLista = [];
+  if (Array.isArray(requisitosTexto)) {
+    requisitosLista = requisitosTexto.map(r => String(r).trim()).filter(r => r.length > 0);
+  } else if (typeof requisitosTexto === 'string') {
+    // Divide requisitos por vírgula ou quebra de linha
+    requisitosLista = requisitosTexto
+      .split(/[,\n]/)
+      .map(r => r.trim())
+      .filter(r => r.length > 0);
+  } else {
+    return [];
+  }
+  
+  const skills = resultadoOpenRouter.skills || [];
+  const pontosFortesVaga = resultadoOpenRouter.pontosFortesVaga || [];
+  const aderenciaVaga = resultadoOpenRouter.aderenciaVaga || 0;
+  
+  return requisitosLista.map(requisito => {
+    // Calcula score baseado em se o requisito está nas skills ou pontos fortes
+    const encontradoEmSkills = skills.some(skill => 
+      skill.toLowerCase().includes(requisito.toLowerCase()) ||
+      requisito.toLowerCase().includes(skill.toLowerCase())
+    );
+    
+    const encontradoEmPontoFortes = pontosFortesVaga.some(ponto =>
+      ponto.toLowerCase().includes(requisito.toLowerCase())
+    );
+    
+    let score = aderenciaVaga;
+    if (encontradoEmSkills && encontradoEmPontoFortes) {
+      score = Math.min(100, aderenciaVaga + 10);
+    } else if (encontradoEmSkills) {
+      score = aderenciaVaga;
+    } else if (encontradoEmPontoFortes) {
+      score = Math.max(70, aderenciaVaga - 10);
+    } else {
+      score = Math.max(0, aderenciaVaga - 30);
+    }
+    
+    // Gera evidências
+    const evidencias = [];
+    if (encontradoEmSkills) {
+      const skillsRelacionadas = skills.filter(skill =>
+        skill.toLowerCase().includes(requisito.toLowerCase()) ||
+        requisito.toLowerCase().includes(skill.toLowerCase())
+      );
+      evidencias.push(...skillsRelacionadas.map(s => `Habilidade: ${s}`));
+    }
+    
+    if (encontradoEmPontoFortes) {
+      const pontosRelacionados = pontosFortesVaga.filter(ponto =>
+        ponto.toLowerCase().includes(requisito.toLowerCase())
+      );
+      if (pontosRelacionados.length > 0) {
+        evidencias.push(pontosRelacionados[0]);
+      }
+    }
+    
+    if (evidencias.length === 0) {
+      evidencias.push('Não foram encontradas evidências claras deste requisito');
+    }
+    
+    return {
+      requisito,
+      score,
+      evidencias
+    };
+  });
 }
 
 module.exports = {
