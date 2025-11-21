@@ -101,6 +101,11 @@ async function gerarAnaliseCurriculo(texto, vagaCtx, opts = {}) {
         pontosFortes: resultadoOpenRouter.pontosFortesVaga || [],
         pontosAtencao: resultadoOpenRouter.pontosFracosVaga || [],
         aderenciaRequisitos: _gerarAderenciaRequisitos(vagaRequisitos, resultadoOpenRouter),
+        candidato: resultadoOpenRouter.candidato || null,
+        experiencias: Array.isArray(resultadoOpenRouter.experiencias)
+          ? resultadoOpenRouter.experiencias
+          : [],
+        provider: 'OPENROUTER',
       };
     } catch (openRouterError) {
       console.error('❌ Erro ao usar OpenRouter:', openRouterError.message);
@@ -114,6 +119,9 @@ async function gerarAnaliseCurriculo(texto, vagaCtx, opts = {}) {
         pontosFortes: [],
         pontosAtencao: [],
         aderenciaRequisitos: [],
+        candidato: null,
+        experiencias: [],
+        provider: 'OPENROUTER',
         error: 'AI_UNAVAILABLE',
       };
     }
@@ -131,29 +139,68 @@ async function gerarAnaliseCurriculo(texto, vagaCtx, opts = {}) {
       pontosFortes: [],
       pontosAtencao: [],
       aderenciaRequisitos: [],
+      candidato: null,
+      experiencias: [],
+      provider: 'OPENAI',
       error: 'OPENAI_UNAVAILABLE',
     };
   }
 
   const prompt = `
-Analise o currículo e a vaga abaixo e responda APENAS com um JSON válido no seguinte formato:
+Você é o motor de análise de currículos do sistema TalentMatchIA (frontend em Flutter, backend em Node.js e banco PostgreSQL).
+Analise o currículo e a vaga abaixo e responda APENAS com um JSON válido, sem comentários e sem texto extra fora do JSON.
+
+O formato exato do JSON deve ser:
 {
   "summary": string,
   "skills": string[],
   "keywords": string[],
   "experiences": string[],
-  "matchingScore": number,        // 0 a 100
-  "recomendacao": string,        // "Forte Recomendação", "Recomendado", "Considerar" ou "Não Recomendado"
+
+  "candidato": {
+    "nome": string | null,
+    "email": string | null,
+    "telefone": string | null,
+    "github": string | null,
+    "linkedin": string | null
+  },
+
+  "experiencias": [
+    {
+      "cargo": string | null,
+      "empresa": string | null,
+      "periodo": string | null,
+      "descricao": string | null
+    }
+  ],
+
+  "matchingScore": number,
+  "recomendacao": string,
   "pontosFortes": string[],
   "pontosAtencao": string[],
   "aderenciaRequisitos": [
     {
       "requisito": string,
-      "score": number,           // 0 a 100
+      "score": number,
       "evidencias": string[]
     }
   ]
 }
+
+Regras de preenchimento:
+1) "summary": resumo em 3–5 frases do perfil, focando na vaga.
+2) "skills" e "keywords": habilidades técnicas/comportamentais e palavras-chave em português quando possível.
+3) "candidato": preencha nome/email/telefone/github/linkedin se existirem; caso contrário, use null.
+   - Se só houver usuário do GitHub, monte a URL: https://github.com/USUARIO
+4) "experiencias": lista estruturada de experiências; copie o período exatamente como está no currículo (ex.: "2009 ~ 2011" ou "jan/2020 - atual").
+5) "experiences": lista de frases curtas resumindo pontos principais (pode reaproveitar descrições).
+6) "matchingScore": 0 a 100 considerando aderência à vaga.
+7) "recomendacao": use exatamente um destes valores: "Forte Recomendação" | "Recomendado" | "Considerar" | "Não Recomendado".
+8) "pontosFortes"/"pontosAtencao": liste pontos fortes e lacunas/alertas.
+9) "aderenciaRequisitos": um objeto por requisito da vaga com score 0..100 e evidências citando o currículo (ou justificando ausência).
+10) Dados ausentes: use null ou [] e NÃO invente empresas, datas, tecnologias ou links.
+
+Retorne APENAS o JSON, sem markdown, sem explicações adicionais.
 
 Currículo (texto livre):
 ${String(texto || '').slice(0, 8000)}
@@ -200,6 +247,11 @@ Requisitos: ${vagaRequisitos}
         aderenciaRequisitos: Array.isArray(parsed.aderenciaRequisitos)
           ? parsed.aderenciaRequisitos
           : [],
+        candidato: parsed.candidato || null,
+        experiencias: Array.isArray(parsed.experiencias)
+          ? parsed.experiencias
+          : [],
+        provider: 'OPENAI',
       };
     } catch (_) {
       // Se o modelo não retornar JSON válido, usamos o conteúdo bruto como summary
@@ -213,6 +265,9 @@ Requisitos: ${vagaRequisitos}
         pontosFortes: [],
         pontosAtencao: [],
         aderenciaRequisitos: [],
+        candidato: null,
+        experiencias: [],
+        provider: 'OPENAI',
         error: 'INVALID_JSON_FROM_OPENAI',
       };
     }
@@ -240,6 +295,11 @@ Requisitos: ${vagaRequisitos}
           pontosFortes: resultadoOpenRouter.pontosFortesVaga || [],
           pontosAtencao: resultadoOpenRouter.pontosFracosVaga || [],
           aderenciaRequisitos: _gerarAderenciaRequisitos(vagaRequisitos, resultadoOpenRouter),
+          candidato: resultadoOpenRouter.candidato || null,
+          experiencias: Array.isArray(resultadoOpenRouter.experiencias)
+            ? resultadoOpenRouter.experiencias
+            : [],
+          provider: 'OPENROUTER',
         };
       } catch (openRouterError) {
         console.error('❌ Erro ao usar OpenRouter como fallback:', openRouterError.message);
@@ -258,6 +318,9 @@ Requisitos: ${vagaRequisitos}
       pontosFortes: [],
       pontosAtencao: [],
       aderenciaRequisitos: [],
+      candidato: null,
+      experiencias: [],
+      provider: 'OPENAI',
       error: 'OPENAI_UNAVAILABLE',
     };
   }
