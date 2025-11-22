@@ -163,5 +163,110 @@ router.get('/resumes/timeline', async (req, res) => {
   }
 });
 
+// ============================================================================
+// GET /api/dashboard/jobs/metrics - Métricas de vagas
+// ============================================================================
+router.get('/jobs/metrics', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+
+    // Métricas consolidadas da função SQL
+    const metricsResult = await db.query(
+      'SELECT * FROM get_job_metrics($1)',
+      [companyId]
+    );
+
+    // Estatísticas por status
+    const statusStats = await db.query(
+      `SELECT 
+        status,
+        COUNT(*)::int as count,
+        AVG(
+          CASE 
+            WHEN published_at IS NOT NULL AND created_at IS NOT NULL
+            THEN EXTRACT(epoch FROM (published_at - created_at)) / 86400.0
+            ELSE NULL
+          END
+        )::numeric(10,2) as avg_days_to_publish
+      FROM jobs
+      WHERE company_id = $1 AND deleted_at IS NULL
+      GROUP BY status
+      ORDER BY count DESC`,
+      [companyId]
+    );
+
+    // Top departamentos
+    const departmentStats = await db.query(
+      `SELECT 
+        COALESCE(department, 'Sem departamento') as department,
+        COUNT(*)::int as total_jobs,
+        COUNT(*) FILTER (WHERE status = 'open')::int as open_jobs,
+        AVG(salary_min)::numeric(10,2) as avg_salary_min,
+        AVG(salary_max)::numeric(10,2) as avg_salary_max
+      FROM jobs
+      WHERE company_id = $1 AND deleted_at IS NULL
+      GROUP BY department
+      ORDER BY total_jobs DESC
+      LIMIT 10`,
+      [companyId]
+    );
+
+    // Performance por período (últimos 6 meses)
+    const performanceStats = await db.query(
+      `SELECT 
+        DATE_TRUNC('month', created_at) as month,
+        COUNT(*)::int as jobs_created,
+        COUNT(*) FILTER (WHERE published_at IS NOT NULL)::int as jobs_published,
+        COUNT(*) FILTER (WHERE closed_at IS NOT NULL)::int as jobs_closed
+      FROM jobs
+      WHERE company_id = $1 
+        AND created_at >= now() - interval '6 months'
+      GROUP BY DATE_TRUNC('month', created_at)
+      ORDER BY month DESC`,
+      [companyId]
+    );
+
+    res.json({
+      metrics: metricsResult.rows,
+      by_status: statusStats.rows,
+      by_department: departmentStats.rows,
+      performance_by_month: performanceStats.rows
+    });
+  } catch (e) {
+    console.error('Erro ao buscar métricas de vagas:', e);
+    res.status(500).json({ erro: 'Falha ao buscar métricas de vagas' });
+  }
+});
+
+// ============================================================================
+// GET /api/dashboard/jobs/timeline - Timeline de vagas criadas
+// ============================================================================
+router.get('/jobs/timeline', async (req, res) => {
+  try {
+    const { days = 30 } = req.query;
+    const daysNum = Math.min(365, Math.max(1, parseInt(days) || 30));
+
+    const result = await db.query(
+      `SELECT 
+        DATE(created_at) as date,
+        COUNT(*)::int as jobs_created,
+        COUNT(*) FILTER (WHERE status = 'draft')::int as draft_count,
+        COUNT(*) FILTER (WHERE status = 'open')::int as open_count,
+        COUNT(*) FILTER (WHERE published_at IS NOT NULL)::int as published_count
+      FROM jobs
+      WHERE company_id = $1
+        AND created_at >= now() - interval '1 day' * $2
+      GROUP BY DATE(created_at)
+      ORDER BY date DESC`,
+      [req.usuario.company_id, daysNum]
+    );
+
+    res.json(result.rows);
+  } catch (e) {
+    console.error('Erro ao buscar timeline de vagas:', e);
+    res.status(500).json({ erro: 'Falha ao buscar timeline' });
+  }
+});
+
 module.exports = router;
 
