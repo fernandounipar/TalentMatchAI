@@ -71,7 +71,13 @@ async function chamarOpenRouter(mensagens, options = {}) {
         } else if (res.statusCode === 429) {
           reject(new Error('Limite de requisições do OpenRouter atingido. Aguarde alguns segundos.'));
         } else if (res.statusCode === 401) {
-          reject(new Error('OPENROUTER_API_KEY inválida. Verifique sua chave em https://openrouter.ai/keys'));
+          try {
+            const errorData = JSON.parse(data);
+            const errorMsg = errorData.error?.message || 'Chave API inválida';
+            reject(new Error(`OpenRouter: ${errorMsg}. Gere uma nova chave em https://openrouter.ai/keys`));
+          } catch {
+            reject(new Error('OpenRouter: Autenticação falhou. Verifique sua OPENROUTER_API_KEY em https://openrouter.ai/keys'));
+          }
         } else if (res.statusCode === 402) {
           reject(new Error('Créditos insuficientes no OpenRouter. Adicione créditos em https://openrouter.ai/credits'));
         } else {
@@ -118,13 +124,54 @@ Requisitos: ${formatarRequisitos(vaga.requisitos || vaga.requirements)}
 
 Retorne um JSON com a seguinte estrutura (APENAS o JSON, sem texto adicional):
 {
+  "candidato": {
+    "nome": string ou null,
+    "email": string ou null,
+    "telefone": string ou null,
+    "github": string ou null,
+    "linkedin": string ou null
+  },
+  "experiencias": [
+    {
+      "cargo": string ou null,
+      "empresa": string ou null,
+      "periodo": string ou null,
+      "descricao": string ou null
+    }
+  ],
+  "educacao": [
+    {
+      "curso": string ou null,
+      "instituicao": string ou null,
+      "periodo": string ou null,
+      "status": string ou null
+    }
+  ],
+  "certificacoes": [
+    {
+      "nome": string ou null,
+      "instituicao": string ou null,
+      "ano": string ou null,
+      "cargaHoraria": string ou null
+    }
+  ],
   "skills": ["skill1", "skill2", ...],
-  "experiencia": "Descrição resumida da experiência",
+  "experiencia": "Descrição resumida da experiência do candidato",
   "senioridade": "Júnior|Pleno|Sênior|Especialista",
   "aderenciaVaga": 85,
   "pontosFortesVaga": ["ponto1", "ponto2"],
   "pontosFracosVaga": ["ponto1", "ponto2"]
-}`
+}
+
+Instruções:
+- Extraia dados de contato (nome, email, telefone, GitHub, LinkedIn) do currículo
+- Se houver apenas usuário do GitHub, monte a URL: https://github.com/USUARIO
+- Liste as experiências profissionais com cargo, empresa, período e descrição
+- Extraia formação acadêmica (curso, instituição, período, status: "Concluído"/"Em andamento"/"Trancado")
+- Extraia certificações (nome, instituição, ano, carga horária se informado)
+- Copie períodos exatamente como aparecem no currículo (ex: "2009 ~ 2011" ou "jan/2020 - atual")
+- Não invente dados: use null para informações não encontradas
+- O campo "experiencia" deve ser um resumo geral em 2-3 frases`
     : `Você é um especialista em RH. Analise o currículo abaixo e extraia informações relevantes.
 
 CURRÍCULO:
@@ -132,10 +179,50 @@ ${textoCurriculo}
 
 Retorne um JSON com a seguinte estrutura (APENAS o JSON, sem texto adicional):
 {
+  "candidato": {
+    "nome": string ou null,
+    "email": string ou null,
+    "telefone": string ou null,
+    "github": string ou null,
+    "linkedin": string ou null
+  },
+  "experiencias": [
+    {
+      "cargo": string ou null,
+      "empresa": string ou null,
+      "periodo": string ou null,
+      "descricao": string ou null
+    }
+  ],
+  "educacao": [
+    {
+      "curso": string ou null,
+      "instituicao": string ou null,
+      "periodo": string ou null,
+      "status": string ou null
+    }
+  ],
+  "certificacoes": [
+    {
+      "nome": string ou null,
+      "instituicao": string ou null,
+      "ano": string ou null,
+      "cargaHoraria": string ou null
+    }
+  ],
   "skills": ["skill1", "skill2", ...],
-  "experiencia": "Descrição resumida da experiência",
+  "experiencia": "Descrição resumida da experiência do candidato",
   "senioridade": "Júnior|Pleno|Sênior|Especialista"
-}`;
+}
+
+Instruções:
+- Extraia dados de contato (nome, email, telefone, GitHub, LinkedIn)
+- Se houver apenas usuário do GitHub, monte a URL: https://github.com/USUARIO
+- Liste as experiências profissionais com cargo, empresa, período e descrição
+- Extraia formação acadêmica (curso, instituição, período, status: "Concluído"/"Em andamento"/"Trancado")
+- Extraia certificações (nome, instituição, ano, carga horária se informado)
+- Copie períodos exatamente como aparecem no currículo (ex: "2009 ~ 2011" ou "jan/2020 - atual")
+- Não invente dados: use null para informações não encontradas`;
 
   try {
     const resposta = await chamarOpenRouter(
@@ -155,6 +242,10 @@ Retorne um JSON com a seguinte estrutura (APENAS o JSON, sem texto adicional):
     
     // Garante estrutura mínima
     return {
+      candidato: resultado.candidato || null,
+      experiencias: Array.isArray(resultado.experiencias) ? resultado.experiencias : [],
+      educacao: Array.isArray(resultado.educacao) ? resultado.educacao : [],
+      certificacoes: Array.isArray(resultado.certificacoes) ? resultado.certificacoes : [],
       skills: resultado.skills || [],
       experiencia: resultado.experiencia || 'Não especificado',
       senioridade: resultado.senioridade || 'Júnior',

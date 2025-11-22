@@ -90,8 +90,12 @@ async function gerarAnaliseCurriculo(texto, vagaCtx, opts = {}) {
         requisitos: vagaRequisitos
       });
       
+      console.log('\n🔍 [DEBUG] JSON retornado pelo OpenRouter (fallback inicial):');
+      console.log(JSON.stringify(resultadoOpenRouter, null, 2));
+      
       // Adapta formato do OpenRouter para o formato esperado pelo frontend
-      return {
+      const openRouterModel = process.env.OPENROUTER_MODEL || 'x-ai/grok-4.1-fast';
+      const resultadoAdaptado = {
         summary: resultadoOpenRouter.experiencia || 'Análise realizada com sucesso',
         skills: resultadoOpenRouter.skills || [],
         keywords: resultadoOpenRouter.skills || [],
@@ -105,10 +109,24 @@ async function gerarAnaliseCurriculo(texto, vagaCtx, opts = {}) {
         experiencias: Array.isArray(resultadoOpenRouter.experiencias)
           ? resultadoOpenRouter.experiencias
           : [],
+        educacao: Array.isArray(resultadoOpenRouter.educacao)
+          ? resultadoOpenRouter.educacao
+          : [],
+        certificacoes: Array.isArray(resultadoOpenRouter.certificacoes)
+          ? resultadoOpenRouter.certificacoes
+          : [],
         provider: 'OPENROUTER',
+        model: openRouterModel,
       };
+      
+      console.log('\n🔄 [DEBUG] JSON adaptado para o frontend (fallback inicial):');
+      console.log(JSON.stringify(resultadoAdaptado, null, 2));
+      console.log('\n');
+      
+      return resultadoAdaptado;
     } catch (openRouterError) {
       console.error('❌ Erro ao usar OpenRouter:', openRouterError.message);
+      const openRouterModel = process.env.OPENROUTER_MODEL || 'x-ai/grok-4.1-fast';
       return {
         summary: 'Análise de IA indisponível no momento.',
         skills: [],
@@ -121,8 +139,11 @@ async function gerarAnaliseCurriculo(texto, vagaCtx, opts = {}) {
         aderenciaRequisitos: [],
         candidato: null,
         experiencias: [],
+        educacao: [],
+        certificacoes: [],
         provider: 'OPENROUTER',
         error: 'AI_UNAVAILABLE',
+        model: openRouterModel,
       };
     }
   }
@@ -143,6 +164,7 @@ async function gerarAnaliseCurriculo(texto, vagaCtx, opts = {}) {
       experiencias: [],
       provider: 'OPENAI',
       error: 'OPENAI_UNAVAILABLE',
+      model: 'gpt-4o-mini',
     };
   }
 
@@ -212,6 +234,7 @@ Requisitos: ${vagaRequisitos}
 `.trim();
 
   try {
+    console.log('🔍 Tentando análise com OpenAI (gpt-4o-mini)...');
     const resp = await client.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
@@ -225,9 +248,15 @@ Requisitos: ${vagaRequisitos}
       temperature: 0.2,
     });
     const content = resp.choices?.[0]?.message?.content || '{}';
+    console.log('✅ OpenAI respondeu com sucesso');
 
     try {
       const parsed = JSON.parse(content);
+      
+      console.log('\n🔍 [DEBUG] JSON retornado pela OpenAI:');
+      console.log(JSON.stringify(parsed, null, 2));
+      console.log('\n');
+      
       // Garante campos mínimos esperados pelo restante do backend/frontend
       return {
         summary: parsed.summary || '',
@@ -252,6 +281,7 @@ Requisitos: ${vagaRequisitos}
           ? parsed.experiencias
           : [],
         provider: 'OPENAI',
+        model: 'gpt-4o-mini',
       };
     } catch (_) {
       // Se o modelo não retornar JSON válido, usamos o conteúdo bruto como summary
@@ -268,15 +298,20 @@ Requisitos: ${vagaRequisitos}
         candidato: null,
         experiencias: [],
         provider: 'OPENAI',
+        model: 'gpt-4o-mini',
         error: 'INVALID_JSON_FROM_OPENAI',
       };
     }
   } catch (e) {
-    console.error('❌ Erro ao chamar OpenAI para análise de currículo:', e.message);
+    const errorMsg = e.message || String(e);
+    console.error('❌ Erro ao chamar OpenAI para análise de currículo:', errorMsg);
+    console.error('Stack:', e.stack);
     
-    // Tenta OpenRouter como fallback automático
-    if (process.env.OPENROUTER_API_KEY && (e.message.includes('429') || e.message.includes('quota') || e.message.includes('401'))) {
-      console.log('⚠️  OpenAI com erro. Tentando OpenRouter...');
+    // Tenta OpenRouter como fallback automático para qualquer erro da OpenAI
+    if (process.env.OPENROUTER_API_KEY) {
+      console.log('⚠️  OpenAI com erro. Tentando OpenRouter como fallback...');
+      console.log('Erro OpenAI:', errorMsg);
+      
       try {
         const resultadoOpenRouter = await openRouterService.analisarCurriculo(texto, {
           titulo: vagaTitulo,
@@ -284,8 +319,14 @@ Requisitos: ${vagaRequisitos}
           requisitos: vagaRequisitos
         });
         
+        const openRouterModel = process.env.OPENROUTER_MODEL || 'x-ai/grok-4.1-fast';
+        console.log('✅ OpenRouter retornou com sucesso. Modelo:', openRouterModel);
+        
+        console.log('\n🔍 [DEBUG] JSON retornado pelo OpenRouter:');
+        console.log(JSON.stringify(resultadoOpenRouter, null, 2));
+        
         // Adapta formato do OpenRouter para o formato esperado pelo frontend
-        return {
+        const resultadoAdaptado = {
           summary: resultadoOpenRouter.experiencia || 'Análise realizada com sucesso',
           skills: resultadoOpenRouter.skills || [],
           keywords: resultadoOpenRouter.skills || [],
@@ -299,17 +340,39 @@ Requisitos: ${vagaRequisitos}
           experiencias: Array.isArray(resultadoOpenRouter.experiencias)
             ? resultadoOpenRouter.experiencias
             : [],
+          educacao: Array.isArray(resultadoOpenRouter.educacao)
+            ? resultadoOpenRouter.educacao
+            : [],
+          certificacoes: Array.isArray(resultadoOpenRouter.certificacoes)
+            ? resultadoOpenRouter.certificacoes
+            : [],
           provider: 'OPENROUTER',
+          model: openRouterModel,
         };
+        
+        console.log('\n🔄 [DEBUG] JSON adaptado para o frontend:');
+        console.log(JSON.stringify(resultadoAdaptado, null, 2));
+        console.log('\n');
+        
+        return resultadoAdaptado;
       } catch (openRouterError) {
         console.error('❌ Erro ao usar OpenRouter como fallback:', openRouterError.message);
+        console.error('Stack OpenRouter:', openRouterError.stack);
       }
     }
     
     // Fallback seguro quando todas as APIs falharem
+    console.error('\n⚠️  TODAS AS APIs DE IA FALHARAM!');
+    console.error('OpenAI: Chave inválida ou limite atingido');
+    console.error('OpenRouter: Chave inválida ou sem créditos');
+    console.error('\n💡 Para resolver:');
+    console.error('   1. Verifique/atualize OPENAI_API_KEY em https://platform.openai.com/api-keys');
+    console.error('   2. Ou gere OPENROUTER_API_KEY em https://openrouter.ai/keys');
+    console.error('   3. Verifique se tem créditos em sua conta\n');
+    
     return {
       summary:
-        'Análise automática indisponível no momento (limite de uso da API de IA ou erro de conexão).',
+        'Nenhuma API de IA configurada ou disponível. Configure OpenAI ou OpenRouter no arquivo .env',
       skills: [],
       keywords: [],
       experiences: [],
@@ -320,8 +383,13 @@ Requisitos: ${vagaRequisitos}
       aderenciaRequisitos: [],
       candidato: null,
       experiencias: [],
-      provider: 'OPENAI',
-      error: 'OPENAI_UNAVAILABLE',
+      provider: 'NONE',
+      error: 'ALL_AI_SERVICES_UNAVAILABLE',
+      model: 'none',
+      errorDetails: {
+        openai: errorMsg,
+        openrouter: 'Falha ao conectar'
+      }
     };
   }
 }

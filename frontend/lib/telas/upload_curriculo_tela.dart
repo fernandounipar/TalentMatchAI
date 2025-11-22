@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../componentes/analise_curriculo_resultado.dart';
@@ -41,6 +40,7 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
   Map<String, dynamic>? _candidato;
   Map<String, dynamic>? _vaga;
   String? _iaProvider;
+  String? _iaModel;
   DateTime? _inicioUpload;
   double? _duracaoSegundos;
 
@@ -191,6 +191,7 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
       final cand = Map<String, dynamic>.from(resp['candidato'] ?? {});
       final vaga = Map<String, dynamic>.from(resp['vaga'] ?? {});
       final iaProvider = resp['ia_provider'] ?? resp['provider'] ?? analiseMap['provider'];
+      final iaModel = resp['ia_model'] ?? analiseMap['model'];
 
       if (job['id'] != null) {
         // Converter progress para double de forma segura
@@ -230,6 +231,7 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
         _candidato = cand;
         _vaga = vaga;
         _iaProvider = iaProvider?.toString();
+        _iaModel = iaModel?.toString();
         if (_inicioUpload != null) {
           _duracaoSegundos =
               fim.difference(_inicioUpload!).inMilliseconds / 1000.0;
@@ -262,6 +264,7 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
       _candidato = null;
       _vaga = null;
       _iaProvider = null;
+      _iaModel = null;
       _inicioUpload = null;
       _duracaoSegundos = null;
     });
@@ -314,9 +317,9 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
   }
 
   Widget _buildHeader() {
-    return Column(
+    return const Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: const [
+      children: [
         Text(
           'Análise de Currículos',
           style: TextStyle(
@@ -555,9 +558,9 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
-        child: Column(
+        child: const Column(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: const [
+          children: [
             Icon(Icons.auto_awesome, size: 48, color: TMTokens.secondary),
             SizedBox(height: 12),
             Text(
@@ -753,28 +756,22 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
   }
 
   String _iaProviderLabel() {
+    // Antes da análise, retorna nulo para não exibir texto default
+    if (_analise == null) return '—';
+
+    // Prioriza model vindo da IA (quando disponível)
+    final model = (_iaModel ?? _analiseBruta?['model'])?.toString();
+    if (model != null && model.isNotEmpty) return model;
+
     final raw = (_iaProvider ?? _analiseBruta?['provider'] ?? '').toString();
     if (raw.isNotEmpty) {
       final lower = raw.toLowerCase();
-      if (lower.contains('openrouter') || lower.contains('router')) {
-        return 'OpenRouter';
-      }
-      if (lower.contains('groq')) {
-        return 'Groq';
-      }
-      if (lower.contains('openai')) {
-        return 'OpenAI';
-      }
+      if (lower.contains('openai')) return 'gpt-4o-mini';
+      if (lower.contains('openrouter')) return 'openrouter-model';
+      if (lower.contains('groq')) return 'groq-model';
       return raw;
     }
 
-    // Heurística: se veio campos típicos do OpenRouter, assume OpenRouter
-    if (_analiseBruta != null &&
-        (_analiseBruta!.containsKey('pontosFortesVaga') ||
-            _analiseBruta!.containsKey('pontosFracosVaga'))) {
-      return 'OpenRouter';
-    }
-
-    return 'OpenAI (padrão)';
+    return 'Modelo não informado';
   }
 }
