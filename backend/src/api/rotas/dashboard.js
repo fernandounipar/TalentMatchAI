@@ -1092,5 +1092,566 @@ router.get('/users/invitation-stats', async (req, res) => {
   }
 });
 
+// ============================================================================
+// RF9 - Dashboard Overview Consolidado
+// ============================================================================
+
+// GET /api/dashboard/overview - Overview consolidado (26+ métricas)
+router.get('/overview', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+
+    const result = await db.query(
+      `SELECT get_dashboard_overview($1) as overview`,
+      [companyId]
+    );
+
+    const overview = result.rows[0]?.overview || {};
+
+    res.json({
+      success: true,
+      data: overview
+    });
+
+  } catch (error) {
+    console.error('[RF9] Erro ao buscar overview consolidado:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar overview consolidado',
+      error: error.message
+    });
+  }
+});
+
+// GET /api/dashboard/activity-timeline - Timeline de atividades
+router.get('/activity-timeline', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+    const { days = 30 } = req.query;
+
+    const result = await db.query(
+      `SELECT 
+        activity_date,
+        jobs_created,
+        resumes_uploaded,
+        interviews_scheduled,
+        reports_generated,
+        users_registered,
+        total_activities
+       FROM dashboard_activity_timeline
+       WHERE company_id = $1
+         AND activity_date >= CURRENT_DATE - INTERVAL '1 day' * $2
+       ORDER BY activity_date DESC`,
+      [companyId, parseInt(days)]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows,
+      period: {
+        days: parseInt(days),
+        from: result.rows[result.rows.length - 1]?.activity_date,
+        to: result.rows[0]?.activity_date
+      }
+    });
+
+  } catch (error) {
+    console.error('[RF9] Erro ao buscar timeline de atividades:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar timeline de atividades',
+      error: error.message
+    });
+  }
+});
+
+// GET /api/dashboard/conversion-funnel - Funil de conversão
+router.get('/conversion-funnel', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+    const { 
+      status,
+      limit = 20,
+      sort = 'resume_to_interview_rate',
+      order = 'DESC'
+    } = req.query;
+
+    let whereClauses = ['company_id = $1'];
+    let params = [companyId];
+    let paramIndex = 2;
+
+    if (status) {
+      whereClauses.push(`job_status = $${paramIndex}`);
+      params.push(status);
+      paramIndex++;
+    }
+
+    const whereClause = whereClauses.join(' AND ');
+
+    // Validar sort
+    const allowedSorts = [
+      'total_resumes',
+      'total_interviews',
+      'approved_candidates',
+      'resume_to_interview_rate',
+      'interview_to_approval_rate'
+    ];
+    const sortColumn = allowedSorts.includes(sort) ? sort : 'resume_to_interview_rate';
+    const sortOrder = order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+    const result = await db.query(
+      `SELECT 
+        job_id,
+        job_title,
+        job_status,
+        job_created_at,
+        total_resumes,
+        total_interviews,
+        completed_interviews,
+        approved_candidates,
+        resume_to_interview_rate,
+        interview_to_approval_rate
+       FROM dashboard_conversion_funnel
+       WHERE ${whereClause}
+       ORDER BY ${sortColumn} ${sortOrder}
+       LIMIT $${paramIndex}`,
+      [...params, parseInt(limit)]
+    );
+
+    // Calcular agregados gerais
+    const statsResult = await db.query(
+      `SELECT 
+        COUNT(*)::int as total_jobs,
+        SUM(total_resumes)::int as total_resumes,
+        SUM(total_interviews)::int as total_interviews,
+        SUM(approved_candidates)::int as total_approved,
+        ROUND(AVG(resume_to_interview_rate), 2) as avg_resume_to_interview_rate,
+        ROUND(AVG(interview_to_approval_rate), 2) as avg_interview_to_approval_rate
+       FROM dashboard_conversion_funnel
+       WHERE ${whereClause}`,
+      params
+    );
+
+    res.json({
+      success: true,
+      data: result.rows,
+      stats: statsResult.rows[0] || {}
+    });
+
+  } catch (error) {
+    console.error('[RF9] Erro ao buscar funil de conversão:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar funil de conversão',
+      error: error.message
+    });
+  }
+});
+
+// ============================================================================
+// RF9 - Dashboard Presets (CRUD de configurações salvas)
+// ============================================================================
+
+// POST /api/dashboard/presets - Criar novo preset
+router.post('/presets', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+    const userId = req.usuario.id;
+    const {
+      name,
+      description,
+      filters,
+      layout,
+      preferences,
+      is_default,
+      is_shared,
+      shared_with_roles
+    } = req.body;
+
+    // Validações básicas
+    if (!name || name.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Nome do preset é obrigatório'
+      });
+    }
+
+    // Se marcar como default, desmarcar outros defaults do usuário
+    if (is_default) {
+      await db.query(
+        `UPDATE dashboard_presets 
+         SET is_default = FALSE 
+         WHERE user_id = $1 AND company_id = $2 AND deleted_at IS NULL`,
+        [userId, companyId]
+      );
+    }
+
+    const result = await db.query(
+      `INSERT INTO dashboard_presets (
+        user_id, company_id, name, description, 
+        filters, layout, preferences, 
+        is_default, is_shared, shared_with_roles
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING *`,
+      [
+        userId,
+        companyId,
+        name.trim(),
+        description || null,
+        filters || {},
+        layout || {},
+        preferences || {},
+        is_default || false,
+        is_shared || false,
+        shared_with_roles || []
+      ]
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Preset criado com sucesso',
+      data: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error('[RF9] Erro ao criar preset:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao criar preset',
+      error: error.message
+    });
+  }
+});
+
+// GET /api/dashboard/presets - Listar presets do usuário
+router.get('/presets', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+    const userId = req.usuario.id;
+    const userRole = req.usuario.role;
+    
+    const {
+      search,
+      is_shared,
+      is_default,
+      sort = 'usage_count',
+      order = 'DESC',
+      page = 1,
+      limit = 20
+    } = req.query;
+
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const maxLimit = Math.min(parseInt(limit), 100);
+
+    // Construir query dinamicamente
+    let whereClauses = ['dp.deleted_at IS NULL', 'dp.company_id = $1'];
+    let params = [companyId];
+    let paramIndex = 2;
+
+    // Filtro: presets próprios OU compartilhados com seu role
+    whereClauses.push(`(dp.user_id = $${paramIndex} OR (dp.is_shared = TRUE AND $${paramIndex + 1} = ANY(dp.shared_with_roles)))`);
+    params.push(userId, userRole);
+    paramIndex += 2;
+
+    if (search) {
+      whereClauses.push(`(dp.name ILIKE $${paramIndex} OR dp.description ILIKE $${paramIndex})`);
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    if (is_shared !== undefined) {
+      whereClauses.push(`dp.is_shared = $${paramIndex}`);
+      params.push(is_shared === 'true');
+      paramIndex++;
+    }
+
+    if (is_default !== undefined) {
+      whereClauses.push(`dp.is_default = $${paramIndex}`);
+      params.push(is_default === 'true');
+      paramIndex++;
+    }
+
+    const whereClause = whereClauses.join(' AND ');
+
+    // Validar sort
+    const allowedSorts = ['usage_count', 'last_used_at', 'created_at', 'name'];
+    const sortColumn = allowedSorts.includes(sort) ? sort : 'usage_count';
+    const sortOrder = order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+    // Query principal
+    const result = await db.query(
+      `SELECT 
+        dp.id,
+        dp.user_id,
+        dp.company_id,
+        dp.name,
+        dp.description,
+        dp.filters,
+        dp.layout,
+        dp.preferences,
+        dp.is_default,
+        dp.is_shared,
+        dp.shared_with_roles,
+        dp.usage_count,
+        dp.last_used_at,
+        dp.created_at,
+        dp.updated_at,
+        u.nome as user_name,
+        c.name as company_name
+       FROM dashboard_presets dp
+       LEFT JOIN users u ON u.id = dp.user_id
+       LEFT JOIN companies c ON c.id = dp.company_id
+       WHERE ${whereClause}
+       ORDER BY dp.${sortColumn} ${sortOrder}
+       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      [...params, maxLimit, offset]
+    );
+
+    // Contar total
+    const countResult = await db.query(
+      `SELECT COUNT(*)::int as total
+       FROM dashboard_presets dp
+       WHERE ${whereClause}`,
+      params
+    );
+
+    const total = countResult.rows[0]?.total || 0;
+
+    res.json({
+      success: true,
+      data: result.rows,
+      pagination: {
+        page: parseInt(page),
+        limit: maxLimit,
+        total,
+        totalPages: Math.ceil(total / maxLimit)
+      }
+    });
+
+  } catch (error) {
+    console.error('[RF9] Erro ao listar presets:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao listar presets',
+      error: error.message
+    });
+  }
+});
+
+// GET /api/dashboard/presets/:id - Buscar preset específico
+router.get('/presets/:id', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+    const userId = req.usuario.id;
+    const userRole = req.usuario.role;
+    const { id } = req.params;
+
+    const result = await db.query(
+      `SELECT 
+        dp.*,
+        u.nome as user_name,
+        c.name as company_name
+       FROM dashboard_presets dp
+       LEFT JOIN users u ON u.id = dp.user_id
+       LEFT JOIN companies c ON c.id = dp.company_id
+       WHERE dp.id = $1 
+         AND dp.company_id = $2
+         AND dp.deleted_at IS NULL
+         AND (dp.user_id = $3 OR (dp.is_shared = TRUE AND $4 = ANY(dp.shared_with_roles)))`,
+      [id, companyId, userId, userRole]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Preset não encontrado'
+      });
+    }
+
+    // Incrementar usage_count e atualizar last_used_at
+    await db.query(
+      `UPDATE dashboard_presets 
+       SET usage_count = usage_count + 1,
+           last_used_at = NOW()
+       WHERE id = $1`,
+      [id]
+    );
+
+    const preset = result.rows[0];
+    preset.usage_count = (preset.usage_count || 0) + 1;
+    preset.last_used_at = new Date();
+
+    res.json({
+      success: true,
+      data: preset
+    });
+
+  } catch (error) {
+    console.error('[RF9] Erro ao buscar preset:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar preset',
+      error: error.message
+    });
+  }
+});
+
+// PUT /api/dashboard/presets/:id - Atualizar preset
+router.put('/presets/:id', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+    const userId = req.usuario.id;
+    const { id } = req.params;
+    const {
+      name,
+      description,
+      filters,
+      layout,
+      preferences,
+      is_default,
+      is_shared,
+      shared_with_roles
+    } = req.body;
+
+    // Verificar se preset existe e pertence ao usuário
+    const checkResult = await db.query(
+      `SELECT * FROM dashboard_presets 
+       WHERE id = $1 AND company_id = $2 AND user_id = $3 AND deleted_at IS NULL`,
+      [id, companyId, userId]
+    );
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Preset não encontrado ou você não tem permissão para editá-lo'
+      });
+    }
+
+    // Se marcar como default, desmarcar outros defaults do usuário
+    if (is_default) {
+      await db.query(
+        `UPDATE dashboard_presets 
+         SET is_default = FALSE 
+         WHERE user_id = $1 AND company_id = $2 AND id != $3 AND deleted_at IS NULL`,
+        [userId, companyId, id]
+      );
+    }
+
+    // Construir update dinâmico
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+
+    if (name !== undefined) {
+      updates.push(`name = $${paramIndex}`);
+      values.push(name.trim());
+      paramIndex++;
+    }
+    if (description !== undefined) {
+      updates.push(`description = $${paramIndex}`);
+      values.push(description);
+      paramIndex++;
+    }
+    if (filters !== undefined) {
+      updates.push(`filters = $${paramIndex}`);
+      values.push(filters);
+      paramIndex++;
+    }
+    if (layout !== undefined) {
+      updates.push(`layout = $${paramIndex}`);
+      values.push(layout);
+      paramIndex++;
+    }
+    if (preferences !== undefined) {
+      updates.push(`preferences = $${paramIndex}`);
+      values.push(preferences);
+      paramIndex++;
+    }
+    if (is_default !== undefined) {
+      updates.push(`is_default = $${paramIndex}`);
+      values.push(is_default);
+      paramIndex++;
+    }
+    if (is_shared !== undefined) {
+      updates.push(`is_shared = $${paramIndex}`);
+      values.push(is_shared);
+      paramIndex++;
+    }
+    if (shared_with_roles !== undefined) {
+      updates.push(`shared_with_roles = $${paramIndex}`);
+      values.push(shared_with_roles);
+      paramIndex++;
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Nenhum campo para atualizar'
+      });
+    }
+
+    values.push(id);
+    const result = await db.query(
+      `UPDATE dashboard_presets 
+       SET ${updates.join(', ')}
+       WHERE id = $${paramIndex}
+       RETURNING *`,
+      values
+    );
+
+    res.json({
+      success: true,
+      message: 'Preset atualizado com sucesso',
+      data: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error('[RF9] Erro ao atualizar preset:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao atualizar preset',
+      error: error.message
+    });
+  }
+});
+
+// DELETE /api/dashboard/presets/:id - Deletar preset (soft delete)
+router.delete('/presets/:id', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+    const userId = req.usuario.id;
+    const { id } = req.params;
+
+    const result = await db.query(
+      `UPDATE dashboard_presets 
+       SET deleted_at = NOW()
+       WHERE id = $1 AND company_id = $2 AND user_id = $3 AND deleted_at IS NULL
+       RETURNING id, name`,
+      [id, companyId, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Preset não encontrado ou você não tem permissão para deletá-lo'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Preset deletado com sucesso',
+      data: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error('[RF9] Erro ao deletar preset:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao deletar preset',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
 
