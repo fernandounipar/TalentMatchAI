@@ -24,6 +24,7 @@ const rotasResumes = require('./rotas/resumes');
 const rotasApiKeys = require('./rotas/api_keys');
 const rotasQuestionSets = require('./rotas/interview-question-sets');
 const rotasLiveAssessments = require('./rotas/live-assessments');
+const rotasReports = require('./rotas/reports');
 
 // Montar rotas
 router.use('/usuarios', rotasUsuarios);
@@ -48,5 +49,6 @@ router.use('/resumes', rotasResumes);
 router.use('/api-keys', rotasApiKeys);
 router.use('/interview-question-sets', rotasQuestionSets);
 router.use('/live-assessments', rotasLiveAssessments);
+router.use('/reports', rotasReports);
 
 module.exports = router;

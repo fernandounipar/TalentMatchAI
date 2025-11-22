@@ -492,5 +492,118 @@ router.get('/assessments/by-interview', async (req, res) => {
   }
 });
 
+// ============================================
+// RF7 - MÉTRICAS DE RELATÓRIOS
+// ============================================
+
+/**
+ * GET /api/dashboard/reports/metrics
+ * Métricas consolidadas de relatórios
+ */
+router.get('/reports/metrics', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+
+    // Buscar métricas usando a função SQL
+    const metricsResult = await db.query(
+      `SELECT get_report_metrics($1) as metrics`,
+      [companyId]
+    );
+
+    const metrics = metricsResult.rows[0].metrics;
+
+    // Buscar distribuição por tipo
+    const byTypeResult = await db.query(
+      `SELECT * FROM reports_by_type WHERE company_id = $1 ORDER BY report_count DESC`,
+      [companyId]
+    );
+
+    // Buscar distribuição por recomendação
+    const byRecResult = await db.query(
+      `SELECT * FROM reports_by_recommendation WHERE company_id = $1 ORDER BY report_count DESC`,
+      [companyId]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        metrics,
+        by_type: byTypeResult.rows,
+        by_recommendation: byRecResult.rows
+      }
+    });
+
+  } catch (error) {
+    console.error('[RF7] Erro ao buscar métricas de relatórios:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar métricas de relatórios',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/dashboard/reports/timeline
+ * Timeline de geração de relatórios
+ */
+router.get('/reports/timeline', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+    const { days = 30 } = req.query;
+
+    const result = await db.query(
+      `SELECT * 
+       FROM report_generation_timeline 
+       WHERE company_id = $1 
+         AND generation_date >= CURRENT_DATE - INTERVAL '${parseInt(days)} days'
+       ORDER BY generation_date DESC`,
+      [companyId]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+
+  } catch (error) {
+    console.error('[RF7] Erro ao buscar timeline de relatórios:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar timeline',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/dashboard/reports/by-interview
+ * Relatórios agrupados por entrevista
+ */
+router.get('/reports/by-interview', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+    const { limit = 50 } = req.query;
+
+    const result = await db.query(
+      `SELECT * FROM reports_by_interview WHERE company_id = $1 ORDER BY last_generated_at DESC LIMIT $2`,
+      [companyId, parseInt(limit)]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+
+  } catch (error) {
+    console.error('[RF7] Erro ao buscar relatórios por entrevista:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar relatórios por entrevista',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
 
