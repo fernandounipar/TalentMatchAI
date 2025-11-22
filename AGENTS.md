@@ -827,5 +827,93 @@ Assim você vai fechando o ciclo **FrontEnd → BackEnd → Banco** funcional, t
 
 ---
 
+### RF9 - Dashboard de Acompanhamento (Dashboard Overview & Presets)
+**Status:** ✅ Concluído  
+**Data:** 22/01/2025  
+**Migrations:**
+- ✅ 026_dashboard_presets.sql - Tabela dashboard_presets (16 colunas) + 8 índices + 1 trigger + 1 view (dashboard_presets_overview)
+- ✅ 027_dashboard_metrics_views.sql - 5 views (dashboard_global_overview, dashboard_activity_timeline, dashboard_preset_usage_stats, dashboard_top_presets, dashboard_conversion_funnel) + função get_dashboard_overview() + 3 índices adicionais
+
+**API Endpoints:**
+- ✅ GET /api/dashboard/overview (overview consolidado: 26+ métricas em 1 chamada via get_dashboard_overview function)
+- ✅ GET /api/dashboard/activity-timeline (timeline diária de atividades com 7 métricas: jobs_created, resumes_uploaded, interviews_scheduled, reports_generated, users_registered, total_activities, filtro por days)
+- ✅ GET /api/dashboard/conversion-funnel (funil de conversão por vaga com 8 métricas + 2 taxas calculadas: total_resumes, total_interviews, completed_interviews, approved_candidates, resume_to_interview_rate, interview_to_approval_rate, filtros por status, sort, limit)
+- ✅ POST /api/dashboard/presets (criar preset: salvar configuração customizada de dashboard com filters/layout/preferences JSONB, is_default auto-desmarca outros, validação de nome obrigatório)
+- ✅ GET /api/dashboard/presets (listar presets: próprios + compartilhados com role do usuário, filtros por search/is_shared/is_default, ordenação por usage_count/last_used_at/created_at/name, paginação 20/100)
+- ✅ GET /api/dashboard/presets/:id (buscar preset: incrementa usage_count + atualiza last_used_at, retorna detalhes com user_name/company_name, verificação de acesso: dono OU shared com role)
+- ✅ PUT /api/dashboard/presets/:id (atualizar preset: update dinâmico de qualquer campo, apenas dono pode editar, is_default auto-desmarca outros, validação de pelo menos 1 campo)
+- ✅ DELETE /api/dashboard/presets/:id (soft delete de preset: apenas dono pode deletar, preserva auditoria)
+
+**Documentação:** ✅ RF9_DOCUMENTACAO.md (completa com estrutura de banco, fluxos, troubleshooting, boas práticas)  
+**Testes:** ✅ RF9_DASHBOARD_API_COLLECTION.http (57 requests cobrindo overview, timeline, funil, CRUD presets, E2E, segurança, performance)
+
+**Validação:**
+- ✅ Migration 026 aplicada: dashboard_presets com 16 colunas, 2 FKs (user_id, company_id), 8 índices (user_company, default, shared, GIN search, GIN filters, usage ranking), 1 trigger (update_dashboard_presets_timestamps), 1 view (dashboard_presets_overview), 2 constraints (name_not_empty, usage_count_positive)
+- ✅ Migration 027 aplicada: 5 views funcionais (global_overview com 13 métricas, activity_timeline com 7 métricas diárias, preset_usage_stats com 11 métricas, top_presets com ranking, conversion_funnel com 8 métricas + 2 taxas), get_dashboard_overview() retorna JSON com 3 seções (global, presets, conversion), 3 índices adicionais (jobs/resumes/interviews company_created_date)
+- ⏳ Testes reais contra servidor pendentes
+
+**Estrutura de Dados:**
+- **dashboard_presets:** Configurações customizadas de dashboard (16 colunas):
+  * **id, user_id, company_id, name, description** - Identificação e ownership
+  * **filters** (JSONB): Filtros aplicados (período, status, department, etc) - Flexível sem schema changes
+  * **layout** (JSONB): Layout de widgets e ordenação (widgets array, order, grid config)
+  * **preferences** (JSONB): Preferências visuais (theme, chartType, showLegends, autoRefresh, etc)
+  * **is_default** (BOOLEAN): Se TRUE, carrega automaticamente ao acessar dashboard (apenas 1 por usuário via lógica de desmarcação)
+  * **is_shared** (BOOLEAN): Se TRUE, outros usuários podem ver
+  * **shared_with_roles** (TEXT[]): Roles com acesso (ex: ['ADMIN', 'RECRUITER'])
+  * **usage_count** (INTEGER): Contador de uso (incrementa ao acessar GET /:id)
+  * **last_used_at** (TIMESTAMP): Última vez que foi usado
+  * **created_at, updated_at, deleted_at** - Auditoria completa
+- **5 Views de Métricas:**
+  * **dashboard_global_overview**: 13 métricas consolidadas (total_jobs, active_jobs, total_resumes, total_candidates, total_interviews, completed_interviews, total_reports, total_users, active_users, jobs_last_7_days, resumes_last_7_days, interviews_last_7_days, last_activity_at)
+  * **dashboard_activity_timeline**: Timeline diária com 7 métricas por data (jobs_created, resumes_uploaded, interviews_scheduled, reports_generated, users_registered, total_activities, activity_date)
+  * **dashboard_preset_usage_stats**: 11 métricas de uso de presets (total_presets, default_presets, shared_presets, users_with_presets, total_usage, avg_usage_per_preset, max_usage, used_last_7_days, used_last_30_days, most_recent_usage, most_recent_creation)
+  * **dashboard_top_presets**: Ranking de presets por uso (com ROW_NUMBER particionado por company, usage_rank)
+  * **dashboard_conversion_funnel**: Funil de conversão por vaga (8 métricas + 2 taxas: job_id, job_title, job_status, job_created_at, total_resumes, total_interviews, completed_interviews, approved_candidates, resume_to_interview_rate, interview_to_approval_rate)
+- **Função get_dashboard_overview()**: Retorna JSON com 26+ métricas em 3 seções (global: 13, presets: 8, conversion: 5)
+- **Índices (11 total):** 8 em dashboard_presets (user_company, company, default, shared, GIN search, GIN filters, usage ranking, created_at) + 3 adicionais (jobs/resumes/interviews company_created_date)
+- **Soft Delete:** deleted_at preserva histórico de auditoria
+- **Multitenant:** Isolamento estrito por company_id em todas as queries
+
+**Features:**
+- Overview consolidado com 26+ KPIs de todos os módulos em 1 chamada (performance otimizada)
+- Activity timeline: rastreamento diário de criação de recursos ao longo do tempo (jobs, resumes, interviews, reports, users)
+- Conversion funnel: análise de taxas de conversão (vagas → currículos → entrevistas → aprovações com percentuais calculados)
+- Presets customizáveis: salvar configurações de dashboard com filtros, layout, preferências em JSONB flexível
+- Sistema de sharing: compartilhar presets com roles específicos (is_shared + shared_with_roles array)
+- Tracking de uso: usage_count + last_used_at para analytics de adoção (identificar presets populares)
+- Default preset: marcar 1 preset como default para carregar automaticamente (auto-desmarcação de outros)
+- Busca textual: full-text search em nome + descrição via GIN index
+- Filtros avançados: por search, is_shared, is_default, ordenação por usage_count/last_used_at/created_at/name
+- CRUD completo com validações (nome obrigatório, ownership check, soft delete)
+- Paginação: 20 itens default, max 100
+- Performance: 11 índices otimizados + 5 views agregadas para queries rápidas
+
+**Casos de Uso:**
+1. **Carregar dashboard inicial:** Frontend faz GET /overview → Recebe 26+ métricas consolidadas → Renderiza KPI cards → GET /presets?is_default=true → Aplica filtros/layout salvos
+2. **Salvar configuração customizada:** Usuário ajusta filtros (período, status) + layout (widgets, ordem) + preferências (tema, gráficos) → POST /presets com JSONB → Sistema salva configuração reutilizável
+3. **Compartilhar dashboard com equipe:** Usuário cria preset pessoal → Refina configuração → PUT com is_shared=true + shared_with_roles=['ADMIN','RECRUITER'] → Outros usuários veem na listagem e aplicam mesma configuração
+4. **Analisar tendências:** GET /activity-timeline?days=30 → Visualiza timeline de atividades diárias → Identifica picos/vales → Compara períodos (7 vs 30 vs 90 dias)
+5. **Identificar gargalos no funil:** GET /conversion-funnel?sort=resume_to_interview_rate&order=ASC → Lista vagas com menor taxa de conversão → Identifica problemas (requisitos restritivos, triagem inadequada) → Ajusta vagas → Refaz análise após 2 semanas
+
+**Integração com Outros RFs:**
+- **RF1 (Resumes):** total_resumes, resumes_last_7_days, resumes_uploaded (timeline), resume_to_interview_rate (funil)
+- **RF2 (Jobs):** total_jobs, active_jobs, jobs_last_7_days, jobs_created (timeline), job_id/title/status (funil)
+- **RF3 (Questions):** Usado indiretamente via entrevistas (perguntas geradas para interviews)
+- **RF6 (Assessments):** Usado indiretamente via entrevistas (avaliações das respostas)
+- **RF7 (Reports):** total_reports, reports_generated (timeline), recommendation='APPROVE' (funil)
+- **RF8 (Interviews):** total_interviews, completed_interviews, interviews_last_7_days, interviews_scheduled (timeline), interview_to_approval_rate (funil)
+- **RF10 (Users):** total_users, active_users, users_registered (timeline), user_id (presets ownership), shared_with_roles (sharing)
+
+**Diferenças vs Outros RFs:**
+- RF9: Agrega dados de todos os 7 RFs anteriores em visão consolidada (único RF "meta" que não cria novo domínio)
+- Usa JSONB extensivamente para flexibilidade (filters, layout, preferences sem schema changes futuros)
+- Único RF com sistema de "favorites/bookmarks" (presets são configurações salvas reutilizáveis)
+- Função SQL que retorna JSON (get_dashboard_overview) vs. views simples de outros RFs
+- Foco em analytics e visualização vs. CRUD de recursos de negócio
+- 5 views de métricas vs. 2-3 views em outros RFs (maior complexidade de agregação)
+
+---
+
 ### RF4 - Integração com GitHub API
 **Status:** ⏳ Não iniciado
