@@ -1,14 +1,3 @@
-/**
- * Serviço de IA usando OpenRouter (acesso a múltiplos modelos via API única)
- * 
- * OpenRouter oferece acesso a diversos modelos incluindo:
- * - x-ai/grok-4.1-fast (rápido e eficiente)
- * - anthropic/claude-3.5-sonnet
- * - openai/gpt-4o
- * 
- * Docs: https://openrouter.ai/docs
- */
-
 const https = require('https');
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;

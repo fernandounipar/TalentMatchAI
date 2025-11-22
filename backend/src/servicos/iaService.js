@@ -3,7 +3,7 @@ const { openaiApiKey } = require('../config');
 const db = require('../config/database');
 const openRouterService = require('./openRouterService');
 
-// Cache simples de clientes OpenAI por token para evitar recriar em cada chamada
+// Cache simples de clientes OpenAI por token
 const openaiClientsByToken = new Map();
 
 async function getOpenAIClientForCompany(companyId) {
