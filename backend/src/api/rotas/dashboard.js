@@ -268,5 +268,116 @@ router.get('/jobs/timeline', async (req, res) => {
   }
 });
 
+// ============================================================================
+// MÉTRICAS DE QUESTION SETS (RF3)
+// ============================================================================
+
+router.get('/question-sets/metrics', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+
+    // Chamar função de métricas
+    const metricsResult = await db.query(
+      `SELECT * FROM get_question_set_metrics($1)`,
+      [companyId]
+    );
+
+    // Transformar em objeto
+    const metrics = {};
+    metricsResult.rows.forEach(row => {
+      metrics[row.metric_name] = {
+        value: parseFloat(row.metric_value) || 0,
+        label: row.metric_label
+      };
+    });
+
+    // Estatísticas por status
+    const byTypeResult = await db.query(
+      `SELECT * FROM question_type_distribution WHERE company_id = $1`,
+      [companyId]
+    );
+
+    // Top question sets mais usados
+    const topSetsResult = await db.query(
+      `SELECT * FROM question_sets_usage WHERE company_id = $1 ORDER BY times_used DESC LIMIT 5`,
+      [companyId]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        metrics,
+        by_type: byTypeResult.rows,
+        top_sets: topSetsResult.rows
+      }
+    });
+
+  } catch (error) {
+    console.error('Erro ao buscar métricas de question sets:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar métricas de conjuntos de perguntas',
+      error: error.message
+    });
+  }
+});
+
+// Estatísticas de editing (IA vs Manual)
+router.get('/question-sets/editing-stats', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+
+    const result = await db.query(
+      `SELECT * FROM question_editing_stats WHERE company_id = $1`,
+      [companyId]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows[0] || {
+        ai_generated: 0,
+        manual_created: 0,
+        ai_edited: 0,
+        ai_generated_percentage: 0,
+        ai_edited_percentage: 0,
+        total_questions: 0
+      }
+    });
+
+  } catch (error) {
+    console.error('Erro ao buscar estatísticas de edição:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar estatísticas de edição',
+      error: error.message
+    });
+  }
+});
+
+// Conjuntos por vaga
+router.get('/question-sets/by-job', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+
+    const result = await db.query(
+      `SELECT * FROM question_sets_by_job WHERE company_id = $1 ORDER BY total_questions DESC`,
+      [companyId]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+
+  } catch (error) {
+    console.error('Erro ao buscar conjuntos por vaga:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar conjuntos por vaga',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
 

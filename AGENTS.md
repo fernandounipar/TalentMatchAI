@@ -435,3 +435,86 @@ Se quiser, no próximo passo eu posso:
   * e o ajuste no Flutter (widget) já com exemplo de código.
 
 Assim você vai fechando o ciclo **FrontEnd → BackEnd → Banco** funcional, tela por tela, sempre sem mocks.
+
+---
+
+## ✅ STATUS DE IMPLEMENTAÇÃO
+
+### RF1 - Upload e Análise de Currículos
+**Status:** ✅ Concluído  
+**Migrations:** 012-013  
+**Documentação:** Disponível
+
+### RF2 - Cadastro e Gerenciamento de Vagas (Jobs)
+**Status:** ✅ Concluído  
+**Data:** 22/11/2025  
+**Migrations:**
+- ✅ 014_jobs_add_columns.sql - 13 novas colunas + job_revisions + 5 índices + 2 triggers
+- ✅ 015_job_metrics_views.sql - 5 views + função get_job_metrics() + 8 índices
+
+**API Endpoints:** 
+- ✅ GET /api/jobs (listagem com 11 filtros)
+- ✅ GET /api/jobs/:id (detalhes + histórico de revisões)
+- ✅ POST /api/jobs (criação com auto-publish)
+- ✅ PUT /api/jobs/:id (update dinâmico com versionamento)
+- ✅ DELETE /api/jobs/:id (soft delete)
+- ✅ GET /api/jobs/search/text (busca textual)
+- ✅ GET /api/dashboard/jobs/metrics (métricas consolidadas)
+- ✅ GET /api/dashboard/jobs/timeline (timeline de criação)
+
+**Documentação:** ✅ RF2_DOCUMENTACAO.md (400+ linhas)  
+**Testes:** ✅ RF2_JOBS_API_COLLECTION.http (41 requests)
+
+**Validação:**
+- ✅ Migration 014 aplicada: 25 colunas em jobs, job_revisions criada, 3 triggers ativos
+- ✅ Migration 015 aplicada: 5 views funcionais, get_job_metrics() retorna 7 métricas
+- ✅ Todos endpoints testados e documentados
+
+---
+
+### RF3 - Geração de Perguntas para Entrevistas (Interview Question Sets)
+**Status:** ✅ Concluído  
+**Data:** 22/11/2025  
+**Migrations:**
+- ✅ 016_interview_question_sets.sql - Tabela interview_question_sets (12 colunas) + 6 colunas novas em interview_questions (set_id, type, text, order, updated_at, deleted_at) + 5 índices + 2 triggers
+- ✅ 017_question_metrics_views.sql - 5 views (question_sets_stats, question_sets_by_job, question_type_distribution, question_sets_usage, question_editing_stats) + função get_question_set_metrics() + 2 índices adicionais
+
+**API Endpoints:**
+- ✅ GET /api/interview-question-sets (listagem com filtros por job_id, is_template, busca textual, ordenação)
+- ✅ GET /api/interview-question-sets/:id (detalhes completos + perguntas ordenadas)
+- ✅ POST /api/interview-question-sets (criação manual OU via IA com generate_via_ai: true)
+- ✅ PUT /api/interview-question-sets/:id (update de metadados + edição/adição de perguntas)
+- ✅ DELETE /api/interview-question-sets/:id (soft delete de conjunto + perguntas não usadas)
+- ✅ DELETE /api/interview-question-sets/:setId/questions/:questionId (soft delete de pergunta específica)
+- ✅ GET /api/dashboard/question-sets/metrics (métricas consolidadas: 6 métricas + distribuição por tipo + top 5 sets)
+- ✅ GET /api/dashboard/question-sets/editing-stats (estatísticas de IA vs Manual vs Edited)
+- ✅ GET /api/dashboard/question-sets/by-job (conjuntos agrupados por vaga com breakdown de tipos)
+
+**Documentação:** ✅ RF3_DOCUMENTACAO.md (completa com exemplos, troubleshooting, boas práticas)  
+**Testes:** ✅ RF3_QUESTIONS_API_COLLECTION.http (50+ requests cobrindo CRUD, métricas, validações, segurança, performance, E2E)
+
+**Validação:**
+- ✅ Migration 016 aplicada: interview_question_sets com 12 colunas, interview_questions com 6 novas colunas, 5 índices, 2 triggers
+- ✅ Migration 017 aplicada: 5 views criadas, get_question_set_metrics() retorna 6 métricas, 2 índices adicionais
+- ⏳ Testes reais contra servidor pendentes
+
+**Estrutura de Dados:**
+- **interview_question_sets:** Conjuntos de perguntas (templates ou específicos de vaga/candidato)
+- **interview_questions:** Perguntas individuais com categorização (behavioral, technical, situational, cultural, general), ordenação, origem (ai_generated, manual, ai_edited)
+- **Integração IA:** openRouterService.gerarPerguntasEntrevista(vaga, curriculo) para geração automática
+- **Soft Delete:** Preserva perguntas usadas em entrevistas, permite deletar apenas não-usadas
+- **Multitenant:** Isolamento por company_id em todas as queries
+
+**Features:**
+- Criação manual de conjuntos com perguntas customizadas
+- Geração automática via IA baseada em vaga (com ou sem currículo do candidato)
+- Templates reutilizáveis (is_template: true)
+- Edição de perguntas (texto, tipo, ordem) com tracking de origem
+- Métricas: uso de conjuntos, distribuição por tipo, % IA vs manual, top conjuntos mais usados
+- Filtros avançados: por vaga, template, busca textual, ordenação por data/título
+- Paginação: 20 itens default, max 100
+
+---
+
+### RF4 - Integração com GitHub API
+**Status:** ⏳ Não iniciado
