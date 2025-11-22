@@ -635,5 +635,92 @@ Assim você vai fechando o ciclo **FrontEnd → BackEnd → Banco** funcional, t
 
 ---
 
+### RF8 - Histórico de Entrevistas (Interview History)
+**Status:** ✅ Concluído  
+**Data:** 22/11/2025  
+**Migrations:**
+- ✅ 022_interviews_improvements.sql - Adiciona 11 colunas à tabela interviews (notes, duration_minutes, completed_at, cancelled_at, cancellation_reason, interviewer_id, result, overall_score, metadata, updated_at, deleted_at) + 1 FK (interviewer_id → users) + constraint status atualizado (5 valores: scheduled/in_progress/completed/cancelled/no_show) + 9 índices + 1 trigger (update_interviews_timestamps com auto-fill de completed_at/cancelled_at)
+- ✅ 023_interview_metrics_views.sql - 7 views (interview_stats_overview, interviews_by_status, interviews_by_result, interview_timeline, interviews_by_job, interviews_by_interviewer, interview_completion_rate) + função get_interview_metrics() + 3 índices adicionais
+
+**API Endpoints:**
+- ✅ GET /api/interviews (listagem com 10 filtros: status, result, mode, job_id, candidate_id, interviewer_id, from, to, page, limit)
+- ✅ GET /api/interviews/:id (detalhes completos com interviewer_name)
+- ✅ POST /api/interviews (criação com interviewer_id, notes, metadata)
+- ✅ PUT /api/interviews/:id (update dinâmico com result, overall_score, notes, duration_minutes, cancellation_reason, interviewer_id, metadata, trigger auto-preenche completed_at/cancelled_at)
+- ✅ DELETE /api/interviews/:id (soft delete)
+- ✅ GET /api/dashboard/interviews/metrics (métricas consolidadas: 14 KPIs + distribuição por status + distribuição por resultado)
+- ✅ GET /api/dashboard/interviews/timeline (timeline diária: criadas, scheduled, completed, cancelled, approved, rejected, avg_score, avg_duration)
+- ✅ GET /api/dashboard/interviews/by-job (entrevistas por vaga: total, completed, approved, rejected, avg_score)
+- ✅ GET /api/dashboard/interviews/by-interviewer (entrevistas por entrevistador: total, completed, approved, avg_score, avg_duration)
+- ✅ GET /api/dashboard/interviews/completion-rate (taxa de conclusão diária: total_scheduled, completed, cancelled, no_show, completion_rate, no_show_rate)
+
+**Documentação:** ✅ RF8_DOCUMENTACAO.md (completa com status lifecycle, exemplos, integração com RF2/RF3/RF6/RF7)  
+**Testes:** ✅ RF8_INTERVIEWS_API_COLLECTION.http (70+ requests cobrindo CRUD, filtros, dashboard, validações, segurança, performance, E2E)
+
+**Validação:**
+- ✅ Migration 022 aplicada: interviews com 18 colunas (7 originais + 11 RF8), 1 FK (interviewer_id → users), constraint status atualizado (5 valores), 12 índices, 1 trigger (trigger_update_interviews) ativo
+- ✅ Migration 023 aplicada: 7 views funcionais, get_interview_metrics() retorna 14 métricas, 3 índices adicionais
+- ✅ Conversão PT→EN: Migration 022 converte status antigos (PENDENTE→scheduled, EM_ANDAMENTO→in_progress, CONCLUIDA→completed, CANCELADA→cancelled)
+- ⏳ Testes reais contra servidor pendentes
+
+**Estrutura de Dados:**
+- **interviews (enhanced):** 18 colunas total (7 originais + 11 RF8)
+- **Novos campos RF8:**
+  * notes (TEXT): Observações do entrevistador
+  * duration_minutes (INTEGER): Duração real
+  * completed_at (TIMESTAMP): Auto-preenchido ao concluir (trigger)
+  * cancelled_at (TIMESTAMP): Auto-preenchido ao cancelar (trigger)
+  * cancellation_reason (TEXT): Motivo do cancelamento
+  * interviewer_id (UUID FK→users): Entrevistador responsável
+  * result (TEXT CHECK: approved/rejected/pending/on_hold): Decisão final
+  * overall_score (NUMERIC 4,2 CHECK: 0-10): Score geral
+  * metadata (JSONB): Dados adicionais (meet link, recording, etc)
+  * updated_at (TIMESTAMP): Última atualização (auto-update via trigger)
+  * deleted_at (TIMESTAMP): Soft delete
+- **Status lifecycle:** scheduled → in_progress → completed/cancelled/no_show
+- **Result tracking:** approved/rejected/pending/on_hold (separado de status)
+- **Trigger auto-fill:** Ao mudar status para 'completed', preenche completed_at; ao mudar para 'cancelled', preenche cancelled_at
+- **Soft Delete:** deleted_at preserva histórico, filtro WHERE deleted_at IS NULL em listagens
+- **Multitenant:** Isolamento por company_id em todas as queries
+
+**Features:**
+- CRUD completo com suporte aos 11 novos campos RF8
+- Filtros avançados: status, result, mode, interviewer_id, job_id, candidate_id, período (from/to)
+- Soft delete preserva histórico completo
+- Atribuição de entrevistador (interviewer_id) para tracking de workload
+- Registro de resultado (approved/rejected/pending/on_hold) separado de status
+- Score geral da entrevista (0-10) com constraint
+- Duração real em minutos para análise de tempo
+- Notas/observações do entrevistador para contexto
+- Metadata JSONB para campos customizados (meet link, location, etc)
+- Trigger automático para timestamps (updated_at, completed_at, cancelled_at)
+- Dashboard com 5 endpoints de métricas:
+  * Métricas consolidadas (14 KPIs incluindo approval_rate, rejection_rate, avg_score, avg_duration)
+  * Timeline diária (volume de criação, conclusão, cancelamento ao longo do tempo)
+  * Entrevistas por vaga (comparação de performance de recrutamento)
+  * Entrevistas por entrevistador (workload e performance individual)
+  * Taxa de conclusão (scheduled vs completed vs cancelled vs no_show)
+- 7 views de métricas para agregações eficientes
+- Paginação: 50 itens default, max 50
+
+**Casos de Uso:**
+1. **Agendar entrevista:** Recrutador seleciona vaga + candidato → Define horário, modo (online/presencial), entrevistador → Sistema cria application (se não existir) + interview + calendar_event
+2. **Conduzir entrevista:** Entrevistador lista entrevistas do dia → Inicia (status=in_progress) → Durante: faz perguntas, registra respostas, sistema avalia (RF6) → Conclui (status=completed, result, score, duration, notes)
+3. **Analisar performance:** Gestor acessa dashboard → Visualiza KPIs (total, aprovação%, rejeição%, scores) → Analisa timeline (tendências temporais) → Compara vagas (qual vaga tem melhor taxa?) → Avalia entrevistadores (quem tem mais aprovações?) → Identifica gargalos (no-show rate alto?)
+4. **Cancelar entrevista:** Recrutador/candidato cancela → Define cancellation_reason → Sistema marca cancelled_at automaticamente (trigger) → Opcional: notificação
+
+**Integração com Outros RFs:**
+- **RF2 (Jobs):** interviews.application_id → applications.job_id → jobs.id; view interviews_by_job agrega por vaga
+- **RF3 (Questions):** interviews.id ← interview_questions.interview_id; perguntas geradas para entrevista
+- **RF6 (Assessments):** interviews.id ← live_assessments.interview_id; overall_score pode ser média dos assessments
+- **RF7 (Reports):** interviews.id ← interview_reports.interview_id; relatório final gerado ao concluir
+
+**Diferenças vs RF7:**
+- RF7: Criou nova tabela (interview_reports) do zero
+- RF8: Melhorou tabela existente (interviews) com 11 novas colunas
+- interviews.js já tinha CRUD básico → RF8 expandiu com novos campos e filtros
+
+---
+
 ### RF4 - Integração com GitHub API
 **Status:** ⏳ Não iniciado

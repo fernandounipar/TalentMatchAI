@@ -605,5 +605,225 @@ router.get('/reports/by-interview', async (req, res) => {
   }
 });
 
+// =============================================
+// RF8 - INTERVIEW HISTORY ENDPOINTS
+// =============================================
+
+/**
+ * GET /api/dashboard/interviews/metrics
+ * Métricas consolidadas de histórico de entrevistas
+ */
+router.get('/interviews/metrics', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+
+    // Usar função get_interview_metrics() criada na migration 023
+    const metricsResult = await db.query(
+      `SELECT get_interview_metrics($1) as metrics`,
+      [companyId]
+    );
+
+    const metrics = metricsResult.rows[0]?.metrics || {};
+
+    // Buscar distribuição por status da view interviews_by_status
+    const byStatusResult = await db.query(
+      `SELECT status, interview_count, avg_score, avg_duration
+       FROM interviews_by_status
+       WHERE company_id = $1
+       ORDER BY interview_count DESC`,
+      [companyId]
+    );
+
+    // Buscar distribuição por resultado da view interviews_by_result
+    const byResultResult = await db.query(
+      `SELECT result, interview_count, avg_score, completed_count
+       FROM interviews_by_result
+       WHERE company_id = $1
+       ORDER BY interview_count DESC`,
+      [companyId]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        ...metrics,
+        by_status: byStatusResult.rows,
+        by_result: byResultResult.rows
+      }
+    });
+
+  } catch (error) {
+    console.error('[RF8] Erro ao buscar métricas de entrevistas:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar métricas',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/dashboard/interviews/timeline?days=30
+ * Timeline de entrevistas criadas/concluídas/canceladas
+ */
+router.get('/interviews/timeline', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+    const { days = 30 } = req.query;
+
+    const result = await db.query(
+      `SELECT 
+         interview_date,
+         interviews_created,
+         scheduled,
+         completed,
+         cancelled,
+         approved,
+         rejected,
+         avg_score,
+         avg_duration
+       FROM interview_timeline
+       WHERE company_id = $1
+         AND interview_date >= current_date - interval '${parseInt(days)} days'
+       ORDER BY interview_date DESC`,
+      [companyId]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+
+  } catch (error) {
+    console.error('[RF8] Erro ao buscar timeline de entrevistas:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar timeline',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/dashboard/interviews/by-job?limit=20
+ * Entrevistas agrupadas por vaga
+ */
+router.get('/interviews/by-job', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+    const { limit = 20 } = req.query;
+
+    const result = await db.query(
+      `SELECT 
+         job_id,
+         job_title,
+         total_interviews,
+         completed_interviews,
+         approved_count,
+         rejected_count,
+         avg_score,
+         last_interview_date
+       FROM interviews_by_job
+       WHERE company_id = $1
+       ORDER BY total_interviews DESC
+       LIMIT $2`,
+      [companyId, parseInt(limit)]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+
+  } catch (error) {
+    console.error('[RF8] Erro ao buscar entrevistas por vaga:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar entrevistas por vaga',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/dashboard/interviews/by-interviewer?limit=20
+ * Entrevistas agrupadas por entrevistador
+ */
+router.get('/interviews/by-interviewer', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+    const { limit = 20 } = req.query;
+
+    const result = await db.query(
+      `SELECT 
+         interviewer_id,
+         interviewer_name,
+         total_interviews,
+         completed_count,
+         approved_count,
+         avg_score,
+         avg_duration
+       FROM interviews_by_interviewer
+       WHERE company_id = $1
+       ORDER BY total_interviews DESC
+       LIMIT $2`,
+      [companyId, parseInt(limit)]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+
+  } catch (error) {
+    console.error('[RF8] Erro ao buscar entrevistas por entrevistador:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar entrevistas por entrevistador',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/dashboard/interviews/completion-rate?days=30
+ * Taxa de conclusão de entrevistas ao longo do tempo
+ */
+router.get('/interviews/completion-rate', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+    const { days = 30 } = req.query;
+
+    const result = await db.query(
+      `SELECT 
+         scheduled_date,
+         total_scheduled,
+         completed,
+         cancelled,
+         no_show,
+         completion_rate,
+         no_show_rate
+       FROM interview_completion_rate
+       WHERE company_id = $1
+         AND scheduled_date >= current_date - interval '${parseInt(days)} days'
+       ORDER BY scheduled_date DESC`,
+      [companyId]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+
+  } catch (error) {
+    console.error('[RF8] Erro ao buscar taxa de conclusão:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar taxa de conclusão',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
 
