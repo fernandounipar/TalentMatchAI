@@ -516,5 +516,59 @@ Assim você vai fechando o ciclo **FrontEnd → BackEnd → Banco** funcional, t
 
 ---
 
+### RF6 - Avaliação em Tempo Real das Respostas (Live Assessments)
+**Status:** ✅ Concluído  
+**Data:** 22/11/2025  
+**Migrations:**
+- ✅ 018_live_assessments.sql - Tabela live_assessments (19 colunas) + 6 índices + 1 trigger + 1 função
+- ✅ 019_assessment_metrics_views.sql - 5 views + função get_assessment_metrics() + 2 índices adicionais
+
+**API Endpoints:**
+- ✅ POST /api/live-assessments (criação automática via IA ou manual)
+- ✅ GET /api/live-assessments (listagem com 7 filtros: interview_id, status, type, sort, page, limit)
+- ✅ GET /api/live-assessments/:id (detalhes completos com contexto)
+- ✅ PUT /api/live-assessments/:id (ajuste manual de score/feedback)
+- ✅ DELETE /api/live-assessments/:id (soft delete/invalidar)
+- ✅ GET /api/live-assessments/interview/:interview_id (todas avaliações de uma entrevista + stats)
+- ✅ GET /api/dashboard/assessments/metrics (métricas consolidadas: 8 métricas + distribuição + concordância)
+- ✅ GET /api/dashboard/assessments/timeline (timeline diária de avaliações)
+- ✅ GET /api/dashboard/assessments/by-interview (últimas 50 entrevistas com stats)
+
+**Documentação:** ✅ RF6_DOCUMENTACAO.md (completa com exemplos, fluxos, troubleshooting)  
+**Testes:** ✅ RF6_ASSESSMENTS_API_COLLECTION.http (45+ requests cobrindo CRUD, métricas, validações, performance, E2E)
+
+**Validação:**
+- ✅ Migration 018 aplicada: live_assessments com 19 colunas, 8 índices, 1 trigger (update_live_assessments_timestamps), 1 função, 11 constraints
+- ✅ Migration 019 aplicada: 5 views funcionais, get_assessment_metrics() retorna 8 métricas, 2 índices adicionais
+- ⏳ Testes reais contra servidor pendentes
+
+**Estrutura de Dados:**
+- **live_assessments:** Sistema de avaliação dual (IA + humano) com score_auto, score_manual, score_final (calculado automaticamente via trigger)
+- **Feedback estruturado:** feedback_auto (JSONB: {nota, feedback, pontosFortesResposta, pontosMelhoria}), feedback_manual (TEXT)
+- **Categorização:** assessment_type (behavioral, technical, situational, cultural, general)
+- **Status:** pending → auto_evaluated → manually_adjusted → validated/invalidated
+- **Integração IA:** openRouterService.avaliarResposta(pergunta, resposta) para avaliação automática
+- **Soft Delete:** Preserva histórico de auditoria (deleted_at + status='invalidated')
+- **Multitenant:** Isolamento por company_id em todas as queries
+
+**Features:**
+- Criação automática com avaliação via IA (auto_evaluate: true)
+- Criação manual sem IA (auto_evaluate: false)
+- Input flexível: question_id/answer_id OU question_text/answer_text
+- Ajuste manual de scores pelo recrutador com tracking de quem/quando ajustou
+- Métricas de concordância IA vs humano (diferença <= 1 ponto = concordante)
+- Timeline de performance diária
+- Tempo de resposta do candidato (response_time_seconds)
+- Estatísticas por entrevista (total, média, min/max scores)
+- Filtros avançados: por entrevista, status, tipo, ordenação customizada
+- Paginação: 20 itens default, max 100
+
+**Casos de Uso:**
+1. **Durante entrevista:** Candidato responde → Sistema avalia via IA → Recrutador vê score em tempo real
+2. **Ajuste manual:** Recrutador revisa avaliações → Ajusta score/feedback → Sistema recalcula score_final automaticamente
+3. **Análise de qualidade:** Dashboard mostra concordância IA vs humano → Identifica padrões → Ajusta prompts da IA
+
+---
+
 ### RF4 - Integração com GitHub API
 **Status:** ⏳ Não iniciado

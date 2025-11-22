@@ -1,0 +1,303 @@
+# ============================================================================
+# RF6 - Live Assessments API Collection
+# TalentMatchIA - Avaliação em Tempo Real das Respostas
+# ============================================================================
+
+@baseUrl = http://localhost:4000/api
+@token = {{$dotenv AUTH_TOKEN}}
+
+# ============================================================================
+# SEÇÃO 1: AUTENTICAÇÃO
+# ============================================================================
+
+### 1.1. Login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@talentmatch.com",
+  "password": "Admin@123"
+}
+
+# ============================================================================
+# SEÇÃO 2: CRIAR ASSESSMENTS (CRUD Básico)
+# ============================================================================
+
+### 2.1. Criar avaliação automática (com IA)
+# NOTA: Requer interview_id, question_id (ou question_text), answer_id (ou answer_text) válidos
+POST {{baseUrl}}/live-assessments
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "interview_id": "SUBSTITUIR_POR_INTERVIEW_ID_REAL",
+  "question_id": "SUBSTITUIR_POR_QUESTION_ID_REAL",
+  "answer_text": "Eu utilizaria uma abordagem de microsserviços com Docker e Kubernetes. Primeiro, dividiria a aplicação em serviços menores baseados em domínios. Implementaria API Gateway para roteamento e load balancing. Usaria Redis para cache distribuído e PostgreSQL para persistência. Para observabilidade, implementaria Prometheus e Grafana.",
+  "assessment_type": "technical",
+  "response_time_seconds": 180,
+  "auto_evaluate": true
+}
+
+### 2.2. Criar avaliação manual (sem IA)
+POST {{baseUrl}}/live-assessments
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "interview_id": "SUBSTITUIR_POR_INTERVIEW_ID_REAL",
+  "question_text": "Como você lida com feedback negativo da sua equipe?",
+  "answer_text": "Eu sempre procuro ouvir atentamente e entender o contexto. Valorizo o feedback como oportunidade de crescimento.",
+  "assessment_type": "behavioral",
+  "response_time_seconds": 90,
+  "auto_evaluate": false
+}
+
+### 2.3. Criar com question_id e answer_id (IDs de banco)
+POST {{baseUrl}}/live-assessments
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "interview_id": "SUBSTITUIR_POR_INTERVIEW_ID_REAL",
+  "question_id": "SUBSTITUIR_POR_QUESTION_ID_REAL",
+  "answer_id": "SUBSTITUIR_POR_ANSWER_ID_REAL",
+  "assessment_type": "situational",
+  "response_time_seconds": 120,
+  "auto_evaluate": true
+}
+
+### 2.4. Validação: interview_id obrigatório
+POST {{baseUrl}}/live-assessments
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "question_text": "Sem interview_id, deve falhar",
+  "answer_text": "Resposta"
+}
+
+# ============================================================================
+# SEÇÃO 3: LISTAR ASSESSMENTS (Filtros e Paginação)
+# ============================================================================
+
+### 3.1. Listar todas as avaliações
+GET {{baseUrl}}/live-assessments
+Authorization: Bearer {{token}}
+
+### 3.2. Listar com paginação
+GET {{baseUrl}}/live-assessments?page=1&limit=10
+Authorization: Bearer {{token}}
+
+### 3.3. Filtrar por entrevista
+GET {{baseUrl}}/live-assessments?interview_id=SUBSTITUIR_POR_INTERVIEW_ID_REAL
+Authorization: Bearer {{token}}
+
+### 3.4. Filtrar por status
+GET {{baseUrl}}/live-assessments?status=auto_evaluated
+Authorization: Bearer {{token}}
+
+### 3.5. Filtrar por tipo
+GET {{baseUrl}}/live-assessments?assessment_type=technical
+Authorization: Bearer {{token}}
+
+### 3.6. Ordenação por score (maior para menor)
+GET {{baseUrl}}/live-assessments?sort_by=score_final&order=DESC
+Authorization: Bearer {{token}}
+
+### 3.7. Filtros combinados
+GET {{baseUrl}}/live-assessments?interview_id=XXX&status=manually_adjusted&sort_by=score_final&order=ASC
+Authorization: Bearer {{token}}
+
+### 3.8. Listar avaliações de uma entrevista específica (endpoint dedicado)
+GET {{baseUrl}}/live-assessments/interview/SUBSTITUIR_POR_INTERVIEW_ID_REAL
+Authorization: Bearer {{token}}
+
+# ============================================================================
+# SEÇÃO 4: DETALHAMENTO (GET por ID)
+# ============================================================================
+
+### 4.1. Obter detalhes completos de uma avaliação
+GET {{baseUrl}}/live-assessments/SUBSTITUIR_POR_ASSESSMENT_ID_REAL
+Authorization: Bearer {{token}}
+
+# ============================================================================
+# SEÇÃO 5: ATUALIZAR ASSESSMENTS (Ajuste Manual)
+# ============================================================================
+
+### 5.1. Ajustar score manualmente
+PUT {{baseUrl}}/live-assessments/SUBSTITUIR_POR_ASSESSMENT_ID_REAL
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "score_manual": 8.5,
+  "feedback_manual": "Resposta técnica bem fundamentada. Demonstrou conhecimento de arquitetura distribuída. Poderia ter detalhado mais sobre estratégias de fallback."
+}
+
+### 5.2. Adicionar apenas feedback manual (sem alterar score)
+PUT {{baseUrl}}/live-assessments/SUBSTITUIR_POR_ASSESSMENT_ID_REAL
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "feedback_manual": "Candidato demonstrou boa comunicação e clareza nas respostas."
+}
+
+### 5.3. Alterar status para validated
+PUT {{baseUrl}}/live-assessments/SUBSTITUIR_POR_ASSESSMENT_ID_REAL
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "validated"
+}
+
+### 5.4. Ajuste completo (score + feedback + status)
+PUT {{baseUrl}}/live-assessments/SUBSTITUIR_POR_ASSESSMENT_ID_REAL
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "score_manual": 9.0,
+  "feedback_manual": "Excelente resposta. Candidato demonstrou profundo conhecimento técnico e capacidade de comunicação.",
+  "status": "validated"
+}
+
+# ============================================================================
+# SEÇÃO 6: DELETAR (Invalidar)
+# ============================================================================
+
+### 6.1. Invalidar avaliação
+DELETE {{baseUrl}}/live-assessments/SUBSTITUIR_POR_ASSESSMENT_ID_REAL
+Authorization: Bearer {{token}}
+
+### 6.2. Tentar invalidar inexistente (deve retornar 404)
+DELETE {{baseUrl}}/live-assessments/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}
+
+# ============================================================================
+# SEÇÃO 7: MÉTRICAS E DASHBOARD
+# ============================================================================
+
+### 7.1. Obter métricas consolidadas de assessments
+GET {{baseUrl}}/dashboard/assessments/metrics
+Authorization: Bearer {{token}}
+
+### 7.2. Timeline de avaliações (últimos 30 dias)
+GET {{baseUrl}}/dashboard/assessments/timeline?days=30
+Authorization: Bearer {{token}}
+
+### 7.3. Timeline últimos 7 dias
+GET {{baseUrl}}/dashboard/assessments/timeline?days=7
+Authorization: Bearer {{token}}
+
+### 7.4. Assessments por entrevista (últimas 50)
+GET {{baseUrl}}/dashboard/assessments/by-interview
+Authorization: Bearer {{token}}
+
+# ============================================================================
+# SEÇÃO 8: VALIDAÇÕES E SEGURANÇA
+# ============================================================================
+
+### 8.1. Tentar criar sem autenticação (deve retornar 401)
+POST {{baseUrl}}/live-assessments
+Content-Type: application/json
+
+{
+  "interview_id": "xxx",
+  "question_text": "Sem autorização",
+  "answer_text": "Resposta"
+}
+
+### 8.2. Tentar atualizar com token inválido (deve retornar 401)
+PUT {{baseUrl}}/live-assessments/xxx
+Authorization: Bearer TOKEN_INVALIDO
+Content-Type: application/json
+
+{
+  "score_manual": 10
+}
+
+### 8.3. Tentar acessar assessment de outra company (deve retornar 404)
+GET {{baseUrl}}/live-assessments/ASSESSMENT_ID_DE_OUTRA_COMPANY
+Authorization: Bearer {{token}}
+
+### 8.4. Tentar deletar sem permissão ADMIN (deve retornar 403)
+# NOTA: Login com usuário RECRUITER antes de testar
+DELETE {{baseUrl}}/live-assessments/SUBSTITUIR_POR_ASSESSMENT_ID_REAL
+Authorization: Bearer {{token}}
+
+# ============================================================================
+# SEÇÃO 9: PERFORMANCE E EDGE CASES
+# ============================================================================
+
+### 9.1. Listar com limite máximo (100)
+GET {{baseUrl}}/live-assessments?limit=100
+Authorization: Bearer {{token}}
+
+### 9.2. Tentar limite acima do máximo (deve limitar a 100)
+GET {{baseUrl}}/live-assessments?limit=500
+Authorization: Bearer {{token}}
+
+### 9.3. Criar avaliação com score_manual já definido
+POST {{baseUrl}}/live-assessments
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "interview_id": "SUBSTITUIR_POR_INTERVIEW_ID_REAL",
+  "question_text": "Pergunta teste",
+  "answer_text": "Resposta teste",
+  "assessment_type": "general",
+  "auto_evaluate": false
+}
+
+### 9.4. Busca com filtros que não retornam resultados
+GET {{baseUrl}}/live-assessments?status=invalidated&assessment_type=cultural
+Authorization: Bearer {{token}}
+
+# ============================================================================
+# SEÇÃO 10: FLUXO COMPLETO (E2E)
+# ============================================================================
+
+### 10.1. [FLUXO] Passo 1: Criar avaliação automática
+POST {{baseUrl}}/live-assessments
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "interview_id": "SUBSTITUIR_POR_INTERVIEW_ID_REAL",
+  "question_text": "Explique o conceito de event-driven architecture e quando você usaria.",
+  "answer_text": "Event-driven architecture é um padrão onde componentes se comunicam através de eventos. É útil para sistemas distribuídos que precisam de baixo acoplamento. Eu usaria em casos de microsserviços, processamento assíncrono e integração entre sistemas. Por exemplo, em um e-commerce, quando uma compra é finalizada, um evento pode disparar processos de pagamento, estoque e notificação em paralelo.",
+  "assessment_type": "technical",
+  "response_time_seconds": 200,
+  "auto_evaluate": true
+}
+
+### 10.2. [FLUXO] Passo 2: Listar todas as avaliações da entrevista
+GET {{baseUrl}}/live-assessments/interview/SUBSTITUIR_POR_INTERVIEW_ID_REAL
+Authorization: Bearer {{token}}
+
+### 10.3. [FLUXO] Passo 3: Ajustar score manualmente
+PUT {{baseUrl}}/live-assessments/SUBSTITUIR_POR_ASSESSMENT_ID_CRIADO_NO_PASSO_1
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "score_manual": 9.5,
+  "feedback_manual": "Excelente resposta técnica. Candidato demonstrou conhecimento profundo e forneceu exemplo prático relevante.",
+  "status": "validated"
+}
+
+### 10.4. [FLUXO] Passo 4: Ver detalhes da avaliação ajustada
+GET {{baseUrl}}/live-assessments/SUBSTITUIR_POR_ASSESSMENT_ID_CRIADO_NO_PASSO_1
+Authorization: Bearer {{token}}
+
+### 10.5. [FLUXO] Passo 5: Ver métricas consolidadas
+GET {{baseUrl}}/dashboard/assessments/metrics
+Authorization: Bearer {{token}}
+
+# ============================================================================
+# FIM DA COLEÇÃO RF6
+# Total: 45+ requests
+# ============================================================================
