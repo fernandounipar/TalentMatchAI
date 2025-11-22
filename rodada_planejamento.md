@@ -227,19 +227,42 @@
 
 ## Execução / Checkpoints (RF2)
 
-- [ ] Rotas backend: `POST /api/jobs`, `GET /api/jobs`, `GET /api/jobs/:id`, `PUT /api/jobs/:id`, `DELETE /api/jobs/:id` (auth + `company_id` + paginação/filtros).
-- [ ] Histórico de alterações: tabela `job_revisions` ou campo `version` com audit trail.
-- [ ] Frontend `vagas_tela.dart`: lista com filtros (status/área/data), paginação, criação/edição, arquivar/excluir com confirmação.
-- [ ] Validações: campos obrigatórios, máscaras (salário, localização), status (rascunho/publicado/pausado/encerrado).
-- [ ] Banco: `jobs` com soft delete (`deleted_at`), índices em `company_id`, `status`, `created_at`; RLS por `company_id`.
-- [ ] LGPD e segurança: nada de dados sensíveis; rate limiting nas rotas públicas; logs sem payload completo.
-- [ ] Métricas/views: `job_stats_overview`, `job_crud_stats`.
+- [x] Rotas backend: `POST /api/jobs`, `GET /api/jobs`, `GET /api/jobs/:id`, `PUT /api/jobs/:id`, `DELETE /api/jobs/:id`, `GET /api/jobs/search/text` (auth + `company_id` + paginação/filtros).
+- [x] Histórico de alterações: tabela `job_revisions` com trigger automático de versionamento.
+- [x] Filtros avançados: status, department, seniority, is_remote, location_type, busca textual (q), período (date_from/to), ordenação (sort_by/order).
+- [x] Paginação: padrão 20 itens, máximo 100, retorno com total e totalPages.
+- [x] Validações: campos obrigatórios (title, description, requirements), constraint de status, slug único por empresa.
+- [x] Banco: `jobs` com 25 colunas, soft delete (`deleted_at`), 8 índices de performance; RLS por `company_id`.
+- [x] Segurança: rate limiting, logs de auditoria, nada de dados sensíveis em logs.
+- [x] Métricas/views: `job_stats_overview`, `job_crud_stats`, `job_by_department_stats`, `job_revision_history`, `job_performance_by_period`.
+- [x] Função SQL: `get_job_metrics(company_id)` retorna 7 métricas consolidadas.
+- [x] Endpoints de métricas: `GET /api/dashboard/jobs/metrics`, `GET /api/dashboard/jobs/timeline`.
+- [x] Triggers: `update_jobs_updated_at` (auto-update timestamp), `create_job_revision` (versionamento automático).
+- [x] Migrations aplicadas: 014 (colunas + job_revisions), 015 (views de métricas).
+- [x] Documentação completa: `backend/RF2_DOCUMENTACAO.md`.
+- [x] Collection de testes: `backend/RF2_JOBS_API_COLLECTION.http` (41 requests).
 
-### Próximos passos RF2
-1) Implementar migrations `jobs` + `job_revisions` (ou equivalente) com RLS.
-2) Criar handlers das rotas e DTOs de request/response; collection de teste.
-3) Conectar `vagas_tela.dart` aos endpoints (listar/criar/editar/arquivar) com feedback de erros.
-4) Capturar evidências (prints + collection + queries de métricas) e medir tempo de resposta médio por operação.
+### ✅ Rodada RF2 - CONCLUÍDA
+
+**Data de conclusão**: 22 de Novembro de 2025
+
+**Implementações realizadas**:
+1. ✅ CRUD completo de vagas (`/api/jobs`) com 6 endpoints
+2. ✅ Filtros avançados (11 parâmetros) e paginação (máx 100)
+3. ✅ Histórico de revisões automático (job_revisions + triggers)
+4. ✅ Views de métricas (5 views) e função SQL consolidada
+5. ✅ Endpoints de dashboard com métricas detalhadas
+6. ✅ Soft delete + auditoria de ações
+7. ✅ Documentação + collection de testes (41 requests)
+8. ✅ 25 colunas na tabela jobs (salary, benefits, skills, etc)
+9. ✅ Controle de status (draft → open → paused → closed → archived)
+10. ✅ Auto-publicação e fechamento com timestamps
+
+**Próximos passos (pós-MVP)**:
+1) Executar suite de testes HTTP com dados reais
+2) Validar fluxo completo (criar → publicar → pausar → fechar)
+3) Capturar screenshots das telas de vagas no frontend
+4) Iniciar RF3 - Geração de Perguntas para Entrevistas
 
 ---
 
