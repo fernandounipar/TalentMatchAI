@@ -1,0 +1,437 @@
+## Contextualização
+
+O cenário atual de recrutamento e seleção é marcado por desafios crescentes na identificação de candidatos qualificados. Problemas como o grande volume de currículos para triagem manual, o tempo significativo gasto na análise de documentos e as inconsistências de informações impactam diretamente a eficiência do processo.
+
+A **Inteligência Artificial (IA)** e os **Large Language Models (LLMs)** oferecem uma oportunidade transformadora para o RH. Nesse contexto, uma ferramenta que atue como **assistente inteligente do recrutador**, e não como substituto, surge como uma solução promissora.
+
+---
+
+## Objetivos
+
+O objetivo central é desenvolver o **TalentMatchIA** para otimizar e dar suporte técnico ao recrutamento, capacitando o RH a tomar decisões mais assertivas.
+
+A ferramenta irá:
+
+* Analisar currículos;
+* Gerar perguntas estratégicas para entrevistas;
+* Fornecer relatórios objetivos durante e após as entrevistas;
+
+sempre com o apoio da **Inteligência Artificial**.
+
+Essa abordagem reduz a lacuna de experiência técnica entre recrutadores e candidatos, garantindo um processo seletivo mais **ágil, justo e preciso**.
+
+---
+
+## Proposta do Projeto
+
+O **TalentMatchIA** será uma ferramenta **Web**, desenvolvida com tecnologias modernas, atuando como assistente inteligente do recrutador. Seu papel principal é oferecer apoio técnico especializado na:
+
+* Análise de currículos;
+* Condução de entrevistas;
+* Avaliação de perfis profissionais.
+
+Para garantir uma plataforma escalável e segura, a arquitetura técnica será baseada em:
+
+* **Flutter Web** para o Front-End;
+* **Node.js** para o Back-End;
+* **PostgreSQL** como banco de dados;
+* Integração com **APIs de IA**, como a OpenAI API, para processamento inteligente.
+
+---
+
+## Levantamento de Requisitos
+
+### Requisitos Funcionais
+
+* **RF1**: Upload e análise de currículos (PDF/TXT). **(MVP)**
+* **RF2**: Cadastro e gerenciamento de vagas. **(MVP)**
+* **RF3**: Geração de perguntas para entrevistas. **(MVP)**
+* **RF4**: Integração opcional com GitHub API.
+* **RF5**: Transcrição de áudio da entrevista.
+* **RF6**: Avaliação em tempo real das respostas.
+* **RF7**: Relatórios detalhados de entrevistas. **(MVP)**
+* **RF8**: Histórico de entrevistas. **(MVP)**
+* **RF9**: Dashboard de acompanhamento. **(MVP)**
+* **RF10**: Gerenciamento de usuários (recrutadores/gestores). **(MVP)**
+
+---
+
+### Requisitos Não Funcionais
+
+* **RNF1**: Resposta em até 10 segundos na análise de currículos. **(MVP)**
+* **RNF2**: Interface simples e intuitiva para o RH. **(MVP)**
+* **RNF3**: Segurança com criptografia e conformidade com LGPD/GDPR.
+* **RNF4**: Disponibilidade mínima de 99,5%.
+* **RNF5**: Escalabilidade para grandes volumes de dados.
+* **RNF6**: Código modular e documentado. **(MVP)**
+* **RNF7**: Compatibilidade com os principais navegadores.
+* **RNF8**: Acurácia mínima de 85% na análise de IA.
+* **RNF9**: Registro de logs para auditoria.
+
+Vou organizar isso como um plano de implementação mesmo, já pensando no que vi no teu projeto (Flutter Web + Node.js + PostgreSQL) **e** no layout “TalentMatchIA Layout Design – Figma” (aquele projeto em React/Vite que simula o Figma).
+
+> Foco: deixar tudo alinhado com o layout do Figma, **sem dados mockados**, só vindo do banco via API.
+
+---
+
+## 1. FrontEnd – Flutter Web (lib/…)
+
+### Task FE-01 – Shell de navegação igual ao Figma
+
+Aplicar o mesmo “esqueleto” visual do projeto Figma (Sidebar + Header + conteúdo).
+
+* [ ] Criar um widget `AppShell` (ou equivalente) com:
+
+  * Sidebar fixa (ícones + textos: Dashboard, Vagas, Currículos, Entrevistas, Relatórios, Configurações).
+  * Header/topbar com:
+
+    * Logo do TalentMatchIA,
+    * Título da página atual,
+    * Busca global (campo de pesquisa),
+    * Avatar/ícone do usuário logado.
+* [ ] Envolver as telas principais (`dashboard_tela.dart`, `vagas_tela.dart`, `candidatos_tela...dart`, `entrevistas_tela.dart`, `historico_tela.dart`) dentro desse `AppShell`.
+* [ ] Garantir que cores, tipografia, espaçamentos usem apenas o `design_system` (`tm_colors.dart`, `tm_text.dart`) para ficar consistente com o Figma.
+
+---
+
+### Task FE-02 – Dashboard alinhado ao layout Figma
+
+Deixar `dashboard_tela.dart` parecido com o `DashboardOverview` do projeto Figma.
+
+* [ ] Criar cards de métricas principais:
+
+  * Vagas abertas,
+  * Processos em andamento,
+  * Entrevistas realizadas no período,
+  * Taxa de aprovação / conversão (ou outra métrica que o backend entregar).
+* [ ] Implementar blocos de lista:
+
+  * Lista de vagas recentes com status,
+  * Lista de candidatos em destaque / últimos analisados.
+* [ ] Conectar tudo com **endpoint real** do backend (`GET /dashboard/overview` por exemplo), sem arrays fixos na tela.
+* [ ] Adicionar estados de carregamento/erro (loading spinner, mensagem de erro, etc.).
+
+---
+
+### Task FE-03 – Tela de Vagas seguindo o “VagasPage”
+
+Refinar `vagas_tela.dart` com base em `VagasPage.tsx` / `VacancyManagement.tsx`.
+
+* [ ] Layout:
+
+  * Cabeçalho com título, botão **“Nova vaga”** e filtros (status, senioridade, palavra-chave).
+  * Listagem em cards ou tabela, com colunas semelhantes ao Figma: título, nível, tipo, status, data.
+* [ ] Integração:
+
+  * Usar somente `ApiCliente.vagas()` (ou equivalente) para listar vagas, sem listas mockadas.
+  * Conectar formulário de criação/edição com endpoints `POST/PUT /jobs` (ou `/vagas` – definir padrão no backend).
+* [ ] Adicionar paginação/scroll infinito simples, se o backend já expuser `page/limit`.
+
+---
+
+### Task FE-04 – Upload & Análise de Currículo (RF1)
+
+Ajustar `upload_curriculo_tela.dart` para ficar próximo à `CurriculosPage` + `CurriculumAnalysis` do Figma.
+
+* [ ] Criar área de upload com:
+
+  * Zona de “arrastar e soltar” + botão “Selecionar arquivo”,
+  * Indicação de formatos suportados (PDF/TXT) e limite de tamanho.
+* [ ] Após o upload:
+
+  * Mostrar card de análise com:
+
+    * Nome do candidato,
+    * Vaga relacionada (se houver),
+    * Principais skills extraídas,
+    * Score/aderência à vaga (se backend retornar).
+* [ ] Integração:
+
+  * Enviar arquivo para endpoint real `POST /curriculos/upload` (ou definido no backend).
+  * Exibir progresso de envio (se possível) e resultado retornado via JSON (sem nenhum dado fixo na tela).
+* [ ] Tratar erros da IA/análise (mensagem amigável para o recrutador).
+
+---
+
+### Task FE-05 – Tela de Entrevistas & Perguntas (RF3, RF5, RF6, RF8)
+
+Refinar `entrevistas_tela.dart` com base em `EntrevistasPage`, `InterviewQuestions` e `InterviewHistory`.
+
+* [ ] Seções:
+
+  * Lista de entrevistas (cards ou tabela),
+  * Painel de detalhes à direita (informações do candidato + vaga),
+  * Aba de perguntas geradas pela IA + respostas do candidato.
+* [ ] Integração:
+
+  * Listar entrevistas via `GET /interviews`.
+  * Ao criar uma nova entrevista:
+
+    * Selecionar vaga + candidato,
+    * Chamar endpoint de geração de perguntas (`POST /interviews/{id}/perguntas` ou similar).
+  * Mostrar avaliação da resposta (score, tags: pontos fortes, pontos de atenção).
+* [ ] Preparar espaço/UI para futura integração de transcrição de áudio (RF5),
+  mesmo que no MVP ainda seja só texto.
+
+---
+
+### Task FE-06 – Histórico & Relatórios (RF7, RF8, RF9)
+
+Trabalhar `historico_tela.dart` e uma possível tela de relatórios.
+
+* [ ] Tabela de histórico de entrevistas:
+
+  * Filtros por vaga, candidato, período, status.
+  * Colunas com data, vaga, candidato, resultado (Aprovado/Em análise/Reprovado).
+* [ ] Tela/aba de Relatórios:
+
+  * Gráficos ou cards de:
+
+    * Tempo médio por etapa,
+    * Taxa de aprovação por vaga,
+    * Volume de currículos analisados.
+* [ ] Integração:
+
+  * Histórico via `GET /interviews/history` (ou similar).
+  * Resumo/relatórios via endpoint `/reports/overview` ou `/dashboard/relatorios`.
+* [ ] Nada de dados estáticos: tudo vem do banco.
+
+---
+
+### Task FE-07 – Autenticação, Usuários e Multitenant (RF10)
+
+Ajustar login e contexto do usuário para usar o backend real.
+
+* [ ] Garantir que `login_tela.dart` esteja usando o endpoint real de login (`POST /auth/login`), salvando:
+
+  * access_token,
+  * refresh_token,
+  * dados do usuário (nome, e-mail, empresa).
+* [ ] Configurar interceptors de HTTP em Flutter para:
+
+  * anexar o token em cada requisição,
+  * tentar refresh automático se o token expirar.
+* [ ] Exibir no header:
+
+  * Nome do usuário,
+  * Empresa atual (company),
+  * Futuro seletor de empresa (se tiver multitenant com mais de uma company por usuário).
+* [ ] Garantir que as telas só exibam dados da company do usuário logado.
+
+---
+
+### Task FE-08 – Remoção de qualquer mock restante
+
+Varredura geral no frontend Flutter e no projeto Figma em React.
+
+* [ ] Remover:
+
+  * listas estáticas de vagas/candidatos/histórico usadas só para protótipo,
+  * dados de exemplo deixados em `AppState` ou `ChangeNotifier`.
+* [ ] Onde precisar de dados para componentes visuais (ex.: cards do dashboard), criar endpoints específicos no backend e ajustar o Flutter para chamá-los.
+* [ ] Manter o projeto React/Vite apenas como **referência visual**, sem impactar a aplicação final.
+
+---
+
+## 2. BackEnd – Node.js (backend/src/…)
+
+### Task BE-01 – Consolidar modelo de domínio (Jobs vs Vagas, Candidates, etc.)
+
+Hoje aparecem nomes como `jobs`, `vagas`, `candidates`, `applications`. É hora de consolidar.
+
+* [ ] Definir nomenclatura oficial:
+
+  * `jobs` = `vagas`?
+  * `applications` = candidaturas do candidato à vaga?
+* [ ] Ajustar:
+
+  * Tabelas no banco (renomear se necessário),
+  * Models/queries SQL nos repositórios,
+  * Rotas (`/jobs`, `/candidates`, `/applications`, `/curriculos`, `/interviews`).
+* [ ] Atualizar o Flutter para chamar os endpoints com os nomes finais.
+
+---
+
+### Task BE-02 – Fechar CRUDs principais (RF1, RF2, RF3, RF7, RF8, RF10)
+
+Para cada recurso, garantir CRUD completo e alinhado ao front:
+
+1. **Usuários / Autenticação**
+
+   * [ ] `/auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/forgot`, `/auth/reset`.
+   * [ ] `/usuarios` para gestão de usuários (apenas admins).
+   * [ ] Garantir hash de senha, roles, vínculo com `company_id`.
+
+2. **Companies (Multitenant)**
+
+   * [ ] `/companies` – criação de empresa, associação de usuário à empresa.
+   * [ ] Middleware para carregar `company_id` a partir do token.
+
+3. **Vagas (Jobs)**
+
+   * [ ] `/jobs` – listar, criar, atualizar, arquivar/excluir.
+   * [ ] Filtros por status, senioridade, palavra-chave.
+
+4. **Candidatos**
+
+   * [ ] `/candidates` – CRUD básico.
+   * [ ] Vínculo com currículos e candidaturas.
+
+5. **Currículos**
+
+   * [ ] `/curriculos/upload` – upload + criação de registro no banco.
+   * [ ] `/curriculos/{id}` – detalhes e análise aplicada.
+
+6. **Entrevistas**
+
+   * [ ] `/interviews` – criar entrevista vinculando vaga + candidato.
+   * [ ] Endpoints para geração de perguntas, registro de respostas, encerramento da entrevista.
+
+7. **Relatórios / Dashboard**
+
+   * [ ] `/dashboard/overview` – métricas agregadas.
+   * [ ] `/reports/…` – endpoints específicos de relatório se necessário.
+
+---
+
+### Task BE-03 – IA Service alinhado aos requisitos (RF1, RF3, RF6, RF8)
+
+Deixar `iaService.js` sólido e padronizado:
+
+* [ ] Definir **contrato de entrada e saída** para:
+
+  * `analisarCurriculo` (skills, experiência, aderência à vaga, senioridade sugerida),
+  * `gerarPerguntasEntrevista` (lista de perguntas classificadas por competência),
+  * `avaliarResposta` (score + observações + tags).
+* [ ] Garantir que os endpoints de currículos/entrevistas chamem o `iaService` e gravem:
+
+  * resultado estruturado em tabelas específicas (`analysis`, `interview_questions`, `interview_feedbacks` etc.).
+* [ ] Tratar:
+
+  * timeouts da OpenAI,
+  * respostas inválidas,
+  * logs para debugging (sem gravar dados sensíveis em log).
+
+---
+
+### Task BE-04 – Autenticação, segurança e multitenant (RNF3, RNF5, RNF9)
+
+* [ ] Confirmar que o middleware de autenticação:
+
+  * extrai `user_id` e `company_id` do token,
+  * injeta isso no `req` para todas as rotas.
+* [ ] Garantir que **todas as queries** usam `company_id` como filtro.
+* [ ] Implementar:
+
+  * rate limiting (já existe algo, revisar configuração),
+  * logs estruturados (request ID, usuário, rota).
+* [ ] Auditar dados sensíveis:
+
+  * não retornar e-mails/senhas onde não for necessário,
+  * aplicar LGPD/GDPR na devolução de dados.
+
+---
+
+### Task BE-05 – Integração com PostgreSQL (sem mocks)
+
+* [ ] Remover quaisquer repositórios em memória usados só para teste.
+* [ ] Garantir que todos os serviços leiam/escrevam exclusivamente no PostgreSQL (JDBC/pg-promise/knex, conforme o que você já está usando).
+* [ ] Ajustar repositórios para:
+
+  * usar transações quando criar registros em cascata (ex.: entrevista + perguntas + análise),
+  * tratar erros de constraint (FKs, unique) de forma amigável.
+
+---
+
+### Task BE-06 – Endpoints para Dashboard e Relatórios (RF7, RF8, RF9)
+
+* [ ] Criar funções SQL (ou views) para:
+
+  * contagem de vagas abertas/fechadas,
+  * número de entrevistas no período,
+  * taxa de aprovação por vaga ou por etapa.
+* [ ] Expor esses dados em endpoints:
+
+  * `GET /dashboard/overview`,
+  * `GET /dashboard/kpis` (se precisar segmentar).
+* [ ] Ajustar contratos de resposta de forma simples para o Flutter consumir.
+
+---
+
+## 3. Banco de Dados – PostgreSQL (scripts/sql/…)
+
+### Task DB-01 – Revisar e aplicar o schema completo
+
+* [ ] Rodar os scripts na ordem correta (ex.: `001_schema.sql`, depois os demais de roles, multitenant, domain tables).
+* [ ] Conferir se todas as tabelas necessárias para os requisitos estão presentes:
+
+  * users, companies, jobs/vagas,
+  * candidates, resumes/curriculos,
+  * interviews, interview_questions, interview_answers,
+  * analysis/relatorios, ingestion_jobs (se usado).
+* [ ] Ajustar tipos (ex.: `UUID` para IDs, `JSONB` para campos de análise IA) conforme necessidade.
+
+---
+
+### Task DB-02 – Multitenant & segurança de dados
+
+* [ ] Garantir que todos os registros possuem `company_id`.
+* [ ] Configurar Row-Level Security (RLS) ou políticas equivalentes:
+
+  * cada usuário só enxerga dados da própria empresa.
+* [ ] Criar índices em:
+
+  * `company_id`,
+  * campos mais filtrados (status, vaga_id, candidate_id, created_at).
+
+---
+
+### Task DB-03 – Suporte ao Dashboard e Relatórios
+
+* [ ] Criar **views** ou **materialized views** para:
+
+  * resumo do dashboard (KPIs),
+  * histórico de entrevistas,
+  * taxa de conversão por vaga.
+* [ ] Otimizar consultas pesadas com índices e, se necessário, agregações pré-calculadas.
+
+---
+
+### Task DB-04 – Dados de exemplo reais (sem mocks no código)
+
+> Lembrando: os dados de teste podem existir **somente no banco**, nunca codificados no frontend/backend.
+
+* [ ] Criar script de seed (ex.: `009_seed_mvp.sql`) com:
+
+  * 1 empresa de exemplo,
+  * 1–2 usuários recrutadores,
+  * algumas vagas,
+  * alguns candidatos + currículos,
+  * algumas entrevistas concluídas.
+* [ ] Usar esses dados de seed para alimentar as telas (Dashboard, Vagas, Currículos, Entrevistas, Histórico).
+
+---
+
+### Task DB-05 – Logs & auditoria (RNF9)
+
+* [ ] Criar tabelas de log/auditoria (se ainda não existir):
+
+  * login/logout,
+  * ações críticas (criação de vaga, exclusão de entrevista etc.).
+* [ ] Garantir que o backend grave os registros nessas tabelas.
+
+---
+
+## 4. Como seguir a partir daqui
+
+Se quiser, no próximo passo eu posso:
+
+* pegar **uma tela por vez** (por exemplo, Dashboard) e
+* te entregar:
+
+  * o contrato da API,
+  * o SQL da view no Postgres,
+  * o endpoint Node.js,
+  * e o ajuste no Flutter (widget) já com exemplo de código.
+
+Assim você vai fechando o ciclo **FrontEnd → BackEnd → Banco** funcional, tela por tela, sempre sem mocks.

@@ -5,7 +5,7 @@ import '../modelos/analise_curriculo.dart';
 
 /// Bloco reutilizável para exibir o resultado da análise de currículo
 /// usando apenas dados reais vindos do backend.
-class AnaliseCurriculoResultado extends StatelessWidget {
+class AnaliseCurriculoResultado extends StatefulWidget {
   final AnaliseCurriculo analise;
   final Map<String, dynamic>? analiseBruta;
   final Map<String, dynamic>? candidato;
@@ -23,6 +23,24 @@ class AnaliseCurriculoResultado extends StatelessWidget {
     this.onGerarPerguntas,
   });
 
+  @override
+  State<AnaliseCurriculoResultado> createState() => _AnaliseCurriculoResultadoState();
+}
+
+class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
+  final TextEditingController _dataController = TextEditingController();
+  final TextEditingController _horaController = TextEditingController();
+  bool _mostrarAgendamento = false;
+  bool _mostrarAprovacao = false;
+  bool _mostrarReprovacao = false;
+
+  @override
+  void dispose() {
+    _dataController.dispose();
+    _horaController.dispose();
+    super.dispose();
+  }
+
   String? _stringFrom(dynamic value) {
     if (value == null) return null;
     if (value is String && value.trim().isNotEmpty) return value.trim();
@@ -39,7 +57,7 @@ class AnaliseCurriculoResultado extends StatelessWidget {
 
   List<String> _listFromKeys(List<String> keys) {
     for (final key in keys) {
-      final value = analiseBruta?[key];
+      final value = widget.analiseBruta?[key];
       if (value is List) {
         return value
             .map((e) => e.toString().trim())
@@ -58,7 +76,7 @@ class AnaliseCurriculoResultado extends StatelessWidget {
   }
 
   List<Map<String, String>> _experienciasDetalhadas() {
-    final raw = analiseBruta?['experiencias'] ?? analiseBruta?['experiences'];
+    final raw = widget.analiseBruta?['experiencias'] ?? widget.analiseBruta?['experiences'];
     final List<Map<String, String>> parsed = [];
 
     if (raw is List) {
@@ -80,6 +98,60 @@ class AnaliseCurriculoResultado extends StatelessWidget {
     if (parsed.isEmpty) {
       final simples = _listFromKeys(['experiences', 'experiencia', 'experiencias']);
       parsed.addAll(simples.map((e) => {'descricao': e}));
+    }
+    return parsed;
+  }
+
+  List<Map<String, String>> _educacaoDetalhada() {
+    final raw = widget.analiseBruta?['educacao'] ?? widget.analiseBruta?['education'];
+    final List<Map<String, String>> parsed = [];
+
+    if (raw is List) {
+      for (final item in raw) {
+        if (item is Map) {
+          parsed.add({
+            'curso': _stringFrom(item['curso']) ?? _stringFrom(item['course']) ?? '',
+            'instituicao': _stringFrom(item['instituicao']) ?? _stringFrom(item['institution']) ?? '',
+            'periodo': _stringFrom(item['periodo']) ?? _stringFrom(item['period']) ?? '',
+            'status': _stringFrom(item['status']) ?? '',
+          });
+        } else if (item is String) {
+          parsed.add({'curso': item});
+        }
+      }
+    }
+
+    // Se não veio estruturado, converte lista simples
+    if (parsed.isEmpty) {
+      final simples = _listFromKeys(['education', 'formacao', 'educacao']);
+      parsed.addAll(simples.map((e) => {'curso': e}));
+    }
+    return parsed;
+  }
+
+  List<Map<String, String>> _certificacoesDetalhadas() {
+    final raw = widget.analiseBruta?['certificacoes'] ?? widget.analiseBruta?['certifications'];
+    final List<Map<String, String>> parsed = [];
+
+    if (raw is List) {
+      for (final item in raw) {
+        if (item is Map) {
+          parsed.add({
+            'nome': _stringFrom(item['nome']) ?? _stringFrom(item['name']) ?? '',
+            'instituicao': _stringFrom(item['instituicao']) ?? _stringFrom(item['institution']) ?? '',
+            'ano': _stringFrom(item['ano']) ?? _stringFrom(item['year']) ?? '',
+            'cargaHoraria': _stringFrom(item['cargaHoraria']) ?? _stringFrom(item['hours']) ?? '',
+          });
+        } else if (item is String) {
+          parsed.add({'nome': item});
+        }
+      }
+    }
+
+    // Se não veio estruturado, converte lista simples
+    if (parsed.isEmpty) {
+      final simples = _listFromKeys(['certifications', 'certificacoes']);
+      parsed.addAll(simples.map((e) => {'nome': e}));
     }
     return parsed;
   }
@@ -140,29 +212,31 @@ class AnaliseCurriculoResultado extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final score = analise.matchingScore.clamp(0, 100);
-    final recomendacao = analise.recomendacao;
+    final score = widget.analise.matchingScore.clamp(0, 100);
+    final recomendacao = widget.analise.recomendacao;
     final resumo = _firstNonEmpty([
-      analiseBruta?['summary'],
-      analiseBruta?['resumo'],
-      analiseBruta?['experiencia'],
-      analise.resumo,
+      widget.analiseBruta?['summary'],
+      widget.analiseBruta?['resumo'],
+      widget.analiseBruta?['experiencia'],
+      widget.analise.resumo,
     ]);
 
     final candidatoNome = _firstNonEmpty([
-      candidato?['nome'],
-      candidato?['full_name'],
-      candidato?['name'],
+      widget.candidato?['nome'],
+      widget.candidato?['full_name'],
+      widget.candidato?['name'],
     ]);
-    final email = _firstNonEmpty([candidato?['email']]);
-    final telefone = _firstNonEmpty([candidato?['telefone'], candidato?['phone']]);
-    final vagaTitulo = _firstNonEmpty([vaga?['title'], vaga?['titulo']]);
+    final email = _firstNonEmpty([widget.candidato?['email']]);
+    final telefone = _firstNonEmpty([widget.candidato?['telefone'], widget.candidato?['phone']]);
+    final github = _firstNonEmpty([widget.candidato?['github']]);
+    final linkedin = _firstNonEmpty([widget.candidato?['linkedin']]);
+    final vagaTitulo = _firstNonEmpty([widget.vaga?['title'], widget.vaga?['titulo']]);
 
     final skills = _listFromKeys(['skills', 'keywords']);
     final softSkills = _listFromKeys(['softSkills', 'soft_skills', 'softskills', 'comportamentais']);
     final experienciasDetalhadas = _experienciasDetalhadas();
-    final formacoes = _listFromKeys(['education', 'formacao', 'educacao']);
-    final certificacoes = _listFromKeys(['certifications', 'certificacoes']);
+    final formacoesDetalhadas = _educacaoDetalhada();
+    final certificacoesDetalhadas = _certificacoesDetalhadas();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -173,8 +247,9 @@ class AnaliseCurriculoResultado extends StatelessWidget {
           candidatoNome: candidatoNome,
           email: email,
           telefone: telefone,
+          github: github,
+          linkedin: linkedin,
           vagaTitulo: vagaTitulo,
-          resumo: resumo,
         ),
         if (experienciasDetalhadas.isNotEmpty) ...[
           const SizedBox(height: 16),
@@ -225,21 +300,59 @@ class AnaliseCurriculoResultado extends StatelessWidget {
             ),
           ),
         ],
-        if (formacoes.isNotEmpty) ...[
+        if (formacoesDetalhadas.isNotEmpty) ...[
           const SizedBox(height: 16),
           _sectionCard(
             title: 'Formação Acadêmica',
             icon: Icons.school_outlined,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: formacoes
-                  .map(
-                    (f) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Text(f),
-                    ),
-                  )
-                  .toList(),
+              children: formacoesDetalhadas.map((formacao) {
+                final titulo = [
+                  formacao['curso'],
+                  if ((formacao['instituicao'] ?? '').isNotEmpty) formacao['instituicao'],
+                ].where((e) => e != null && e.isNotEmpty).join(' • ');
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              titulo.isEmpty ? 'Formação' : titulo,
+                              style: const TextStyle(fontWeight: FontWeight.w700),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if ((formacao['periodo'] ?? '').isNotEmpty)
+                            Text(
+                              formacao['periodo']!,
+                              style: const TextStyle(
+                                color: TMTokens.secondary,
+                                fontSize: 13,
+                              ),
+                            ),
+                        ],
+                      ),
+                      if ((formacao['status'] ?? '').isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          formacao['status']!,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontStyle: FontStyle.italic,
+                            color: TMTokens.secondary,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                );
+              }).toList(),
             ),
           ),
         ],
@@ -284,13 +397,13 @@ class AnaliseCurriculoResultado extends StatelessWidget {
             ),
           ),
         ],
-        if (analise.aderenciaRequisitos.isNotEmpty) ...[
+        if (widget.analise.aderenciaRequisitos.isNotEmpty) ...[
           const SizedBox(height: 16),
           _sectionCard(
             title: 'Aderência aos Requisitos',
             icon: Icons.track_changes,
             child: Column(
-              children: analise.aderenciaRequisitos
+              children: widget.analise.aderenciaRequisitos
                   .map(
                     (item) => Padding(
                       padding: const EdgeInsets.only(bottom: 14),
@@ -345,57 +458,66 @@ class AnaliseCurriculoResultado extends StatelessWidget {
             ),
           ),
         ],
-        if (certificacoes.isNotEmpty) ...[
+        if (certificacoesDetalhadas.isNotEmpty) ...[
           const SizedBox(height: 16),
           _sectionCard(
             title: 'Certificações',
             icon: Icons.workspace_premium_outlined,
             child: Column(
-              children: certificacoes
-                  .map(
-                    (c) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.check_circle, size: 18, color: TMTokens.success),
-                          const SizedBox(width: 8),
-                          Expanded(child: Text(c)),
-                        ],
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: certificacoesDetalhadas.map((cert) {
+                final titulo = [
+                  cert['nome'],
+                  if ((cert['instituicao'] ?? '').isNotEmpty) cert['instituicao'],
+                ].where((e) => e != null && e.isNotEmpty).join(' • ');
+
+                final detalhes = [
+                  if ((cert['ano'] ?? '').isNotEmpty) cert['ano'],
+                  if ((cert['cargaHoraria'] ?? '').isNotEmpty) cert['cargaHoraria'],
+                ].where((e) => e != null && e.isNotEmpty).join(' • ');
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        titulo.isEmpty ? 'Certificação' : titulo,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
-                    ),
-                  )
-                  .toList(),
+                      if (detalhes.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          detalhes,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: TMTokens.secondary,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                );
+              }).toList(),
             ),
           ),
         ],
         const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: FilledButton.icon(
-                onPressed: onAprovar,
-                icon: const Icon(Icons.check_circle_outline),
-                label: const Text('Aprovar Candidato'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF16A34A),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: OutlinedButton(
-                onPressed: onGerarPerguntas,
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  side: const BorderSide(color: TMTokens.border),
-                ),
-                child: const Text('Gerar Perguntas de Entrevista'),
-              ),
-            ),
-          ],
-        ),
+        _buildActions(candidatoNome, vagaTitulo, email, telefone, github, linkedin),
+        if (_mostrarAgendamento) ...[
+          const SizedBox(height: 12),
+          _buildAgendamentoCard(candidatoNome, vagaTitulo, email, telefone, github, linkedin),
+        ],
+        if (_mostrarAprovacao) ...[
+          const SizedBox(height: 12),
+          _buildStatusCard('Aprovado', Colors.green.shade100, Colors.green.shade800, candidatoNome,
+              vagaTitulo, email, telefone, github, linkedin),
+        ],
+        if (_mostrarReprovacao) ...[
+          const SizedBox(height: 12),
+          _buildStatusCard('Reprovado', Colors.red.shade100, Colors.red.shade800, candidatoNome,
+              vagaTitulo, email, telefone, github, linkedin),
+        ],
       ],
     );
   }
@@ -479,8 +601,9 @@ class AnaliseCurriculoResultado extends StatelessWidget {
     required String candidatoNome,
     required String? email,
     required String? telefone,
+    required String? github,
+    required String? linkedin,
     required String? vagaTitulo,
-    required String resumo,
   }) {
     final nomeDisplay = candidatoNome.isEmpty ? 'Nome não informado' : candidatoNome;
     final vagaDisplay = (vagaTitulo != null && vagaTitulo.isNotEmpty) ? vagaTitulo : 'Vaga não informada';
@@ -513,7 +636,7 @@ class AnaliseCurriculoResultado extends StatelessWidget {
               children: [
                 const Icon(Icons.mail_outlined, size: 18, color: TMTokens.secondary),
                 const SizedBox(width: 8),
-                Text(emailDisplay),
+                Expanded(child: Text(emailDisplay)),
               ],
             ),
           ),
@@ -523,19 +646,220 @@ class AnaliseCurriculoResultado extends StatelessWidget {
               children: [
                 const Icon(Icons.phone_outlined, size: 18, color: TMTokens.secondary),
                 const SizedBox(width: 8),
-                Text(telefoneDisplay),
+                Expanded(child: Text(telefoneDisplay)),
               ],
             ),
           ),
-          if (resumo.isNotEmpty)
+          if (github != null && github.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                resumo,
-                style: const TextStyle(color: TMTokens.secondary),
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  const Icon(Icons.code, size: 18, color: TMTokens.secondary),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(github)),
+                ],
+              ),
+            ),
+          if (linkedin != null && linkedin.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  const Icon(Icons.link, size: 18, color: TMTokens.secondary),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(linkedin)),
+                ],
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildActions(
+    String candidatoNome,
+    String? vagaTitulo,
+    String? email,
+    String? telefone,
+    String? github,
+    String? linkedin,
+  ) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: FilledButton(
+                onPressed: () {
+                  setState(() {
+                    _mostrarAgendamento = true;
+                    _mostrarAprovacao = false;
+                    _mostrarReprovacao = false;
+                  });
+                },
+                child: const Text('Agendar Entrevista'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () {
+                  setState(() {
+                    _mostrarAgendamento = false;
+                    _mostrarAprovacao = true;
+                    _mostrarReprovacao = false;
+                  });
+                  widget.onAprovar?.call();
+                },
+                child: const Text('Aprovar Candidato'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () {
+                  setState(() {
+                    _mostrarAgendamento = false;
+                    _mostrarAprovacao = false;
+                    _mostrarReprovacao = true;
+                  });
+                },
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: TMTokens.error),
+                  foregroundColor: TMTokens.error,
+                ),
+                child: const Text('Reprovar'),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAgendamentoCard(
+    String candidatoNome,
+    String? vagaTitulo,
+    String? email,
+    String? telefone,
+    String? github,
+    String? linkedin,
+  ) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: const [
+                Icon(Icons.event_available, color: TMTokens.primary),
+                SizedBox(width: 8),
+                Text(
+                  'Agendar Entrevista',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _buildCandidatoCard(
+              candidatoNome: candidatoNome,
+              email: email,
+              telefone: telefone,
+              github: github,
+              linkedin: linkedin,
+              vagaTitulo: vagaTitulo,
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _dataController,
+                    decoration: const InputDecoration(
+                      labelText: 'Data',
+                      hintText: 'dd/mm/aaaa',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: _horaController,
+                    decoration: const InputDecoration(
+                      labelText: 'Horário',
+                      hintText: '14:00',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Agendamento registrado localmente.'),
+                    ),
+                  );
+                },
+                child: const Text('Salvar agendamento'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusCard(
+    String status,
+    Color bg,
+    Color fg,
+    String candidatoNome,
+    String? vagaTitulo,
+    String? email,
+    String? telefone,
+    String? github,
+    String? linkedin,
+  ) {
+    return Card(
+      color: bg,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  status == 'Reprovado' ? Icons.cancel_outlined : Icons.check_circle_outline,
+                  color: fg,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  status,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: fg,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _buildCandidatoCard(
+              candidatoNome: candidatoNome,
+              email: email,
+              telefone: telefone,
+              github: github,
+              linkedin: linkedin,
+              vagaTitulo: vagaTitulo,
+            ),
+          ],
+        ),
       ),
     );
   }
