@@ -379,5 +379,118 @@ router.get('/question-sets/by-job', async (req, res) => {
   }
 });
 
+// ============================================================================
+// MÉTRICAS DE ASSESSMENTS (RF6)
+// ============================================================================
+
+router.get('/assessments/metrics', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+
+    // Chamar função de métricas
+    const metricsResult = await db.query(
+      `SELECT * FROM get_assessment_metrics($1)`,
+      [companyId]
+    );
+
+    // Transformar em objeto
+    const metrics = {};
+    metricsResult.rows.forEach(row => {
+      metrics[row.metric_name] = {
+        value: parseFloat(row.metric_value) || 0,
+        label: row.metric_label
+      };
+    });
+
+    // Distribuição por tipo
+    const byTypeResult = await db.query(
+      `SELECT * FROM assessment_type_distribution WHERE company_id = $1`,
+      [companyId]
+    );
+
+    // Concordância IA vs Humano
+    const concordanceResult = await db.query(
+      `SELECT * FROM assessment_concordance_stats WHERE company_id = $1`,
+      [companyId]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        metrics,
+        by_type: byTypeResult.rows,
+        concordance: concordanceResult.rows[0] || {
+          dual_scored_count: 0,
+          avg_score_difference: 0,
+          concordance_rate: 0,
+          discordance_rate: 0
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Erro ao buscar métricas de assessments:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar métricas de avaliações',
+      error: error.message
+    });
+  }
+});
+
+// Timeline de avaliações
+router.get('/assessments/timeline', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+    const { days = 30 } = req.query;
+
+    const result = await db.query(
+      `SELECT * FROM assessment_performance_timeline 
+       WHERE company_id = $1 
+       AND assessment_date >= now() - interval '${parseInt(days)} days'
+       ORDER BY assessment_date DESC`,
+      [companyId]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+
+  } catch (error) {
+    console.error('Erro ao buscar timeline de assessments:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar timeline de avaliações',
+      error: error.message
+    });
+  }
+});
+
+// Estatísticas por entrevista
+router.get('/assessments/by-interview', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+
+    const result = await db.query(
+      `SELECT * FROM assessment_by_interview WHERE company_id = $1 ORDER BY interview_date DESC LIMIT 50`,
+      [companyId]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+
+  } catch (error) {
+    console.error('Erro ao buscar assessments por entrevista:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar avaliações por entrevista',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
 
