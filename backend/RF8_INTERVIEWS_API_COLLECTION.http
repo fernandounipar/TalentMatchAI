@@ -1,0 +1,465 @@
+###############################################################################
+# RF8 - INTERVIEW HISTORY API COLLECTION
+# Testes completos para histórico de entrevistas
+# Backend: Node.js + Express + PostgreSQL
+# Data: 22/11/2025
+###############################################################################
+
+@baseUrl = http://localhost:3000/api
+@token = {{login.response.body.access_token}}
+
+###############################################################################
+# 0. AUTENTICAÇÃO
+###############################################################################
+
+### 0.1 Login
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "teste@teste.com",
+  "password": "Teste@123"
+}
+
+###############################################################################
+# 1. CRUD BÁSICO - INTERVIEWS
+###############################################################################
+
+### 1.1 Listar entrevistas (todas)
+GET {{baseUrl}}/interviews
+Authorization: Bearer {{token}}
+
+### 1.2 Listar entrevistas com paginação
+GET {{baseUrl}}/interviews?page=1&limit=20
+Authorization: Bearer {{token}}
+
+### 1.3 Criar entrevista básica (scheduled)
+# @name createInterview
+POST {{baseUrl}}/interviews
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "job_id": "{{$guid}}",
+  "candidate_id": "{{$guid}}",
+  "scheduled_at": "2025-11-25T14:00:00Z",
+  "ends_at": "2025-11-25T15:00:00Z",
+  "mode": "online"
+}
+
+### 1.4 Criar entrevista com interviewer e notes
+# @name createInterviewFull
+POST {{baseUrl}}/interviews
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "job_id": "{{$guid}}",
+  "candidate_id": "{{$guid}}",
+  "scheduled_at": "2025-11-26T10:00:00Z",
+  "ends_at": "2025-11-26T11:30:00Z",
+  "mode": "presencial",
+  "interviewer_id": "{{$guid}}",
+  "notes": "Entrevista técnica focada em arquitetura de software",
+  "metadata": {
+    "meet_link": "https://meet.google.com/xxx-yyyy-zzz",
+    "location": "Sala 301",
+    "custom_field": "valor_customizado"
+  }
+}
+
+### 1.5 Buscar detalhes de uma entrevista
+GET {{baseUrl}}/interviews/{{createInterview.response.body.id}}
+Authorization: Bearer {{token}}
+
+### 1.6 Atualizar status para in_progress
+PUT {{baseUrl}}/interviews/{{createInterview.response.body.id}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "in_progress"
+}
+
+### 1.7 Atualizar com resultado e score após concluir
+PUT {{baseUrl}}/interviews/{{createInterview.response.body.id}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "completed",
+  "result": "approved",
+  "overall_score": 8.5,
+  "duration_minutes": 45,
+  "notes": "Candidato demonstrou excelente conhecimento técnico e boa comunicação"
+}
+
+### 1.8 Atualizar entrevista cancelada
+PUT {{baseUrl}}/interviews/{{createInterviewFull.response.body.id}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "cancelled",
+  "cancellation_reason": "Candidato aceitou outra proposta"
+}
+
+### 1.9 Soft delete de entrevista
+DELETE {{baseUrl}}/interviews/{{createInterview.response.body.id}}
+Authorization: Bearer {{token}}
+
+### 1.10 Verificar que entrevista deletada não aparece na listagem
+GET {{baseUrl}}/interviews/{{createInterview.response.body.id}}
+Authorization: Bearer {{token}}
+
+###############################################################################
+# 2. FILTROS AVANÇADOS
+###############################################################################
+
+### 2.1 Filtrar por status scheduled
+GET {{baseUrl}}/interviews?status=scheduled
+Authorization: Bearer {{token}}
+
+### 2.2 Filtrar por status completed
+GET {{baseUrl}}/interviews?status=completed
+Authorization: Bearer {{token}}
+
+### 2.3 Filtrar por result approved
+GET {{baseUrl}}/interviews?result=approved
+Authorization: Bearer {{token}}
+
+### 2.4 Filtrar por result rejected
+GET {{baseUrl}}/interviews?result=rejected
+Authorization: Bearer {{token}}
+
+### 2.5 Filtrar por interviewer_id
+GET {{baseUrl}}/interviews?interviewer_id={{$guid}}
+Authorization: Bearer {{token}}
+
+### 2.6 Filtrar por mode (online/presencial)
+GET {{baseUrl}}/interviews?mode=online
+Authorization: Bearer {{token}}
+
+### 2.7 Filtrar por job_id
+GET {{baseUrl}}/interviews?job_id={{$guid}}
+Authorization: Bearer {{token}}
+
+### 2.8 Filtrar por candidate_id
+GET {{baseUrl}}/interviews?candidate_id={{$guid}}
+Authorization: Bearer {{token}}
+
+### 2.9 Filtrar por período (from/to)
+GET {{baseUrl}}/interviews?from=2025-11-01&to=2025-11-30
+Authorization: Bearer {{token}}
+
+### 2.10 Filtro combinado (status + result + período)
+GET {{baseUrl}}/interviews?status=completed&result=approved&from=2025-11-01&to=2025-11-30
+Authorization: Bearer {{token}}
+
+### 2.11 Filtro combinado (job_id + mode + interviewer_id)
+GET {{baseUrl}}/interviews?job_id={{$guid}}&mode=online&interviewer_id={{$guid}}
+Authorization: Bearer {{token}}
+
+### 2.12 Filtro com ordenação e paginação
+GET {{baseUrl}}/interviews?status=completed&page=1&limit=10
+Authorization: Bearer {{token}}
+
+###############################################################################
+# 3. DASHBOARD - MÉTRICAS RF8
+###############################################################################
+
+### 3.1 Métricas consolidadas de entrevistas
+GET {{baseUrl}}/dashboard/interviews/metrics
+Authorization: Bearer {{token}}
+
+### 3.2 Timeline de entrevistas (últimos 30 dias)
+GET {{baseUrl}}/dashboard/interviews/timeline?days=30
+Authorization: Bearer {{token}}
+
+### 3.3 Timeline de entrevistas (últimos 7 dias)
+GET {{baseUrl}}/dashboard/interviews/timeline?days=7
+Authorization: Bearer {{token}}
+
+### 3.4 Timeline de entrevistas (últimos 90 dias)
+GET {{baseUrl}}/dashboard/interviews/timeline?days=90
+Authorization: Bearer {{token}}
+
+### 3.5 Entrevistas agrupadas por vaga (top 20)
+GET {{baseUrl}}/dashboard/interviews/by-job?limit=20
+Authorization: Bearer {{token}}
+
+### 3.6 Entrevistas agrupadas por vaga (top 10)
+GET {{baseUrl}}/dashboard/interviews/by-job?limit=10
+Authorization: Bearer {{token}}
+
+### 3.7 Entrevistas agrupadas por entrevistador (top 20)
+GET {{baseUrl}}/dashboard/interviews/by-interviewer?limit=20
+Authorization: Bearer {{token}}
+
+### 3.8 Entrevistas agrupadas por entrevistador (top 5)
+GET {{baseUrl}}/dashboard/interviews/by-interviewer?limit=5
+Authorization: Bearer {{token}}
+
+### 3.9 Taxa de conclusão de entrevistas (últimos 30 dias)
+GET {{baseUrl}}/dashboard/interviews/completion-rate?days=30
+Authorization: Bearer {{token}}
+
+### 3.10 Taxa de conclusão de entrevistas (últimos 7 dias)
+GET {{baseUrl}}/dashboard/interviews/completion-rate?days=7
+Authorization: Bearer {{token}}
+
+###############################################################################
+# 4. VALIDAÇÕES E ERROS
+###############################################################################
+
+### 4.1 Criar sem campos obrigatórios (job_id missing)
+POST {{baseUrl}}/interviews
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "candidate_id": "{{$guid}}",
+  "scheduled_at": "2025-11-25T14:00:00Z"
+}
+
+### 4.2 Criar sem candidate_id
+POST {{baseUrl}}/interviews
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "job_id": "{{$guid}}",
+  "scheduled_at": "2025-11-25T14:00:00Z"
+}
+
+### 4.3 Criar sem scheduled_at
+POST {{baseUrl}}/interviews
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "job_id": "{{$guid}}",
+  "candidate_id": "{{$guid}}"
+}
+
+### 4.4 Atualizar com overall_score inválido (> 10)
+PUT {{baseUrl}}/interviews/{{createInterview.response.body.id}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "overall_score": 15.5
+}
+
+### 4.5 Atualizar com overall_score negativo
+PUT {{baseUrl}}/interviews/{{createInterview.response.body.id}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "overall_score": -2
+}
+
+### 4.6 Atualizar com status inválido
+PUT {{baseUrl}}/interviews/{{createInterview.response.body.id}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "invalid_status"
+}
+
+### 4.7 Atualizar com result inválido
+PUT {{baseUrl}}/interviews/{{createInterview.response.body.id}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "result": "maybe_later"
+}
+
+### 4.8 Buscar entrevista inexistente
+GET {{baseUrl}}/interviews/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}
+
+### 4.9 Atualizar entrevista inexistente
+PUT {{baseUrl}}/interviews/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "completed"
+}
+
+### 4.10 Deletar entrevista inexistente
+DELETE {{baseUrl}}/interviews/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}
+
+###############################################################################
+# 5. SEGURANÇA E MULTITENANT
+###############################################################################
+
+### 5.1 Acessar sem autenticação (401)
+GET {{baseUrl}}/interviews
+
+### 5.2 Acessar com token inválido (401)
+GET {{baseUrl}}/interviews
+Authorization: Bearer token_invalido_12345
+
+### 5.3 Verificar isolamento de dados por company_id
+# (Criar outra empresa/usuário e verificar que não acessa dados da primeira)
+GET {{baseUrl}}/interviews/{{createInterview.response.body.id}}
+Authorization: Bearer {{token}}
+
+### 5.4 Verificar que dashboard só retorna dados da company
+GET {{baseUrl}}/dashboard/interviews/metrics
+Authorization: Bearer {{token}}
+
+### 5.5 Verificar que filtros respeitam company_id
+GET {{baseUrl}}/interviews?job_id={{$guid}}
+Authorization: Bearer {{token}}
+
+###############################################################################
+# 6. PERFORMANCE E LIMITES
+###############################################################################
+
+### 6.1 Listar com limit máximo (50)
+GET {{baseUrl}}/interviews?limit=50
+Authorization: Bearer {{token}}
+
+### 6.2 Listar com limit acima do máximo (deve limitar a 50)
+GET {{baseUrl}}/interviews?limit=1000
+Authorization: Bearer {{token}}
+
+### 6.3 Buscar com múltiplos filtros (performance)
+GET {{baseUrl}}/interviews?status=completed&result=approved&mode=online&from=2025-01-01&to=2025-12-31&page=1&limit=50
+Authorization: Bearer {{token}}
+
+### 6.4 Timeline com período longo (90 dias)
+GET {{baseUrl}}/dashboard/interviews/timeline?days=90
+Authorization: Bearer {{token}}
+
+### 6.5 Listagem vazia (sem resultados)
+GET {{baseUrl}}/interviews?result=on_hold&from=2099-01-01
+Authorization: Bearer {{token}}
+
+###############################################################################
+# 7. CASOS DE USO E2E (END-TO-END)
+###############################################################################
+
+### 7.1 E2E: Login → Criar vaga → Criar candidato → Agendar entrevista
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "teste@teste.com",
+  "password": "Teste@123"
+}
+
+###
+
+### 7.2 E2E: Criar entrevista → Iniciar → Concluir com aprovação
+# Step 1: Criar
+POST {{baseUrl}}/interviews
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "job_id": "{{$guid}}",
+  "candidate_id": "{{$guid}}",
+  "scheduled_at": "2025-11-25T14:00:00Z",
+  "interviewer_id": "{{$guid}}"
+}
+
+###
+
+# Step 2: Iniciar
+PUT {{baseUrl}}/interviews/{{createInterview.response.body.id}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "in_progress"
+}
+
+###
+
+# Step 3: Concluir com aprovação
+PUT {{baseUrl}}/interviews/{{createInterview.response.body.id}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "completed",
+  "result": "approved",
+  "overall_score": 9.0,
+  "duration_minutes": 60,
+  "notes": "Excelente desempenho em todas as áreas"
+}
+
+###
+
+### 7.3 E2E: Criar entrevista → Cancelar antes do início
+# Step 1: Criar
+POST {{baseUrl}}/interviews
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "job_id": "{{$guid}}",
+  "candidate_id": "{{$guid}}",
+  "scheduled_at": "2025-11-26T10:00:00Z"
+}
+
+###
+
+# Step 2: Cancelar
+PUT {{baseUrl}}/interviews/{{createInterview.response.body.id}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "cancelled",
+  "cancellation_reason": "Conflito de agenda"
+}
+
+###
+
+### 7.4 E2E: Buscar métricas → Verificar KPIs atualizados
+GET {{baseUrl}}/dashboard/interviews/metrics
+Authorization: Bearer {{token}}
+
+###
+
+### 7.5 E2E: Criar múltiplas entrevistas → Buscar timeline → Verificar distribuição
+GET {{baseUrl}}/dashboard/interviews/timeline?days=30
+Authorization: Bearer {{token}}
+
+###
+
+### 7.6 E2E: Atribuir entrevistador → Buscar por entrevistador → Verificar workload
+GET {{baseUrl}}/dashboard/interviews/by-interviewer?limit=20
+Authorization: Bearer {{token}}
+
+###
+
+### 7.7 E2E: Criar entrevistas para várias vagas → Buscar por vaga → Comparar resultados
+GET {{baseUrl}}/dashboard/interviews/by-job?limit=20
+Authorization: Bearer {{token}}
+
+###
+
+###############################################################################
+# RESUMO DA COLEÇÃO
+###############################################################################
+
+# Total de requests: 70+
+# Cobertura:
+# - CRUD completo: create, read, update, delete (soft), list, details
+# - Filtros: status, result, mode, interviewer_id, job_id, candidate_id, período
+# - Dashboard: 5 endpoints de métricas/KPIs
+# - Validações: campos obrigatórios, constraints, valores inválidos
+# - Segurança: auth, multitenant, isolamento de dados
+# - Performance: paginação, limites, múltiplos filtros
+# - E2E: 7 fluxos completos

@@ -36,21 +36,26 @@ async function createCalendarEvent(companyId, interviewId, startsAt, endsAt) {
   return r.rows[0];
 }
 
-// Listar entrevistas (agenda)
+// Listar entrevistas (agenda) - RF8 ENHANCED
 router.get('/', async (req, res) => {
   try {
-    const { status, job_id, candidate_id, from, to, page = 1, limit = 50 } = req.query;
+    const { status, job_id, candidate_id, from, to, result, interviewer_id, mode, page = 1, limit = 50 } = req.query;
     const params = [req.usuario.company_id];
     let sql = `SELECT i.*, a.job_id, a.candidate_id,
-                  j.title AS job_title, c.full_name AS candidate_name
+                  j.title AS job_title, c.full_name AS candidate_name,
+                  u.full_name AS interviewer_name
                FROM interviews i
                JOIN applications a ON a.id = i.application_id
                JOIN jobs j ON j.id = a.job_id
                JOIN candidates c ON c.id = a.candidate_id
-               WHERE i.company_id = $1`;
+               LEFT JOIN users u ON u.id = i.interviewer_id
+               WHERE i.company_id = $1 AND i.deleted_at IS NULL`;
     if (status) { params.push(String(status).toLowerCase()); sql += ` AND i.status = $${params.length}`; }
     if (job_id) { params.push(job_id); sql += ` AND a.job_id = $${params.length}`; }
     if (candidate_id) { params.push(candidate_id); sql += ` AND a.candidate_id = $${params.length}`; }
+    if (result) { params.push(String(result).toLowerCase()); sql += ` AND i.result = $${params.length}`; }
+    if (interviewer_id) { params.push(interviewer_id); sql += ` AND i.interviewer_id = $${params.length}`; }
+    if (mode) { params.push(String(mode).toLowerCase()); sql += ` AND i.mode = $${params.length}`; }
     if (from) { params.push(new Date(from)); sql += ` AND i.scheduled_at >= $${params.length}`; }
     if (to) { params.push(new Date(to)); sql += ` AND i.scheduled_at <= $${params.length}`; }
     params.push(Number(limit));
@@ -63,33 +68,33 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Agendar entrevista
+// Agendar entrevista - RF8 ENHANCED
 router.post('/', async (req, res) => {
   try {
-    const { job_id, candidate_id, scheduled_at, ends_at, mode } = req.body || {};
+    const { job_id, candidate_id, scheduled_at, ends_at, mode, interviewer_id, notes, metadata } = req.body || {};
     if (!job_id || !candidate_id || !scheduled_at) return res.status(400).json({ erro: 'Campos obrigatórios: job_id, candidate_id, scheduled_at' });
     const applicationId = await findOrCreateApplication(req.usuario.company_id, job_id, candidate_id);
     const st = isoOrNull(scheduled_at);
     const et = isoOrNull(ends_at) || new Date(new Date(st).getTime() + 60 * 60 * 1000).toISOString();
     const r = await db.query(
-      `INSERT INTO interviews (company_id, application_id, scheduled_at, mode, status, created_at)
-       VALUES ($1,$2,$3,$4,'scheduled', now()) RETURNING *`,
-      [req.usuario.company_id, applicationId, st, (mode || 'online').toLowerCase()]
+      `INSERT INTO interviews (company_id, application_id, scheduled_at, mode, status, interviewer_id, notes, metadata, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,'scheduled',$5,$6,$7::jsonb, now(), now()) RETURNING *`,
+      [req.usuario.company_id, applicationId, st, (mode || 'online').toLowerCase(), interviewer_id || null, notes || null, JSON.stringify(metadata || {})]
     );
     const interview = r.rows[0];
     await createCalendarEvent(req.usuario.company_id, interview.id, st, et);
-    await audit(req, 'create', 'interview', interview.id, { job_id, candidate_id, scheduled_at: st, mode });
+    await audit(req, 'create', 'interview', interview.id, { job_id, candidate_id, scheduled_at: st, mode, interviewer_id, notes });
     res.status(201).json(interview);
   } catch (e) {
     res.status(500).json({ erro: 'Falha ao agendar entrevista' });
   }
 });
 
-// Atualizar entrevista (horário/modo/status)
+// Atualizar entrevista (horário/modo/status/result/score/notes/duration/cancellation) - RF8 ENHANCED
 router.put('/:id', async (req, res) => {
   try {
-    const { scheduled_at, ends_at, mode, status } = req.body || {};
-    const r = await db.query('SELECT * FROM interviews WHERE id=$1 AND company_id=$2', [req.params.id, req.usuario.company_id]);
+    const { scheduled_at, ends_at, mode, status, result, overall_score, notes, duration_minutes, cancellation_reason, interviewer_id, metadata } = req.body || {};
+    const r = await db.query('SELECT * FROM interviews WHERE id=$1 AND company_id=$2 AND deleted_at IS NULL', [req.params.id, req.usuario.company_id]);
     const current = r.rows[0];
     if (!current) return res.status(404).json({ erro: 'Entrevista não encontrada' });
     const st = scheduled_at ? isoOrNull(scheduled_at) : null;
@@ -99,9 +104,29 @@ router.put('/:id', async (req, res) => {
          scheduled_at = COALESCE($1, scheduled_at),
          mode = COALESCE($2, mode),
          status = COALESCE($3, status),
+         result = COALESCE($4, result),
+         overall_score = COALESCE($5, overall_score),
+         notes = COALESCE($6, notes),
+         duration_minutes = COALESCE($7, duration_minutes),
+         cancellation_reason = COALESCE($8, cancellation_reason),
+         interviewer_id = COALESCE($9, interviewer_id),
+         metadata = COALESCE($10::jsonb, metadata),
          updated_at = now()
-       WHERE id=$4 AND company_id=$5 RETURNING *`,
-      [st, mode ? String(mode).toLowerCase() : null, status ? String(status).toLowerCase() : null, req.params.id, req.usuario.company_id]
+       WHERE id=$11 AND company_id=$12 RETURNING *`,
+      [
+        st,
+        mode ? String(mode).toLowerCase() : null,
+        status ? String(status).toLowerCase() : null,
+        result ? String(result).toLowerCase() : null,
+        overall_score !== undefined ? Number(overall_score) : null,
+        notes !== undefined ? notes : null,
+        duration_minutes !== undefined ? Number(duration_minutes) : null,
+        cancellation_reason !== undefined ? cancellation_reason : null,
+        interviewer_id !== undefined ? interviewer_id : null,
+        metadata ? JSON.stringify(metadata) : null,
+        req.params.id,
+        req.usuario.company_id
+      ]
     );
     if (st || et) {
       // Atualiza calendar_events vinculado
@@ -111,10 +136,45 @@ router.put('/:id', async (req, res) => {
         [st, et, req.params.id, req.usuario.company_id]
       );
     }
-    await audit(req, 'update', 'interview', req.params.id, { scheduled_at: st, mode, status });
+    await audit(req, 'update', 'interview', req.params.id, { scheduled_at: st, mode, status, result, overall_score, notes, duration_minutes, cancellation_reason });
     res.json(up.rows[0]);
   } catch (e) {
     res.status(500).json({ erro: 'Falha ao atualizar entrevista' });
+  }
+});
+
+// Buscar detalhes de uma entrevista específica - RF8 NEW
+router.get('/:id', async (req, res) => {
+  try {
+    const r = await db.query(
+      `SELECT i.*, a.job_id, a.candidate_id,
+              j.title AS job_title, c.full_name AS candidate_name,
+              u.full_name AS interviewer_name
+       FROM interviews i
+       JOIN applications a ON a.id = i.application_id
+       JOIN jobs j ON j.id = a.job_id
+       JOIN candidates c ON c.id = a.candidate_id
+       LEFT JOIN users u ON u.id = i.interviewer_id
+       WHERE i.id = $1 AND i.company_id = $2 AND i.deleted_at IS NULL`,
+      [req.params.id, req.usuario.company_id]
+    );
+    if (!r.rows[0]) return res.status(404).json({ erro: 'Entrevista não encontrada' });
+    res.json(r.rows[0]);
+  } catch (e) {
+    res.status(500).json({ erro: 'Falha ao buscar entrevista' });
+  }
+});
+
+// Deletar entrevista (soft delete) - RF8 NEW
+router.delete('/:id', async (req, res) => {
+  try {
+    const r = await db.query('SELECT id FROM interviews WHERE id=$1 AND company_id=$2 AND deleted_at IS NULL', [req.params.id, req.usuario.company_id]);
+    if (!r.rows[0]) return res.status(404).json({ erro: 'Entrevista não encontrada' });
+    await db.query('UPDATE interviews SET deleted_at = now(), updated_at = now() WHERE id=$1 AND company_id=$2', [req.params.id, req.usuario.company_id]);
+    await audit(req, 'delete', 'interview', req.params.id, {});
+    res.json({ mensagem: 'Entrevista removida com sucesso' });
+  } catch (e) {
+    res.status(500).json({ erro: 'Falha ao remover entrevista' });
   }
 });
 
