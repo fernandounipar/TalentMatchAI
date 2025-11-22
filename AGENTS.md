@@ -570,5 +570,70 @@ Assim você vai fechando o ciclo **FrontEnd → BackEnd → Banco** funcional, t
 
 ---
 
+### RF7 - Relatórios Detalhados de Entrevistas (Interview Reports)
+**Status:** ✅ Concluído  
+**Data:** 22/11/2025  
+**Migrations:**
+- ✅ 020_interview_reports.sql - Tabela interview_reports (26 colunas) + 8 índices + 1 trigger + 1 função
+- ✅ 021_report_metrics_views.sql - 5 views + função get_report_metrics() + 2 índices adicionais
+
+**API Endpoints:**
+- ✅ POST /api/reports (criação automática via IA ou manual)
+- ✅ GET /api/reports (listagem com 11 filtros: interview_id, type, recommendation, is_final, format, date, search, sort, page, limit)
+- ✅ GET /api/reports/:id (detalhes completos com usuários)
+- ✅ PUT /api/reports/:id (atualizar campos OU regenerar nova versão)
+- ✅ DELETE /api/reports/:id (soft delete/arquivar)
+- ✅ GET /api/reports/interview/:interview_id (todos os relatórios de uma entrevista + stats)
+- ✅ GET /api/dashboard/reports/metrics (métricas consolidadas: 10 métricas + distribuição por tipo/recomendação)
+- ✅ GET /api/dashboard/reports/timeline (timeline diária de geração)
+- ✅ GET /api/dashboard/reports/by-interview (últimas 50 entrevistas com stats de relatórios)
+
+**Documentação:** ✅ RF7_DOCUMENTACAO.md (completa com exemplos, integração IA, fluxos)  
+**Testes:** ✅ RF7_REPORTS_API_COLLECTION.http (42 requests cobrindo CRUD, métricas, validações, performance, E2E)
+
+**Validação:**
+- ✅ Migration 020 aplicada: interview_reports com 26 colunas, 10 índices, 1 trigger (update_interview_reports_timestamps), 1 função, 16 constraints
+- ✅ Migration 021 aplicada: 5 views funcionais, get_report_metrics() retorna 10 métricas, 2 índices adicionais
+- ⏳ Testes reais contra servidor pendentes
+
+**Estrutura de Dados:**
+- **interview_reports:** Sistema de geração e versionamento de relatórios (automático IA ou manual)
+- **Conteúdo estruturado:** content (JSONB flexível), summary_text, candidate_name, job_title
+- **Avaliação:** overall_score (0-10), recommendation (APPROVE, MAYBE, REJECT, PENDING)
+- **Análise:** strengths (pontos fortes), weaknesses (pontos fracos), risks (riscos identificados)
+- **Tipos:** report_type (full, summary, technical, behavioral)
+- **Formatos:** format (json, pdf, html, markdown)
+- **Versionamento:** version (incrementa a cada regeneração), is_final (indica versão final)
+- **Integração IA:** iaService.gerarRelatorioEntrevista(candidato, vaga, respostas, feedbacks)
+- **Soft Delete:** Preserva histórico completo (deleted_at)
+- **Multitenant:** Isolamento por company_id em todas as queries
+
+**Features:**
+- Geração automática via IA baseada em respostas + avaliações (live_assessments)
+- Criação manual sem IA (customização total)
+- Versionamento automático (regenerar cria v2, v3... preservando histórico)
+- Múltiplos tipos de relatório (completo, resumo, técnico, comportamental)
+- Múltiplos formatos (JSON, PDF, HTML, Markdown)
+- Métricas: taxa de aprovação/rejeição, scores médios, volume por período
+- Timeline de geração (estatísticas diárias)
+- Estatísticas por entrevista (total de versões, score final, recomendação)
+- Busca textual (título, resumo, nome do candidato, título da vaga)
+- Filtros avançados: por entrevista, tipo, recomendação, final/rascunho, formato, período
+- Paginação: 20 itens default, max 100
+
+**Casos de Uso:**
+1. **Após entrevista:** Sistema gera relatório automático via IA → Analisa respostas + avaliações → Cria rascunho
+2. **Revisão recrutador:** Recrutador ajusta score/recomendação → Adiciona observações → Marca como final
+3. **Regeneração:** Avaliações atualizadas → Recrutador regenera relatório → Sistema cria nova versão preservando histórico
+4. **Análise de métricas:** Dashboard mostra taxa de aprovação → Identifica padrões → Timeline mostra volume temporal
+
+**Integração com RF6:**
+- Busca avaliações (live_assessments) da entrevista
+- Extrai scores, feedbacks_auto, feedbacks_manual
+- Usa como input para iaService.gerarRelatorioEntrevista()
+- Consolida em relatório único estruturado
+
+---
+
 ### RF4 - Integração com GitHub API
 **Status:** ⏳ Não iniciado

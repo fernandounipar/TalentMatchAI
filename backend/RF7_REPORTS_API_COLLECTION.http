@@ -1,0 +1,354 @@
+# RF7 - Relatórios Detalhados de Entrevistas
+# Collection de Testes da API
+# Total: 42 requests
+
+### ============================================
+### 1. AUTENTICAÇÃO
+### ============================================
+
+### 1.1. Login (obter token)
+POST http://localhost:3000/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@talentmatch.ai",
+  "password": "Admin@123"
+}
+
+### Salvar o token retornado em @token
+@token = SEU_TOKEN_AQUI
+@companyId = SUA_COMPANY_ID_AQUI
+@interviewId = SEU_INTERVIEW_ID_AQUI
+
+### ============================================
+### 2. CRUD BÁSICO
+### ============================================
+
+### 2.1. Criar relatório automático (via IA)
+POST http://localhost:3000/api/reports
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "interview_id": "{{interviewId}}",
+  "title": "Relatório Completo de Entrevista",
+  "report_type": "full",
+  "format": "json",
+  "generate_via_ai": true,
+  "is_final": false
+}
+
+### Salvar ID do relatório criado
+@reportId = ID_DO_RELATORIO_CRIADO
+
+### 2.2. Criar relatório manual (sem IA)
+POST http://localhost:3000/api/reports
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "interview_id": "{{interviewId}}",
+  "title": "Relatório Manual",
+  "report_type": "summary",
+  "format": "json",
+  "generate_via_ai": false,
+  "summary_text": "Candidato demonstrou bom conhecimento técnico",
+  "overall_score": 8.5,
+  "recommendation": "APPROVE",
+  "strengths": ["Experiência em Node.js", "Boas práticas de código"],
+  "weaknesses": ["Pouca experiência com testes"],
+  "risks": [],
+  "is_final": false
+}
+
+### 2.3. Criar relatório técnico
+POST http://localhost:3000/api/reports
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "interview_id": "{{interviewId}}",
+  "title": "Avaliação Técnica",
+  "report_type": "technical",
+  "format": "json",
+  "generate_via_ai": true,
+  "is_final": false
+}
+
+### 2.4. Criar relatório comportamental
+POST http://localhost:3000/api/reports
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "interview_id": "{{interviewId}}",
+  "title": "Avaliação Comportamental",
+  "report_type": "behavioral",
+  "format": "json",
+  "generate_via_ai": true,
+  "is_final": false
+}
+
+### 2.5. Criar relatório com validação (campos faltando)
+POST http://localhost:3000/api/reports
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Relatório sem interview_id"
+}
+
+### ============================================
+### 3. LISTAGEM E FILTROS
+### ============================================
+
+### 3.1. Listar todos os relatórios
+GET http://localhost:3000/api/reports
+Authorization: Bearer {{token}}
+
+### 3.2. Listar com paginação
+GET http://localhost:3000/api/reports?page=1&limit=10
+Authorization: Bearer {{token}}
+
+### 3.3. Filtrar por entrevista
+GET http://localhost:3000/api/reports?interview_id={{interviewId}}
+Authorization: Bearer {{token}}
+
+### 3.4. Filtrar por tipo
+GET http://localhost:3000/api/reports?report_type=technical
+Authorization: Bearer {{token}}
+
+### 3.5. Filtrar por recomendação
+GET http://localhost:3000/api/reports?recommendation=APPROVE
+Authorization: Bearer {{token}}
+
+### 3.6. Filtrar por status final
+GET http://localhost:3000/api/reports?is_final=true
+Authorization: Bearer {{token}}
+
+### 3.7. Filtrar por formato
+GET http://localhost:3000/api/reports?format=pdf
+Authorization: Bearer {{token}}
+
+### 3.8. Filtrar por período
+GET http://localhost:3000/api/reports?date_from=2025-11-01&date_to=2025-11-30
+Authorization: Bearer {{token}}
+
+### 3.9. Busca textual
+GET http://localhost:3000/api/reports?search=técnico
+Authorization: Bearer {{token}}
+
+### 3.10. Ordenar por score
+GET http://localhost:3000/api/reports?sort_by=overall_score&order=DESC
+Authorization: Bearer {{token}}
+
+### 3.11. Filtros combinados
+GET http://localhost:3000/api/reports?report_type=full&recommendation=APPROVE&is_final=true&sort_by=created_at&order=DESC
+Authorization: Bearer {{token}}
+
+### 3.12. Listar relatórios de uma entrevista específica
+GET http://localhost:3000/api/reports/interview/{{interviewId}}
+Authorization: Bearer {{token}}
+
+### ============================================
+### 4. DETALHAMENTO
+### ============================================
+
+### 4.1. Obter detalhes de um relatório
+GET http://localhost:3000/api/reports/{{reportId}}
+Authorization: Bearer {{token}}
+
+### 4.2. Buscar relatório inexistente
+GET http://localhost:3000/api/reports/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}
+
+### ============================================
+### 5. ATUALIZAÇÃO
+### ============================================
+
+### 5.1. Atualizar título
+PUT http://localhost:3000/api/reports/{{reportId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Relatório Atualizado"
+}
+
+### 5.2. Atualizar score e recomendação
+PUT http://localhost:3000/api/reports/{{reportId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "overall_score": 9.0,
+  "recommendation": "APPROVE"
+}
+
+### 5.3. Atualizar pontos fortes e fracos
+PUT http://localhost:3000/api/reports/{{reportId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "strengths": ["Excelente comunicação", "Proatividade", "Liderança"],
+  "weaknesses": ["Pouca experiência com AWS"],
+  "risks": ["Pode ter dificuldade com escalabilidade"]
+}
+
+### 5.4. Marcar como final
+PUT http://localhost:3000/api/reports/{{reportId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "is_final": true
+}
+
+### 5.5. Regenerar relatório (criar nova versão)
+PUT http://localhost:3000/api/reports/{{reportId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "regenerate": true,
+  "title": "Relatório Regenerado v2"
+}
+
+### ============================================
+### 6. EXCLUSÃO
+### ============================================
+
+### 6.1. Arquivar relatório
+DELETE http://localhost:3000/api/reports/{{reportId}}
+Authorization: Bearer {{token}}
+
+### 6.2. Tentar excluir relatório já deletado
+DELETE http://localhost:3000/api/reports/{{reportId}}
+Authorization: Bearer {{token}}
+
+### 6.3. Tentar excluir relatório inexistente
+DELETE http://localhost:3000/api/reports/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}
+
+### ============================================
+### 7. MÉTRICAS E DASHBOARD
+### ============================================
+
+### 7.1. Métricas consolidadas
+GET http://localhost:3000/api/dashboard/reports/metrics
+Authorization: Bearer {{token}}
+
+### 7.2. Timeline - últimos 7 dias
+GET http://localhost:3000/api/dashboard/reports/timeline?days=7
+Authorization: Bearer {{token}}
+
+### 7.3. Timeline - últimos 30 dias
+GET http://localhost:3000/api/dashboard/reports/timeline?days=30
+Authorization: Bearer {{token}}
+
+### 7.4. Relatórios agrupados por entrevista
+GET http://localhost:3000/api/dashboard/reports/by-interview
+Authorization: Bearer {{token}}
+
+### 7.5. Relatórios por entrevista (limitado)
+GET http://localhost:3000/api/dashboard/reports/by-interview?limit=20
+Authorization: Bearer {{token}}
+
+### ============================================
+### 8. VALIDAÇÕES E SEGURANÇA
+### ============================================
+
+### 8.1. Criar relatório sem autenticação
+POST http://localhost:3000/api/reports
+Content-Type: application/json
+
+{
+  "interview_id": "{{interviewId}}",
+  "title": "Relatório Não Autorizado"
+}
+
+### 8.2. Listar com token inválido
+GET http://localhost:3000/api/reports
+Authorization: Bearer token_invalido
+
+### 8.3. Tentar acessar relatório de outra empresa
+GET http://localhost:3000/api/reports/{{reportId}}
+Authorization: Bearer {{tokenOutraEmpresa}}
+
+### 8.4. Tentar deletar sem permissão (RECRUITER)
+DELETE http://localhost:3000/api/reports/{{reportId}}
+Authorization: Bearer {{tokenRecruiter}}
+
+### ============================================
+### 9. CASOS DE PERFORMANCE
+### ============================================
+
+### 9.1. Listar com limite máximo
+GET http://localhost:3000/api/reports?limit=100
+Authorization: Bearer {{token}}
+
+### 9.2. Listar com limite acima do máximo (deve limitar em 100)
+GET http://localhost:3000/api/reports?limit=500
+Authorization: Bearer {{token}}
+
+### 9.3. Busca com múltiplos filtros
+GET http://localhost:3000/api/reports?report_type=full&recommendation=APPROVE&date_from=2025-01-01&search=técnico&sort_by=overall_score&order=DESC&limit=50
+Authorization: Bearer {{token}}
+
+### 9.4. Paginação de resultados vazios
+GET http://localhost:3000/api/reports?page=999&limit=20
+Authorization: Bearer {{token}}
+
+### ============================================
+### 10. FLUXO COMPLETO (E2E)
+### ============================================
+
+### 10.1. Login
+POST http://localhost:3000/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@talentmatch.ai",
+  "password": "Admin@123"
+}
+
+### 10.2. Criar relatório automático
+POST http://localhost:3000/api/reports
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "interview_id": "{{interviewId}}",
+  "title": "Relatório E2E",
+  "report_type": "full",
+  "generate_via_ai": true,
+  "is_final": false
+}
+
+### 10.3. Listar relatórios da entrevista
+GET http://localhost:3000/api/reports/interview/{{interviewId}}
+Authorization: Bearer {{token}}
+
+### 10.4. Ver detalhes do relatório
+GET http://localhost:3000/api/reports/{{reportId}}
+Authorization: Bearer {{token}}
+
+### 10.5. Ajustar score manualmente
+PUT http://localhost:3000/api/reports/{{reportId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "overall_score": 9.5,
+  "recommendation": "APPROVE",
+  "is_final": true
+}
+
+### 10.6. Verificar métricas atualizadas
+GET http://localhost:3000/api/dashboard/reports/metrics
+Authorization: Bearer {{token}}
+
+### 10.7. Ver timeline
+GET http://localhost:3000/api/dashboard/reports/timeline?days=7
+Authorization: Bearer {{token}}
