@@ -825,5 +825,272 @@ router.get('/interviews/completion-rate', async (req, res) => {
   }
 });
 
+// ============================================================================
+// RF10 - USER MANAGEMENT DASHBOARD ENDPOINTS
+// ============================================================================
+
+/**
+ * GET /api/dashboard/users/metrics
+ * Métricas consolidadas de usuários
+ * Retorna: 17 KPIs incluindo counts, activity, rates
+ */
+router.get('/users/metrics', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+
+    const result = await db.query(
+      'SELECT get_user_metrics($1) as metrics',
+      [companyId]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows[0].metrics
+    });
+
+  } catch (error) {
+    console.error('[RF10] Erro ao buscar métricas de usuários:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar métricas de usuários',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/dashboard/users/by-role
+ * Distribuição de usuários por role
+ */
+router.get('/users/by-role', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+
+    const result = await db.query(
+      `SELECT
+         role,
+         user_count,
+         active_count,
+         verified_count,
+         most_recent_login
+       FROM users_by_role
+       WHERE company_id = $1
+       ORDER BY 
+         CASE role
+           WHEN 'SUPER_ADMIN' THEN 1
+           WHEN 'ADMIN' THEN 2
+           WHEN 'RECRUITER' THEN 3
+           WHEN 'USER' THEN 4
+           ELSE 5
+         END`,
+      [companyId]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+
+  } catch (error) {
+    console.error('[RF10] Erro ao buscar usuários por role:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar usuários por role',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/dashboard/users/by-department
+ * Distribuição de usuários por departamento
+ */
+router.get('/users/by-department', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+
+    const result = await db.query(
+      `SELECT
+         department,
+         user_count,
+         active_count
+       FROM users_by_department
+       WHERE company_id = $1
+       ORDER BY user_count DESC`,
+      [companyId]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+
+  } catch (error) {
+    console.error('[RF10] Erro ao buscar usuários por departamento:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar usuários por departamento',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/dashboard/users/login-timeline?days=30
+ * Timeline de atividade de login
+ */
+router.get('/users/login-timeline', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+    const { days = 30 } = req.query;
+
+    const result = await db.query(
+      `SELECT
+         login_date,
+         unique_users_logged,
+         total_logins
+       FROM user_login_timeline
+       WHERE company_id = $1
+         AND login_date >= current_date - interval '${parseInt(days)} days'
+       ORDER BY login_date DESC`,
+      [companyId]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+
+  } catch (error) {
+    console.error('[RF10] Erro ao buscar timeline de login:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar timeline de login',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/dashboard/users/registration-timeline?days=90
+ * Timeline de novos registros
+ */
+router.get('/users/registration-timeline', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+    const { days = 90 } = req.query;
+
+    const result = await db.query(
+      `SELECT
+         registration_date,
+         users_registered,
+         active_registered,
+         verified_registered
+       FROM user_registration_timeline
+       WHERE company_id = $1
+         AND registration_date >= current_date - interval '${parseInt(days)} days'
+       ORDER BY registration_date DESC`,
+      [companyId]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+
+  } catch (error) {
+    console.error('[RF10] Erro ao buscar timeline de registro:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar timeline de registro',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/dashboard/users/security-stats
+ * Estatísticas de segurança (failed attempts, locked accounts, etc)
+ */
+router.get('/users/security-stats', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+
+    const result = await db.query(
+      `SELECT
+         total_users,
+         users_with_failed_attempts,
+         currently_locked,
+         avg_failed_attempts,
+         max_failed_attempts,
+         unverified_emails,
+         unverified_percentage
+       FROM user_security_stats
+       WHERE company_id = $1`,
+      [companyId]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows[0] || {
+        total_users: 0,
+        users_with_failed_attempts: 0,
+        currently_locked: 0,
+        avg_failed_attempts: 0,
+        max_failed_attempts: 0,
+        unverified_emails: 0,
+        unverified_percentage: 0
+      }
+    });
+
+  } catch (error) {
+    console.error('[RF10] Erro ao buscar estatísticas de segurança:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar estatísticas de segurança',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/dashboard/users/invitation-stats
+ * Estatísticas de convites (pending, expired, accepted)
+ */
+router.get('/users/invitation-stats', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+
+    const result = await db.query(
+      `SELECT
+         total_invitations,
+         pending_invitations,
+         expired_invitations,
+         accepted_invitations
+       FROM user_invitation_stats
+       WHERE company_id = $1`,
+      [companyId]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows[0] || {
+        total_invitations: 0,
+        pending_invitations: 0,
+        expired_invitations: 0,
+        accepted_invitations: 0
+      }
+    });
+
+  } catch (error) {
+    console.error('[RF10] Erro ao buscar estatísticas de convites:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar estatísticas de convites',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
 

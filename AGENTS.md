@@ -722,5 +722,110 @@ Assim você vai fechando o ciclo **FrontEnd → BackEnd → Banco** funcional, t
 
 ---
 
+### RF10 - Gerenciamento de Usuários (User Management)
+**Status:** ✅ Concluído  
+**Data:** 22/11/2025  
+**Migrations:**
+- ✅ 024_users_improvements.sql - Adiciona 14 colunas à tabela users (phone, department, job_title, last_login_at, last_login_ip, failed_login_attempts, locked_until, email_verified, email_verified_at, invitation_token, invitation_expires_at, invited_by, bio, preferences) + 2 triggers (update_users_timestamps, check_and_lock_user_account) + 8 índices + 1 FK (invited_by → users) + 1 view (active_users_overview) + data migration (cargo → job_title, existing users marked as email_verified=TRUE)
+- ✅ 025_user_metrics_views.sql - 7 views (user_stats_overview, users_by_role, users_by_department, user_login_timeline, user_registration_timeline, user_security_stats, user_invitation_stats) + função get_user_metrics() + 3 índices adicionais
+
+**API Endpoints:**
+- ✅ POST /api/usuarios (criar usuário diretamente com senha)
+- ✅ POST /api/usuarios/invite (convidar usuário com token temporário)
+- ✅ POST /api/usuarios/accept-invite (aceitar convite e definir senha - rota pública)
+- ✅ GET /api/usuarios (listar usuários com 9 filtros: role, department, is_active, email_verified, search, sort, order, page, limit)
+- ✅ GET /api/usuarios/:id (detalhes completos do usuário com company_name, invited_by_name)
+- ✅ PUT /api/usuarios/:id (update dinâmico de qualquer campo incluindo password, role, preferences)
+- ✅ DELETE /api/usuarios/:id (soft delete com proteção contra auto-delete)
+- ✅ GET /api/dashboard/users/metrics (métricas consolidadas: 17 KPIs incluindo active_rate, verification_rate)
+- ✅ GET /api/dashboard/users/by-role (distribuição por role com activity metrics)
+- ✅ GET /api/dashboard/users/by-department (distribuição por departamento)
+- ✅ GET /api/dashboard/users/login-timeline (timeline diária de logins únicos + total)
+- ✅ GET /api/dashboard/users/registration-timeline (timeline diária de registros + verified)
+- ✅ GET /api/dashboard/users/security-stats (7 métricas de segurança: failed attempts, locked, unverified)
+- ✅ GET /api/dashboard/users/invitation-stats (4 métricas: total, pending, expired, accepted)
+
+**Documentação:** ✅ RF10_DOCUMENTACAO.md (completa com estrutura de banco, API endpoints, segurança, fluxos, troubleshooting)  
+**Testes:** ✅ RF10_USERS_API_COLLECTION.http (70 requests cobrindo CRUD, invitation flow, filtros, dashboard, segurança, edge cases)
+
+**Validação:**
+- ✅ Migration 024 aplicada: users com 26 colunas (12 originais + 14 RF10), 1 FK (invited_by → users), constraint role atualizado (4 valores), 11 índices, 3 triggers (trg_users_updated, trigger_check_lock_account, trigger_update_users) ativos
+- ✅ Migration 025 aplicada: 7 views funcionais, get_user_metrics() retorna 17 métricas, 3 índices adicionais
+- ⏳ Testes reais contra servidor pendentes
+
+**Estrutura de Dados:**
+- **users (enhanced):** 26 colunas total (12 originais + 14 RF10)
+- **Novos campos RF10:**
+  * **phone** (VARCHAR 20): Telefone de contato
+  * **department** (VARCHAR 100): Departamento do usuário
+  * **job_title** (VARCHAR 150): Cargo (substituiu cargo via data migration)
+  * **last_login_at** (TIMESTAMP): Timestamp do último login para tracking de atividade
+  * **last_login_ip** (VARCHAR 45): IP do último login (IPv4/IPv6) para segurança
+  * **failed_login_attempts** (INTEGER DEFAULT 0): Contador de tentativas falhas para bloqueio
+  * **locked_until** (TIMESTAMP): Timestamp até quando conta está bloqueada (auto-set por trigger)
+  * **email_verified** (BOOLEAN DEFAULT FALSE): Status de verificação de email
+  * **email_verified_at** (TIMESTAMP): Quando email foi verificado
+  * **invitation_token** (VARCHAR 255): Token único para convite temporário
+  * **invitation_expires_at** (TIMESTAMP): Expiração do convite (7 dias default)
+  * **invited_by** (UUID FK→users): Quem convidou este usuário (invitation graph)
+  * **bio** (TEXT): Biografia/notas do usuário
+  * **preferences** (JSONB DEFAULT '{}'): Preferências flexíveis (language, theme, notifications, etc)
+- **Data Migration:** UPDATE users SET job_title = cargo WHERE cargo IS NOT NULL; marca existing users como email_verified=TRUE retroativamente
+- **Updated Constraint:** role CHECK IN ('USER', 'RECRUITER', 'ADMIN', 'SUPER_ADMIN') - 4 valores padronizados
+- **Foreign Key:** invited_by → users(id) ON DELETE SET NULL (preserva histórico se convidador deletado)
+- **Triggers (2 novos RF10):**
+  * **update_users_timestamps()** BEFORE UPDATE: Auto-atualiza updated_at = NOW() em qualquer alteração
+  * **check_and_lock_user_account()** BEFORE UPDATE OF failed_login_attempts: Auto-bloqueia conta (locked_until = NOW() + 15 min) quando failed_login_attempts >= 5 (previne brute-force)
+- **Soft Delete:** deleted_at preserva histórico de auditoria completo
+- **Multitenant:** Isolamento estrito por company_id em todas as queries
+
+**Features:**
+- CRUD completo com suporte aos 14 novos campos RF10
+- Sistema de convites com token temporário (expires_in_days configurável, default 7 dias)
+- Aceitação de convite pública (sem auth) com definição de senha e preferences
+- Bloqueio automático de conta após 5 tentativas falhas (15 min de bloqueio via trigger)
+- Rastreamento de login (timestamp + IP) para auditoria de segurança
+- Verificação de email com tracking de quando foi verificado
+- Atribuição de department e job_title para organização
+- Preferences JSONB para settings customizáveis sem schema changes
+- Atualização dinâmica (envia apenas campos que deseja alterar)
+- Redefinição de senha reseta automaticamente failed_login_attempts e locked_until
+- Invitation graph (invited_by FK) rastreia cadeia de convites
+- Filtros avançados: role, department, is_active, email_verified, search (nome/email/dept/job), sort por múltiplos campos
+- Dashboard com 7 endpoints de métricas:
+  * Métricas consolidadas (17 KPIs: total, active, inactive, verified, unverified, por role, locked, activity 7/30 dias, pending invites, active_rate%, verification_rate%)
+  * Distribuição por role (counts, active, verified, most_recent_login)
+  * Distribuição por department (counts, active)
+  * Timeline de login (daily unique users logged + total logins)
+  * Timeline de registro (daily registrations + active + verified)
+  * Security stats (7 métricas: total, with_failed_attempts, currently_locked, avg/max attempts, unverified, unverified%)
+  * Invitation stats (4 métricas: total, pending, expired, accepted)
+- Paginação: 50 itens default, max 100
+- Soft delete com proteção contra auto-delete
+- Auditoria completa de ações (create, invite, update, delete)
+
+**Casos de Uso:**
+1. **Criar usuário diretamente:** Admin cria usuário com senha → Usuário faz login imediatamente
+2. **Convidar usuário:** Admin envia convite (token gerado) → TODO: Email com link → Usuário aceita convite → Define senha → Marca email_verified=TRUE automaticamente → Usuário faz login
+3. **Bloqueio automático:** 5 logins falhos → Trigger bloqueia conta por 15 min → Admin pode desbloquear via PUT com nova senha
+4. **Rastreamento de atividade:** Dashboard mostra login timeline → Identifica usuários inativos → Analisa padrões de uso
+5. **Gerenciar roles:** Promover USER → RECRUITER → ADMIN via PUT /usuarios/:id → Auditoria rastreia mudanças
+6. **Analisar segurança:** Security stats mostra contas bloqueadas + unverified → Admin toma ações preventivas
+
+**Integração com Outros RFs:**
+- **RF1-RF8:** users.id como creator/updater de recursos (resumes, jobs, questions, assessments, reports, interviews)
+- **RF2 (Jobs):** jobs.created_by → users.id; dashboard mostra vagas criadas por usuário
+- **RF8 (Interviews):** interviews.interviewer_id → users.id; dashboard mostra entrevistas por entrevistador
+- **Invitation Graph:** invited_by FK cria árvore de convites para análise de recrutamento
+
+**Diferenças vs Outros RFs:**
+- RF10: Melhora tabela crítica existente (users) que afeta autenticação/autorização de todo o sistema
+- Adiciona 14 colunas vs criar nova tabela (outros RFs criaram tabelas novas)
+- Dois arquivos de rotas: user.js (self-service, já existia) + usuarios.js (admin CRUD, expandido)
+- Feature única: Sistema de convites com token temporário (não presente em outros RFs)
+- Triggers de segurança: Auto-bloqueio após 5 tentativas (crítico para prevenção de ataques)
+
+---
+
 ### RF4 - Integração com GitHub API
 **Status:** ⏳ Não iniciado
