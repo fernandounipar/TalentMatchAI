@@ -5,7 +5,6 @@ const router = express.Router();
 const rotasUsuarios = require('./rotas/usuarios');
 const rotasAutenticacao = require('./rotas/autenticacao');
 const rotasUser = require('./rotas/user');
-const rotasEntrevistas = require('./rotas/entrevistas');
 const rotasDashboard = require('./rotas/dashboard');
 const rotasHistorico = require('./rotas/historico');
 const rotasCompanies = require('./rotas/companies');
@@ -29,7 +28,7 @@ const rotasGithub = require('./rotas/github');
 router.use('/usuarios', rotasUsuarios);
 router.use('/auth', rotasAutenticacao);
 router.use('/user', rotasUser);
-router.use('/entrevistas', rotasEntrevistas);
+// Rota legada /entrevistas foi removida - usar /interviews
 router.use('/dashboard', rotasDashboard);
 router.use('/historico', rotasHistorico);
 router.use('/companies', rotasCompanies);

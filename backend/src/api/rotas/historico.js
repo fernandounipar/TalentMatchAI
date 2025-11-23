@@ -32,24 +32,8 @@ router.get('/', async (req, res) => {
       [companyId]
     );
 
-    // Entrevistas (tabelas legadas)
-    const legacy = await db.query(
-      `SELECT e.id,
-              e.criado_em,
-              v.titulo AS vaga,
-              c.nome AS candidato,
-              EXISTS(SELECT 1 FROM relatorios r2 WHERE r2.entrevista_id = e.id) AS tem_relatorio
-         FROM entrevistas e
-         JOIN vagas v ON v.id = e.vaga_id
-         JOIN candidatos c ON c.id = e.candidato_id
-        WHERE e.company_id = $1
-        ORDER BY e.criado_em DESC
-        LIMIT 50`,
-      [companyId]
-    );
-
-    // Entrevistas (domínio novo)
-    const modern = await db.query(
+    // Entrevistas (domínio novo) - unificado
+    const entrevistas = await db.query(
       `SELECT i.id,
               i.created_at AS criado_em,
               j.title AS vaga,
@@ -60,6 +44,7 @@ router.get('/', async (req, res) => {
          JOIN jobs j ON j.id = a.job_id
          JOIN candidates cand ON cand.id = a.candidate_id
         WHERE i.company_id = $1
+          AND i.deleted_at IS NULL
         ORDER BY i.created_at DESC
         LIMIT 50`,
       [companyId]
@@ -84,24 +69,8 @@ router.get('/', async (req, res) => {
       });
     }
 
-    // Normaliza entrevistas legadas
-    for (const row of legacy.rows) {
-      eventos.push({
-        id: String(row.id),
-        criado_em: row.criado_em,
-        tipo: 'Entrevista',
-        descricao: `Entrevista ${row.tem_relatorio ? 'com relatório' : 'registrada'} para ${row.vaga}`,
-        usuario: row.candidato || '',
-        entidade: 'Entrevista',
-        entidade_id: String(row.id),
-        vaga: row.vaga,
-        candidato: row.candidato,
-        tem_relatorio: row.tem_relatorio,
-      });
-    }
-
-    // Normaliza entrevistas do domínio novo
-    for (const row of modern.rows) {
+    // Normaliza entrevistas
+    for (const row of entrevistas.rows) {
       eventos.push({
         id: String(row.id),
         criado_em: row.criado_em,
