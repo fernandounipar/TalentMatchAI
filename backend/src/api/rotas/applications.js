@@ -13,20 +13,24 @@ async function getStageNameById(companyId, stageId) {
 
 // Listar applications com joins básicos
 router.get('/', async (req, res) => {
-  const { job_id, candidate_id, page = 1, limit = 50 } = req.query;
+  const { job_id, candidate_id, status, page = 1, limit = 50 } = req.query;
   const params = [req.usuario.company_id];
   let sql = `SELECT a.*, j.title AS job_title, c.full_name AS candidate_name
              FROM applications a
              JOIN jobs j ON j.id = a.job_id
              JOIN candidates c ON c.id = a.candidate_id
-             WHERE a.company_id = $1`;
+             WHERE a.company_id = $1 AND a.deleted_at IS NULL`;
   if (job_id) { params.push(job_id); sql += ` AND a.job_id = $${params.length}`; }
   if (candidate_id) { params.push(candidate_id); sql += ` AND a.candidate_id = $${params.length}`; }
+  if (status) { params.push(status); sql += ` AND a.status = $${params.length}`; }
   params.push(Number(limit));
   params.push((Number(page) - 1) * Number(limit));
   sql += ` ORDER BY a.created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`;
   const r = await db.query(sql, params);
-  res.json(r.rows);
+  res.json({
+    data: r.rows,
+    meta: { page: Number(page), limit: Number(limit) }
+  });
 });
 
 // Criar application; se já existir para par (job_id, candidate_id), retorna existente
@@ -72,9 +76,54 @@ router.post('/', async (req, res) => {
       await db.query('INSERT INTO application_status_history (company_id, application_id, from_status, to_status, note, created_at) VALUES ($1,$2,$3,$4,$5, now())', [req.usuario.company_id, app.id, null, stageName, 'criação']);
     }
     await audit(req, 'create', 'application', app.id, { job_id, candidate_id, stage: stageName });
-    res.status(201).json(app);
+    res.status(201).json({ data: app });
   } catch (e) {
     res.status(500).json({ erro: 'Falha ao criar candidatura' });
+  }
+});
+
+// Detalhe de application
+router.get('/:id', async (req, res) => {
+  try {
+    const r = await db.query(
+      `SELECT a.*, j.title AS job_title, c.full_name AS candidate_name
+         FROM applications a
+         JOIN jobs j ON j.id = a.job_id
+         JOIN candidates c ON c.id = a.candidate_id
+        WHERE a.id = $1 AND a.company_id = $2 AND a.deleted_at IS NULL`,
+      [req.params.id, req.usuario.company_id]
+    );
+    if (!r.rows[0]) return res.status(404).json({ erro: 'Candidatura não encontrada' });
+    res.json({ data: r.rows[0] });
+  } catch (e) {
+    res.status(500).json({ erro: 'Falha ao buscar candidatura' });
+  }
+});
+
+// Atualizar application (status/stage/note)
+router.put('/:id', async (req, res) => {
+  try {
+    const { status, stage, note } = req.body || {};
+    const updates = [];
+    const params = [];
+    let idx = 1;
+    if (status !== undefined) { updates.push(`status = $${idx}`); params.push(status); idx++; }
+    if (stage !== undefined) { updates.push(`stage = $${idx}`); params.push(stage); idx++; }
+    if (note !== undefined) { updates.push(`note = $${idx}`); params.push(note); idx++; }
+    if (updates.length === 0) return res.status(400).json({ erro: 'Nenhum campo para atualizar' });
+    params.push(req.params.id);
+    params.push(req.usuario.company_id);
+    const r = await db.query(
+      `UPDATE applications SET ${updates.join(', ')}, updated_at = now()
+         WHERE id = $${idx} AND company_id = $${idx + 1} AND deleted_at IS NULL
+         RETURNING *`,
+      params
+    );
+    if (!r.rows[0]) return res.status(404).json({ erro: 'Candidatura não encontrada' });
+    await audit(req, 'update', 'application', req.params.id, { status, stage, note });
+    res.json({ data: r.rows[0] });
+  } catch (e) {
+    res.status(500).json({ erro: 'Falha ao atualizar candidatura' });
   }
 });
 
@@ -93,7 +142,7 @@ router.post('/:id/move', async (req, res) => {
     await db.query('UPDATE applications SET stage=$1, updated_at = now() WHERE id=$2', [newName, app.id]);
     await db.query('INSERT INTO application_status_history (company_id, application_id, from_status, to_status, note, created_at) VALUES ($1,$2,$3,$4,$5, now())', [req.usuario.company_id, app.id, fromName, newName, note || null]);
     await audit(req, 'move_stage', 'application', app.id, { from: fromName, to: newName });
-    res.json({ ok: true, from: fromName, to: newName });
+    res.json({ data: { from: fromName, to: newName } });
   } catch (e) {
     res.status(500).json({ erro: 'Falha ao mover estágio' });
   }
@@ -116,7 +165,7 @@ router.get('/:id/history', async (req, res) => {
         ORDER BY created_at ASC`,
       [req.params.id, req.usuario.company_id]
     );
-    res.json({ stages: stages.rows, transitions: notes.rows });
+    res.json({ data: { stages: stages.rows, transitions: notes.rows } });
   } catch (e) {
     res.status(500).json({ erro: 'Falha ao obter histórico' });
   }
@@ -130,7 +179,24 @@ router.post('/:id/notes', async (req, res) => {
      VALUES ($1,$2,$3,$4,$5, now())`,
       [req.usuario.company_id, 'application', req.params.id, req.usuario.id || null, text || null]
   );
-  res.json({ ok: true });
+  res.json({ data: { ok: true } });
+});
+
+// Soft delete application
+router.delete('/:id', async (req, res) => {
+  try {
+    const r = await db.query(
+      `UPDATE applications SET deleted_at = now(), updated_at = now()
+         WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL
+         RETURNING id`,
+      [req.params.id, req.usuario.company_id]
+    );
+    if (!r.rows[0]) return res.status(404).json({ erro: 'Candidatura não encontrada' });
+    await audit(req, 'delete', 'application', req.params.id, {});
+    res.status(204).send();
+  } catch (e) {
+    res.status(500).json({ erro: 'Falha ao remover candidatura' });
+  }
 });
 
 module.exports = router;
