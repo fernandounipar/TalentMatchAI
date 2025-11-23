@@ -168,7 +168,7 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: bg.withOpacity(0.5)),
+        border: Border.all(color: bg.withValues(alpha: ((bg.a * 255.0).round() & 0xff) * 0.5)),
       ),
       child: Text(
         text,
@@ -262,7 +262,10 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
                 final titulo = [
                   exp['cargo'],
                   if ((exp['empresa'] ?? '').isNotEmpty) exp['empresa'],
-                ].where((e) => e != null && e!.isNotEmpty).join(' • ');
+                ]
+                    .whereType<String>()
+                    .where((e) => e.isNotEmpty)
+                    .join(' • ');
 
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
@@ -752,8 +755,8 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: const [
+            const Row(
+              children: [
                 Icon(Icons.event_available, color: TMTokens.primary),
                 SizedBox(width: 8),
                 Text(

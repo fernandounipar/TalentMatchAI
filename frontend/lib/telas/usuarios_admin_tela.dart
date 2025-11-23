@@ -270,13 +270,13 @@ class _UsuariosAdminTelaState extends State<UsuariosAdminTela> {
   @override
   Widget build(BuildContext context) {
     if (!widget.isAdmin) {
-      return Center(
+      return const Center(
         child: Card(
           child: Padding(
-            padding: const EdgeInsets.all(24),
+            padding: EdgeInsets.all(24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              children: const [
+              children: [
                 Icon(Icons.lock_outline, size: 40, color: Colors.redAccent),
                 SizedBox(height: 12),
                 Text('Apenas administradores podem gerenciar usuários'),
@@ -300,9 +300,9 @@ class _UsuariosAdminTelaState extends State<UsuariosAdminTela> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
+                const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
+                  children: [
                     Text('Gerenciar Usuários', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF3730A3))),
                     SizedBox(height: 4),
                     Text('Gerencie os usuários do sistema (USER, RECRUITER, ADMIN, SUPER_ADMIN)', style: TextStyle(color: Colors.black54)),
@@ -342,7 +342,7 @@ class _UsuariosAdminTelaState extends State<UsuariosAdminTela> {
                     SizedBox(
                       width: 150,
                       child: DropdownButtonFormField<String>(
-                        value: _filtroRole,
+                        initialValue: _filtroRole,
                         decoration: const InputDecoration(
                           labelText: 'Perfil',
                           border: OutlineInputBorder(),
@@ -364,7 +364,7 @@ class _UsuariosAdminTelaState extends State<UsuariosAdminTela> {
                     SizedBox(
                       width: 120,
                       child: DropdownButtonFormField<String>(
-                        value: _filtroStatus,
+                        initialValue: _filtroStatus,
                         decoration: const InputDecoration(
                           labelText: 'Status',
                           border: OutlineInputBorder(),
@@ -408,12 +408,12 @@ class _UsuariosAdminTelaState extends State<UsuariosAdminTela> {
                 ),
               )
             else if (_usuarios.isEmpty)
-              Card(
+              const Card(
                 child: Padding(
-                  padding: const EdgeInsets.all(40),
+                  padding: EdgeInsets.all(40),
                   child: Center(
                     child: Column(
-                      children: const [
+                      children: [
                         Icon(Icons.people_outline, size: 48, color: Colors.grey),
                         SizedBox(height: 12),
                         Text('Nenhum usuário encontrado'),
@@ -579,7 +579,7 @@ class _UsuariosAdminTelaState extends State<UsuariosAdminTela> {
                     const Text('Perfil', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 6),
                     DropdownButtonFormField<String>(
-                      value: _perfil,
+                      initialValue: _perfil,
                       items: const [
                         DropdownMenuItem(value: 'USER', child: Text('User')),
                         DropdownMenuItem(value: 'RECRUITER', child: Text('Recruiter')),
@@ -622,7 +622,7 @@ class _UsuariosAdminTelaState extends State<UsuariosAdminTela> {
                       const Text('Tipo de documento', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                       const SizedBox(height: 6),
                       DropdownButtonFormField<String>(
-                        value: _tipo,
+                        initialValue: _tipo,
                         items: const [
                           DropdownMenuItem(value: 'CPF', child: Text('CPF')),
                           DropdownMenuItem(value: 'CNPJ', child: Text('CNPJ')),
