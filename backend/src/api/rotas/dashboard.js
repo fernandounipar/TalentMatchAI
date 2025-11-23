@@ -49,14 +49,14 @@ router.get('/', async (req, res) => {
     const row = r.rows[0] || {};
 
     res.json({
-      vagas: row.vagas || 0,
-      curriculos: row.curriculos || 0,
-      entrevistas: row.entrevistas || 0,
-      relatorios: row.relatorios || 0,
-      candidatos: row.candidatos || 0,
-      // Placeholder para futuros insights; mantido como lista vazia
-      // para o frontend exibir mensagem padrão sem usar mocks numéricos.
-      tendencias: [],
+      data: {
+        vagas: row.vagas || 0,
+        curriculos: row.curriculos || 0,
+        entrevistas: row.entrevistas || 0,
+        relatorios: row.relatorios || 0,
+        candidatos: row.candidatos || 0,
+        tendencias: [],
+      }
     });
   } catch (error) {
     res.status(500).json({ erro: error.message || 'Falha ao carregar dashboard' });
@@ -1811,4 +1811,3 @@ router.get('/github/skills-distribution', async (req, res) => {
 });
 
 module.exports = router;
-

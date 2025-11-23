@@ -3,7 +3,7 @@ const router = express.Router();
 const db = require('../../config/database');
 const { exigirAutenticacao } = require('../../middlewares/autenticacao');
 const { audit } = require('../../middlewares/audit');
-const { gerarPerguntasEntrevista, avaliarResposta, gerarRelatorioEntrevista } = require('../../servicos/iaService');
+const { gerarPerguntasEntrevista, responderChatEntrevista, gerarRelatorioEntrevista } = require('../../servicos/iaService');
 
 router.use(exigirAutenticacao);
 
@@ -62,7 +62,13 @@ router.get('/', async (req, res) => {
     params.push((Number(page) - 1) * Number(limit));
     sql += ` ORDER BY i.scheduled_at ASC NULLS LAST, i.created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`;
     const r = await db.query(sql, params);
-    res.json(r.rows);
+    res.json({
+      data: r.rows,
+      meta: {
+        page: Number(page),
+        limit: Number(limit)
+      }
+    });
   } catch (e) {
     res.status(500).json({ erro: 'Falha ao listar entrevistas' });
   }
@@ -84,7 +90,7 @@ router.post('/', async (req, res) => {
     const interview = r.rows[0];
     await createCalendarEvent(req.usuario.company_id, interview.id, st, et);
     await audit(req, 'create', 'interview', interview.id, { job_id, candidate_id, scheduled_at: st, mode, interviewer_id, notes });
-    res.status(201).json(interview);
+    res.status(201).json({ data: interview });
   } catch (e) {
     res.status(500).json({ erro: 'Falha ao agendar entrevista' });
   }
@@ -137,7 +143,7 @@ router.put('/:id', async (req, res) => {
       );
     }
     await audit(req, 'update', 'interview', req.params.id, { scheduled_at: st, mode, status, result, overall_score, notes, duration_minutes, cancellation_reason });
-    res.json(up.rows[0]);
+    res.json({ data: up.rows[0] });
   } catch (e) {
     res.status(500).json({ erro: 'Falha ao atualizar entrevista' });
   }
@@ -159,7 +165,7 @@ router.get('/:id', async (req, res) => {
       [req.params.id, req.usuario.company_id]
     );
     if (!r.rows[0]) return res.status(404).json({ erro: 'Entrevista não encontrada' });
-    res.json(r.rows[0]);
+    res.json({ data: r.rows[0] });
   } catch (e) {
     res.status(500).json({ erro: 'Falha ao buscar entrevista' });
   }
@@ -172,7 +178,7 @@ router.delete('/:id', async (req, res) => {
     if (!r.rows[0]) return res.status(404).json({ erro: 'Entrevista não encontrada' });
     await db.query('UPDATE interviews SET deleted_at = now(), updated_at = now() WHERE id=$1 AND company_id=$2', [req.params.id, req.usuario.company_id]);
     await audit(req, 'delete', 'interview', req.params.id, {});
-    res.json({ mensagem: 'Entrevista removida com sucesso' });
+    res.json({ data: { mensagem: 'Entrevista removida com sucesso' } });
   } catch (e) {
     res.status(500).json({ erro: 'Falha ao remover entrevista' });
   }
@@ -190,9 +196,262 @@ router.post('/:id/session', async (req, res) => {
        VALUES ($1,$2, now(), $3) RETURNING *`,
       [req.usuario.company_id, req.params.id, transcript_file_id || null]
     );
-    res.status(201).json(s.rows[0]);
+    res.status(201).json({ data: s.rows[0] });
   } catch (e) {
     res.status(500).json({ erro: 'Falha ao criar sessão' });
+  }
+});
+
+// Gerar perguntas de entrevista com IA (migrado do legado)
+const perguntasHandler = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const e = await db.query(
+      `SELECT i.id, j.description AS vaga_desc, r.parsed_text AS texto_curriculo, ra.summary AS analise_json
+         FROM interviews i
+         JOIN applications a ON a.id = i.application_id
+         LEFT JOIN jobs j ON j.id = a.job_id
+         LEFT JOIN LATERAL (
+           SELECT res.parsed_text, res.id as resume_id
+             FROM resumes res
+            WHERE res.candidate_id = a.candidate_id
+              AND res.company_id = i.company_id
+              AND res.deleted_at IS NULL
+            ORDER BY res.created_at DESC
+            LIMIT 1
+         ) r ON TRUE
+         LEFT JOIN LATERAL (
+           SELECT ra.summary
+             FROM resume_analysis ra
+            WHERE ra.resume_id = r.resume_id
+            ORDER BY ra.created_at DESC
+            LIMIT 1
+         ) ra ON TRUE
+        WHERE i.id=$1 AND i.company_id=$2`,
+      [id, req.usuario.company_id]
+    );
+    const row = e.rows[0];
+    if (!row) return res.status(404).json({ erro: 'Entrevista não encontrada' });
+    const analise = row.analise_json || {};
+    const qs = await gerarPerguntasEntrevista({
+      resumo: analise.summary || '',
+      skills: analise.skills || [],
+      vaga: row.vaga_desc || '',
+      quantidade: Number(req.query.qtd || 8),
+      companyId: req.usuario.company_id,
+    });
+    // Persistir perguntas em tabela interview_questions se existir
+    const perguntas = [];
+    for (const texto of qs) {
+      const insert = await db.query(
+        `INSERT INTO interview_questions (company_id, interview_id, text, created_at)
+           VALUES ($1,$2,$3, now())
+           RETURNING id, text, created_at`,
+        [req.usuario.company_id, id, texto]
+      );
+      perguntas.push(insert.rows[0]);
+    }
+    res.json({ data: perguntas });
+  } catch (error) {
+    console.error('Erro ao gerar perguntas:', error);
+    res.status(500).json({ erro: 'Falha ao gerar perguntas' });
+  }
+};
+
+router.post('/:id/perguntas', perguntasHandler);
+router.post('/:id/questions', perguntasHandler);
+
+// Listar perguntas existentes
+router.get('/:id/questions', async (req, res) => {
+  try {
+    const r = await db.query(
+      `SELECT id, text, created_at
+         FROM interview_questions
+        WHERE interview_id = $1 AND company_id = $2
+        ORDER BY created_at ASC`,
+      [req.params.id, req.usuario.company_id]
+    );
+    res.json({ data: r.rows });
+  } catch (error) {
+    res.status(500).json({ erro: 'Falha ao listar perguntas' });
+  }
+});
+
+// Chat de entrevista com IA (migrado do legado)
+router.post('/:id/chat', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { mensagem } = req.body || {};
+    if (!mensagem || String(mensagem).trim() === '') {
+      return res.status(400).json({ erro: 'Mensagem obrigatória' });
+    }
+
+    // Carregar contexto da entrevista
+    const e = await db.query(
+      `SELECT i.id, j.description AS vaga_desc, r.parsed_text AS texto, ra.summary AS analise_json
+         FROM interviews i
+         JOIN applications a ON a.id = i.application_id
+         LEFT JOIN jobs j ON j.id = a.job_id
+         LEFT JOIN LATERAL (
+           SELECT res.parsed_text, res.id as resume_id
+             FROM resumes res
+            WHERE res.candidate_id = a.candidate_id
+              AND res.company_id = i.company_id
+              AND res.deleted_at IS NULL
+            ORDER BY res.created_at DESC
+            LIMIT 1
+         ) r ON TRUE
+         LEFT JOIN LATERAL (
+           SELECT ra.summary
+             FROM resume_analysis ra
+            WHERE ra.resume_id = r.resume_id
+            ORDER BY ra.created_at DESC
+            LIMIT 1
+         ) ra ON TRUE
+        WHERE i.id=$1 AND i.company_id=$2`,
+      [id, req.usuario.company_id]
+    );
+    const row = e.rows[0];
+    if (!row) return res.status(404).json({ erro: 'Entrevista não encontrada' });
+
+    // Buscar histórico recente
+    const hist = await db.query(
+      'SELECT role, conteudo FROM mensagens WHERE entrevista_id=$1 AND company_id=$2 ORDER BY criado_em ASC LIMIT 50',
+      [id, req.usuario.company_id]
+    );
+
+    // Persistir mensagem do usuário
+    const insUser = await db.query(
+      'INSERT INTO mensagens (entrevista_id, role, conteudo, company_id, criado_em) VALUES ($1,$2,$3,$4, now()) RETURNING id, role, conteudo, criado_em',
+      [id, 'user', String(mensagem), req.usuario.company_id]
+    );
+
+    // Gerar resposta via IA
+    const resposta = await responderChatEntrevista({
+      historico: hist.rows,
+      mensagemAtual: String(mensagem),
+      analise: row.analise_json || {},
+      vagaDesc: row.vaga_desc || '',
+      textoCurriculo: row.texto ? String(row.texto).slice(0, 5000) : '',
+      companyId: req.usuario.company_id,
+    });
+
+    const conteudoResposta = Array.isArray(resposta) ? resposta.join('\n') : String(resposta);
+
+    // Persistir resposta do assistant
+    const insIA = await db.query(
+      'INSERT INTO mensagens (entrevista_id, role, conteudo, company_id, criado_em) VALUES ($1,$2,$3,$4, now()) RETURNING id, role, conteudo, criado_em',
+      [id, 'assistant', conteudoResposta, req.usuario.company_id]
+    );
+
+    res.json({
+      data: {
+        enviada: insUser.rows[0],
+        resposta: insIA.rows[0],
+      }
+    });
+  } catch (error) {
+    console.error('Erro no chat da entrevista:', error);
+    res.status(500).json({ erro: 'Falha no chat da entrevista' });
+  }
+});
+
+// Histórico de mensagens do chat
+router.get('/:id/messages', async (req, res) => {
+  try {
+    const msgs = await db.query(
+      'SELECT id, role, conteudo, criado_em FROM mensagens WHERE entrevista_id=$1 AND company_id=$2 ORDER BY criado_em ASC',
+      [req.params.id, req.usuario.company_id]
+    );
+    res.json({ data: msgs.rows });
+  } catch (error) {
+    res.status(500).json({ erro: 'Falha ao listar mensagens' });
+  }
+});
+
+// Relatório de entrevista (RF7) - gerar e obter
+router.post('/:id/report', async (req, res) => {
+  try {
+    const id = req.params.id;
+    // Verifica se entrevista existe
+    const interview = await db.query(
+      `SELECT i.id, i.company_id, a.job_id, a.candidate_id, j.title as job_title, c.full_name as candidate_name
+         FROM interviews i
+         JOIN applications a ON a.id = i.application_id
+         JOIN jobs j ON j.id = a.job_id
+         JOIN candidates c ON c.id = a.candidate_id
+        WHERE i.id = $1 AND i.company_id = $2`,
+      [id, req.usuario.company_id]
+    );
+    if (!interview.rows[0]) return res.status(404).json({ erro: 'Entrevista não encontrada' });
+
+    // Coletar respostas/feedback simplificados
+    const respostas = []; // placeholder se necessário
+    const feedbacks = [];
+
+    const aiReport = await gerarRelatorioEntrevista({
+      candidato: interview.rows[0].candidate_name || 'Candidato',
+      vaga: interview.rows[0].job_title || 'Vaga',
+      respostas,
+      feedbacks,
+      companyId: req.usuario.company_id
+    });
+
+    const versionQuery = await db.query(
+      `SELECT COALESCE(MAX(version), 0) + 1 as next_version
+         FROM interview_reports
+        WHERE interview_id = $1 AND company_id = $2`,
+      [id, req.usuario.company_id]
+    );
+    const version = versionQuery.rows[0].next_version;
+
+    const insert = await db.query(
+      `INSERT INTO interview_reports (
+         company_id, interview_id, title, report_type, content,
+         summary_text, candidate_name, job_title, overall_score, recommendation,
+         strengths, weaknesses, risks, format, generated_by, generated_at, is_final, version, created_by
+       ) VALUES (
+         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15, now(), $16, $17, $18
+       ) RETURNING *`,
+      [
+        req.usuario.company_id,
+        id,
+        aiReport.title || `Relatório de Entrevista v${version}`,
+        aiReport.report_type || 'full',
+        JSON.stringify(aiReport),
+        aiReport.summary_text || aiReport.summary || null,
+        interview.rows[0].candidate_name,
+        interview.rows[0].job_title,
+        aiReport.overall_score || null,
+        aiReport.recommendation || 'PENDING',
+        aiReport.strengths || [],
+        aiReport.weaknesses || [],
+        aiReport.risks || [],
+        aiReport.format || 'json',
+        req.usuario.id,
+        req.body?.is_final ?? false,
+        version,
+        req.usuario.id
+      ]
+    );
+
+    res.status(201).json({ data: insert.rows[0] });
+  } catch (error) {
+    console.error('Erro ao gerar relatório:', error);
+    res.status(500).json({ erro: 'Falha ao gerar relatório' });
+  }
+});
+
+router.get('/:id/report', async (req, res) => {
+  try {
+    const r = await db.query(
+      `SELECT * FROM interview_reports WHERE interview_id = $1 AND company_id = $2 ORDER BY created_at DESC LIMIT 1`,
+      [req.params.id, req.usuario.company_id]
+    );
+    if (!r.rows[0]) return res.status(404).json({ erro: 'Relatório não encontrado' });
+    res.json({ data: r.rows[0] });
+  } catch (error) {
+    res.status(500).json({ erro: 'Falha ao obter relatório' });
   }
 });
 

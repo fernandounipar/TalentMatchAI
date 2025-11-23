@@ -3,13 +3,10 @@ const router = express.Router();
 
 // Importar rotas
 const rotasUsuarios = require('./rotas/usuarios');
-const rotasVagas = require('./rotas/vagas');
 const rotasAutenticacao = require('./rotas/autenticacao');
 const rotasUser = require('./rotas/user');
-const rotasCurriculos = require('./rotas/curriculos');
 const rotasEntrevistas = require('./rotas/entrevistas');
 const rotasDashboard = require('./rotas/dashboard');
-const rotasCandidatos = require('./rotas/candidatos');
 const rotasHistorico = require('./rotas/historico');
 const rotasCompanies = require('./rotas/companies');
 const rotasJobs = require('./rotas/jobs');
@@ -22,23 +19,22 @@ const rotasFiles = require('./rotas/files');
 const rotasIngestion = require('./rotas/ingestion');
 const rotasResumes = require('./rotas/resumes');
 const rotasApiKeys = require('./rotas/api_keys');
-const rotasQuestionSets = require('./rotas/interview-question-sets');
-const rotasLiveAssessments = require('./rotas/live-assessments');
-const rotasReports = require('./rotas/reports');
+// Rotas com dependências incompletas devem permanecer desativadas até reescrita:
+// const rotasQuestionSets = require('./rotas/interview-question-sets');
+// const rotasLiveAssessments = require('./rotas/live-assessments');
+// const rotasReports = require('./rotas/reports');
 const rotasGithub = require('./rotas/github');
 
 // Montar rotas
 router.use('/usuarios', rotasUsuarios);
-router.use('/vagas', rotasVagas);
 router.use('/auth', rotasAutenticacao);
 router.use('/user', rotasUser);
-router.use('/curriculos', rotasCurriculos);
 router.use('/entrevistas', rotasEntrevistas);
 router.use('/dashboard', rotasDashboard);
-router.use('/candidatos', rotasCandidatos);
 router.use('/historico', rotasHistorico);
 router.use('/companies', rotasCompanies);
 router.use('/jobs', rotasJobs);
+router.use('/vagas', rotasJobs); // alias em pt-BR para o frontend
 router.use('/candidates', rotasCandidates);
 router.use('/skills', rotasSkills);
 router.use('/', rotasPipelines); // /jobs/:jobId/pipeline
@@ -47,10 +43,11 @@ router.use('/interviews', rotasInterviews);
 router.use('/files', rotasFiles);
 router.use('/ingestion', rotasIngestion);
 router.use('/resumes', rotasResumes);
+router.use('/curriculos', rotasResumes); // alias pt-BR para upload/listagem
 router.use('/api-keys', rotasApiKeys);
-router.use('/interview-question-sets', rotasQuestionSets);
-router.use('/live-assessments', rotasLiveAssessments);
-router.use('/reports', rotasReports);
+// router.use('/interview-question-sets', rotasQuestionSets);
+// router.use('/live-assessments', rotasLiveAssessments);
+// router.use('/reports', rotasReports);
 router.use('/candidates', rotasGithub); // GitHub routes: /api/candidates/:id/github
 
 module.exports = router;

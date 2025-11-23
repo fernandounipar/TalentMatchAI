@@ -3,6 +3,28 @@ const router = express.Router();
 const db = require('../../config/database');
 const { exigirAutenticacao } = require('../../middlewares/autenticacao');
 const { gerarAnaliseCurriculo } = require('../../servicos/iaService');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, '../../../uploads');
+
+function ensureDirSync(p) { try { fs.mkdirSync(p, { recursive: true }); } catch {} }
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const dir = path.join(UPLOAD_DIR, String(req.usuario?.company_id || 'public'));
+    ensureDirSync(dir);
+    cb(null, dir);
+  },
+  filename: function (req, file, cb) {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    const safe = Date.now() + '_' + Math.random().toString(36).slice(2) + ext;
+    cb(null, safe);
+  }
+});
+
+const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } });
 
 router.use(exigirAutenticacao);
 
@@ -10,6 +32,87 @@ router.use(exigirAutenticacao);
  * POST /api/resumes - Criar novo currículo (já implementado via /curriculos/upload)
  * Redireciona para a rota de upload de currículos
  */
+
+/**
+ * POST /api/resumes/upload - Upload de currículo (RF1)
+ * Aceita multipart field "file" e, opcionalmente, candidate_id ou dados do candidato
+ */
+router.post('/upload', upload.single('file'), async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+    if (!req.file) return res.status(400).json({ erro: 'Arquivo ausente' });
+
+    const {
+      candidate_id,
+      job_id,
+      full_name,
+      email,
+      phone,
+      linkedin,
+      github_url
+    } = req.body || {};
+
+    // Resolve candidato
+    let candidateId = candidate_id;
+    if (!candidateId) {
+      if (!full_name || !email) {
+        return res.status(400).json({ erro: 'Informe candidate_id ou full_name e email para criar candidato' });
+      }
+      const cand = await db.query(
+        `INSERT INTO candidates (company_id, full_name, email, phone, linkedin, github_url, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6, now()) RETURNING id`,
+        [companyId, full_name, email.toLowerCase(), phone || null, linkedin || null, github_url || null]
+      );
+      candidateId = cand.rows[0].id;
+    } else {
+      const check = await db.query(
+        'SELECT id FROM candidates WHERE id=$1 AND company_id=$2 AND deleted_at IS NULL',
+        [candidateId, companyId]
+      );
+      if (!check.rows[0]) return res.status(404).json({ erro: 'Candidato não encontrado' });
+    }
+
+    // Salva metadata do arquivo
+    const relPath = path.posix.join(String(companyId), path.basename(req.file.path));
+    const fileIns = await db.query(
+      `INSERT INTO files (company_id, storage_key, filename, mime, size, created_at)
+       VALUES ($1,$2,$3,$4,$5, now()) RETURNING id`,
+      [companyId, relPath, req.file.originalname, req.file.mimetype, req.file.size]
+    );
+    const fileId = fileIns.rows[0].id;
+
+    // Cria registro de resume
+    const resumeIns = await db.query(
+      `INSERT INTO resumes (
+         company_id, candidate_id, job_id, file_id,
+         original_filename, file_size, mime_type, status, created_at, updated_at
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,'pending', now(), now())
+       RETURNING *`,
+      [
+        companyId,
+        candidateId,
+        job_id || null,
+        fileId,
+        req.file.originalname,
+        req.file.size,
+        req.file.mimetype
+      ]
+    );
+
+    const resume = resumeIns.rows[0];
+    const url = `/uploads/${relPath}`;
+
+    res.status(201).json({
+      data: {
+        ...resume,
+        file_url: url
+      }
+    });
+  } catch (error) {
+    console.error('❌ Erro no upload de currículo:', error);
+    res.status(500).json({ erro: 'Erro ao fazer upload de currículo', detalhes: error.message });
+  }
+});
 
 /**
  * GET /api/resumes - Listar currículos com paginação e filtros (Read)
@@ -121,11 +224,11 @@ router.get('/', async (req, res) => {
 
     res.json({
       data: result.rows,
-      pagination: {
+      meta: {
         page: parseInt(page),
         limit: parseInt(limit),
         total,
-        totalPages: Math.ceil(total / parseInt(limit))
+        total_pages: Math.ceil(total / parseInt(limit))
       }
     });
   } catch (error) {
@@ -178,7 +281,7 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ erro: 'Currículo não encontrado' });
     }
 
-    res.json(result.rows[0]);
+    res.json({ data: result.rows[0] });
   } catch (error) {
     console.error('❌ Erro ao obter currículo:', error);
     res.status(500).json({ erro: 'Erro ao obter currículo', detalhes: error.message });
@@ -254,10 +357,7 @@ router.put('/:id', async (req, res) => {
 
     const result = await db.query(updateQuery, params);
 
-    res.json({
-      mensagem: 'Currículo atualizado com sucesso',
-      data: result.rows[0]
-    });
+    res.json({ data: result.rows[0] });
   } catch (error) {
     console.error('❌ Erro ao atualizar currículo:', error);
     res.status(500).json({ erro: 'Erro ao atualizar currículo', detalhes: error.message });
@@ -293,10 +393,7 @@ router.delete('/:id', async (req, res) => {
 
     await db.query(deleteQuery, [req.usuario.id, id, companyId]);
 
-    res.json({
-      mensagem: 'Currículo excluído com sucesso',
-      id
-    });
+    res.status(204).send();
   } catch (error) {
     console.error('❌ Erro ao excluir currículo:', error);
     res.status(500).json({ erro: 'Erro ao excluir currículo', detalhes: error.message });
@@ -370,8 +467,10 @@ router.post('/:id/analyze', async (req, res) => {
     ]);
 
     res.json({
-      mensagem: 'Análise realizada com sucesso',
-      analysis: analysisResult.rows[0]
+      data: {
+        mensagem: 'Análise realizada com sucesso',
+        analysis: analysisResult.rows[0]
+      }
     });
   } catch (error) {
     console.error('❌ Erro ao reanalisar currículo:', error);
@@ -396,7 +495,7 @@ router.get('/search', async (req, res) => {
         ORDER BY r.created_at DESC LIMIT 50`,
       [req.usuario.company_id, term]
     );
-    res.json(r.rows);
+    res.json({ data: r.rows });
   } catch (e) {
     res.status(500).json({ erro: 'Falha na busca' });
   }
