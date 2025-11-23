@@ -1653,5 +1653,162 @@ router.delete('/presets/:id', async (req, res) => {
   }
 });
 
+// ============================================================================
+// RF4 - GitHub Integration Endpoints
+// ============================================================================
+
+// GET /api/dashboard/github/metrics - Métricas consolidadas de GitHub
+router.get('/github/metrics', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+
+    const result = await db.query(
+      'SELECT get_github_metrics($1) as metrics',
+      [companyId]
+    );
+
+    const metrics = result.rows[0]?.metrics || {
+      stats: {},
+      top_languages: [],
+      top_candidates: [],
+      recent_success_rate: null
+    };
+
+    res.json({
+      success: true,
+      data: metrics
+    });
+
+  } catch (error) {
+    console.error('[RF4] Erro ao buscar métricas GitHub:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar métricas GitHub',
+      error: error.message
+    });
+  }
+});
+
+// GET /api/dashboard/github/sync-timeline - Timeline de sincronizações
+router.get('/github/sync-timeline', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+    const { days = 30 } = req.query;
+
+    const result = await db.query(
+      `SELECT * FROM github_sync_timeline
+       WHERE company_id = $1 
+       AND sync_date >= CURRENT_DATE - INTERVAL '${parseInt(days)} days'
+       ORDER BY sync_date DESC`,
+      [companyId]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows,
+      period: {
+        days: parseInt(days),
+        from: result.rows[result.rows.length - 1]?.sync_date,
+        to: result.rows[0]?.sync_date
+      }
+    });
+
+  } catch (error) {
+    console.error('[RF4] Erro ao buscar timeline GitHub:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar timeline de sincronizações GitHub',
+      error: error.message
+    });
+  }
+});
+
+// GET /api/dashboard/github/top-languages - Top linguagens mais usadas
+router.get('/github/top-languages', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+    const { limit = 10 } = req.query;
+
+    const result = await db.query(
+      `SELECT * FROM github_top_languages
+       WHERE company_id = $1
+       ORDER BY developers_count DESC, avg_percentage DESC
+       LIMIT $2`,
+      [companyId, parseInt(limit)]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+
+  } catch (error) {
+    console.error('[RF4] Erro ao buscar top languages GitHub:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar linguagens mais usadas',
+      error: error.message
+    });
+  }
+});
+
+// GET /api/dashboard/github/top-candidates - Top candidatos por popularidade
+router.get('/github/top-candidates', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+    const { limit = 10 } = req.query;
+
+    const result = await db.query(
+      `SELECT * FROM github_top_candidates
+       WHERE company_id = $1
+       ORDER BY popularity_rank
+       LIMIT $2`,
+      [companyId, parseInt(limit)]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+
+  } catch (error) {
+    console.error('[RF4] Erro ao buscar top candidates GitHub:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar candidatos mais populares',
+      error: error.message
+    });
+  }
+});
+
+// GET /api/dashboard/github/skills-distribution - Distribuição de skills
+router.get('/github/skills-distribution', async (req, res) => {
+  try {
+    const companyId = req.usuario.company_id;
+    const { limit = 20 } = req.query;
+
+    const result = await db.query(
+      `SELECT * FROM github_skills_distribution
+       WHERE company_id = $1
+       ORDER BY candidates_count DESC
+       LIMIT $2`,
+      [companyId, parseInt(limit)]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+
+  } catch (error) {
+    console.error('[RF4] Erro ao buscar skills distribution GitHub:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar distribuição de skills',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
 

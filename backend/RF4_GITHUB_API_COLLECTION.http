@@ -1,0 +1,437 @@
+###
+# RF4 - GitHub Integration API Collection
+# 50+ requests cobrindo CRUD, dashboard, validações, segurança, performance, E2E
+###
+
+# ============================================================================
+# VARIÁVEIS GLOBAIS
+# ============================================================================
+
+@baseUrl = http://localhost:4000/api
+@token = {{$dotenv AUTH_TOKEN}}
+@candidateId = {{$dotenv CANDIDATE_ID}}
+@githubUsername = torvalds
+
+# ============================================================================
+# SETUP - Login para obter token
+# ============================================================================
+
+### 1. Login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "senha123"
+}
+
+# ============================================================================
+# RF4 - CANDIDATE GITHUB CRUD
+# ============================================================================
+
+### 2. POST /api/candidates/:id/github - Associar GitHub username (success)
+POST {{baseUrl}}/candidates/{{candidateId}}/github
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "username": "{{githubUsername}}",
+  "consent_given": true
+}
+
+### 3. POST /api/candidates/:id/github - Sem username (error 400)
+POST {{baseUrl}}/candidates/{{candidateId}}/github
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "consent_given": true
+}
+
+### 4. POST /api/candidates/:id/github - Username vazio (error 400)
+POST {{baseUrl}}/candidates/{{candidateId}}/github
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "username": "   ",
+  "consent_given": true
+}
+
+### 5. POST /api/candidates/:id/github - Sem consentimento (error 400)
+POST {{baseUrl}}/candidates/{{candidateId}}/github
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "username": "{{githubUsername}}"
+}
+
+### 6. POST /api/candidates/:id/github - Consentimento false (error 400)
+POST {{baseUrl}}/candidates/{{candidateId}}/github
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "username": "{{githubUsername}}",
+  "consent_given": false
+}
+
+### 7. POST /api/candidates/:id/github - Candidato não existe (error 404)
+POST {{baseUrl}}/candidates/00000000-0000-0000-0000-000000000000/github
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "username": "{{githubUsername}}",
+  "consent_given": true
+}
+
+### 8. POST /api/candidates/:id/github - GitHub user não existe (error 400)
+POST {{baseUrl}}/candidates/{{candidateId}}/github
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "username": "this-user-definitely-does-not-exist-12345678",
+  "consent_given": true
+}
+
+### 9. POST /api/candidates/:id/github - Duplicate (error 409)
+POST {{baseUrl}}/candidates/{{candidateId}}/github
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "username": "{{githubUsername}}",
+  "consent_given": true
+}
+
+### 10. POST /api/candidates/:id/github - Sem autenticação (error 401)
+POST {{baseUrl}}/candidates/{{candidateId}}/github
+Content-Type: application/json
+
+{
+  "username": "{{githubUsername}}",
+  "consent_given": true
+}
+
+# ============================================================================
+# RF4 - GET GitHub Profile
+# ============================================================================
+
+### 11. GET /api/candidates/:id/github - Buscar perfil GitHub (success)
+GET {{baseUrl}}/candidates/{{candidateId}}/github
+Authorization: Bearer {{token}}
+
+### 12. GET /api/candidates/:id/github - Candidato sem GitHub (error 404)
+GET {{baseUrl}}/candidates/00000000-0000-0000-0000-000000000001/github
+Authorization: Bearer {{token}}
+
+### 13. GET /api/candidates/:id/github - Sem autenticação (error 401)
+GET {{baseUrl}}/candidates/{{candidateId}}/github
+
+# ============================================================================
+# RF4 - PUT Re-sync GitHub Profile
+# ============================================================================
+
+### 14. PUT /api/candidates/:id/github - Re-sincronizar (success)
+PUT {{baseUrl}}/candidates/{{candidateId}}/github
+Authorization: Bearer {{token}}
+
+### 15. PUT /api/candidates/:id/github - Re-sincronizar perfil não existente (error 404)
+PUT {{baseUrl}}/candidates/00000000-0000-0000-0000-000000000001/github
+Authorization: Bearer {{token}}
+
+### 16. PUT /api/candidates/:id/github - Sem autenticação (error 401)
+PUT {{baseUrl}}/candidates/{{candidateId}}/github
+
+# ============================================================================
+# RF4 - DELETE GitHub Integration
+# ============================================================================
+
+### 17. DELETE /api/candidates/:id/github - Remover integração (success)
+DELETE {{baseUrl}}/candidates/{{candidateId}}/github
+Authorization: Bearer {{token}}
+
+### 18. DELETE /api/candidates/:id/github - Remover novamente (error 404)
+DELETE {{baseUrl}}/candidates/{{candidateId}}/github
+Authorization: Bearer {{token}}
+
+### 19. DELETE /api/candidates/:id/github - Perfil não existe (error 404)
+DELETE {{baseUrl}}/candidates/00000000-0000-0000-0000-000000000001/github
+Authorization: Bearer {{token}}
+
+### 20. DELETE /api/candidates/:id/github - Sem autenticação (error 401)
+DELETE {{baseUrl}}/candidates/{{candidateId}}/github
+
+# ============================================================================
+# RF4 - LIST GitHub Profiles
+# ============================================================================
+
+### 21. GET /api/candidates/github - Listar todos (success)
+GET {{baseUrl}}/candidates/github
+Authorization: Bearer {{token}}
+
+### 22. GET /api/candidates/github - Com search
+GET {{baseUrl}}/candidates/github?search=torvalds
+Authorization: Bearer {{token}}
+
+### 23. GET /api/candidates/github - Filtro sync_status=success
+GET {{baseUrl}}/candidates/github?sync_status=success
+Authorization: Bearer {{token}}
+
+### 24. GET /api/candidates/github - Filtro sync_status=error
+GET {{baseUrl}}/candidates/github?sync_status=error
+Authorization: Bearer {{token}}
+
+### 25. GET /api/candidates/github - Filtro sync_status=pending
+GET {{baseUrl}}/candidates/github?sync_status=pending
+Authorization: Bearer {{token}}
+
+### 26. GET /api/candidates/github - Sort por username ASC
+GET {{baseUrl}}/candidates/github?sort=username&order=ASC
+Authorization: Bearer {{token}}
+
+### 27. GET /api/candidates/github - Sort por followers DESC
+GET {{baseUrl}}/candidates/github?sort=followers&order=DESC
+Authorization: Bearer {{token}}
+
+### 28. GET /api/candidates/github - Sort por public_repos DESC
+GET {{baseUrl}}/candidates/github?sort=public_repos&order=DESC
+Authorization: Bearer {{token}}
+
+### 29. GET /api/candidates/github - Sort por last_synced_at DESC
+GET {{baseUrl}}/candidates/github?sort=last_synced_at&order=DESC
+Authorization: Bearer {{token}}
+
+### 30. GET /api/candidates/github - Paginação page 1 limit 5
+GET {{baseUrl}}/candidates/github?page=1&limit=5
+Authorization: Bearer {{token}}
+
+### 31. GET /api/candidates/github - Paginação page 2 limit 5
+GET {{baseUrl}}/candidates/github?page=2&limit=5
+Authorization: Bearer {{token}}
+
+### 32. GET /api/candidates/github - Limit 100 (max)
+GET {{baseUrl}}/candidates/github?limit=100
+Authorization: Bearer {{token}}
+
+### 33. GET /api/candidates/github - Limit 200 (capped to 100)
+GET {{baseUrl}}/candidates/github?limit=200
+Authorization: Bearer {{token}}
+
+### 34. GET /api/candidates/github - Combinação: search + status + sort
+GET {{baseUrl}}/candidates/github?search=test&sync_status=success&sort=followers&order=DESC&limit=10
+Authorization: Bearer {{token}}
+
+### 35. GET /api/candidates/github - Sem autenticação (error 401)
+GET {{baseUrl}}/candidates/github
+
+# ============================================================================
+# RF4 - DASHBOARD GitHub Metrics
+# ============================================================================
+
+### 36. GET /api/dashboard/github/metrics - Métricas consolidadas (success)
+GET {{baseUrl}}/dashboard/github/metrics
+Authorization: Bearer {{token}}
+
+### 37. GET /api/dashboard/github/metrics - Sem autenticação (error 401)
+GET {{baseUrl}}/dashboard/github/metrics
+
+### 38. GET /api/dashboard/github/sync-timeline - Timeline default (30 dias)
+GET {{baseUrl}}/dashboard/github/sync-timeline
+Authorization: Bearer {{token}}
+
+### 39. GET /api/dashboard/github/sync-timeline - Timeline 7 dias
+GET {{baseUrl}}/dashboard/github/sync-timeline?days=7
+Authorization: Bearer {{token}}
+
+### 40. GET /api/dashboard/github/sync-timeline - Timeline 90 dias
+GET {{baseUrl}}/dashboard/github/sync-timeline?days=90
+Authorization: Bearer {{token}}
+
+### 41. GET /api/dashboard/github/sync-timeline - Sem autenticação (error 401)
+GET {{baseUrl}}/dashboard/github/sync-timeline
+
+### 42. GET /api/dashboard/github/top-languages - Top 10 (default)
+GET {{baseUrl}}/dashboard/github/top-languages
+Authorization: Bearer {{token}}
+
+### 43. GET /api/dashboard/github/top-languages - Top 5
+GET {{baseUrl}}/dashboard/github/top-languages?limit=5
+Authorization: Bearer {{token}}
+
+### 44. GET /api/dashboard/github/top-languages - Top 20
+GET {{baseUrl}}/dashboard/github/top-languages?limit=20
+Authorization: Bearer {{token}}
+
+### 45. GET /api/dashboard/github/top-languages - Sem autenticação (error 401)
+GET {{baseUrl}}/dashboard/github/top-languages
+
+### 46. GET /api/dashboard/github/top-candidates - Top 10 (default)
+GET {{baseUrl}}/dashboard/github/top-candidates
+Authorization: Bearer {{token}}
+
+### 47. GET /api/dashboard/github/top-candidates - Top 5
+GET {{baseUrl}}/dashboard/github/top-candidates?limit=5
+Authorization: Bearer {{token}}
+
+### 48. GET /api/dashboard/github/top-candidates - Top 20
+GET {{baseUrl}}/dashboard/github/top-candidates?limit=20
+Authorization: Bearer {{token}}
+
+### 49. GET /api/dashboard/github/top-candidates - Sem autenticação (error 401)
+GET {{baseUrl}}/dashboard/github/top-candidates
+
+### 50. GET /api/dashboard/github/skills-distribution - Top 20 (default)
+GET {{baseUrl}}/dashboard/github/skills-distribution
+Authorization: Bearer {{token}}
+
+### 51. GET /api/dashboard/github/skills-distribution - Top 10
+GET {{baseUrl}}/dashboard/github/skills-distribution?limit=10
+Authorization: Bearer {{token}}
+
+### 52. GET /api/dashboard/github/skills-distribution - Top 50
+GET {{baseUrl}}/dashboard/github/skills-distribution?limit=50
+Authorization: Bearer {{token}}
+
+### 53. GET /api/dashboard/github/skills-distribution - Sem autenticação (error 401)
+GET {{baseUrl}}/dashboard/github/skills-distribution
+
+# ============================================================================
+# E2E - Fluxo Completo
+# ============================================================================
+
+### 54. E2E: Criar candidato → Vincular GitHub → Buscar → Re-sync → Deletar
+
+# Step 1: Criar candidato
+POST {{baseUrl}}/candidates
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "full_name": "Test GitHub Candidate",
+  "email": "github.test@example.com",
+  "phone": "+55 11 98765-4321"
+}
+
+### Step 2: Vincular GitHub (usar candidateId do step 1)
+# POST {{baseUrl}}/candidates/{candidateId}/github
+# Authorization: Bearer {{token}}
+# Content-Type: application/json
+# {
+#   "username": "octocat",
+#   "consent_given": true
+# }
+
+### Step 3: Buscar perfil
+# GET {{baseUrl}}/candidates/{candidateId}/github
+# Authorization: Bearer {{token}}
+
+### Step 4: Re-sincronizar
+# PUT {{baseUrl}}/candidates/{candidateId}/github
+# Authorization: Bearer {{token}}
+
+### Step 5: Deletar integração
+# DELETE {{baseUrl}}/candidates/{candidateId}/github
+# Authorization: Bearer {{token}}
+
+### Step 6: Verificar que foi deletado (error 404)
+# GET {{baseUrl}}/candidates/{candidateId}/github
+# Authorization: Bearer {{token}}
+
+# ============================================================================
+# PERFORMANCE - Stress Tests
+# ============================================================================
+
+### 55. Performance: Vincular GitHub com username popular (muitos repos)
+POST {{baseUrl}}/candidates/{{candidateId}}/github
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "username": "sindresorhus",
+  "consent_given": true
+}
+
+### 56. Performance: Re-sync de perfil com muitos dados
+PUT {{baseUrl}}/candidates/{{candidateId}}/github
+Authorization: Bearer {{token}}
+
+### 57. Performance: Listar 100 perfis com sort complexo
+GET {{baseUrl}}/candidates/github?sort=followers&order=DESC&limit=100
+Authorization: Bearer {{token}}
+
+# ============================================================================
+# SECURITY - Testes de Segurança
+# ============================================================================
+
+### 58. Security: Tentar acessar perfil de outra company (company isolation)
+# Primeiro login com outro usuário de company diferente
+# Depois tentar GET {{baseUrl}}/candidates/{{candidateId}}/github
+# Deve retornar 404 (não deve expor que o candidato existe em outra company)
+
+### 59. Security: SQL Injection em search
+GET {{baseUrl}}/candidates/github?search='; DROP TABLE candidate_github_profiles; --
+Authorization: Bearer {{token}}
+
+### 60. Security: XSS em username
+POST {{baseUrl}}/candidates/{{candidateId}}/github
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "username": "<script>alert('xss')</script>",
+  "consent_given": true
+}
+
+# ============================================================================
+# EDGE CASES
+# ============================================================================
+
+### 61. Edge Case: Username com caracteres especiais
+POST {{baseUrl}}/candidates/{{candidateId}}/github
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "username": "user-name_with.dots",
+  "consent_given": true
+}
+
+### 62. Edge Case: Username muito longo (100+ chars)
+POST {{baseUrl}}/candidates/{{candidateId}}/github
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "username": "this-is-a-very-long-username-that-exceeds-normal-github-username-length-limits-and-should-be-handled-properly-by-the-api",
+  "consent_given": true
+}
+
+### 63. Edge Case: Username case insensitive (GitHub usernames são case-insensitive)
+POST {{baseUrl}}/candidates/{{candidateId}}/github
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "username": "TORVALDS",
+  "consent_given": true
+}
+
+### 64. Edge Case: Re-sync durante rate limit (GitHub API rate limited)
+# Fazer múltiplas requisições rápidas até atingir rate limit
+# PUT {{baseUrl}}/candidates/{{candidateId}}/github
+# Deve retornar erro com informação de quando o rate limit reseta
+
+### 65. Edge Case: Dashboard metrics sem nenhum perfil vinculado
+GET {{baseUrl}}/dashboard/github/metrics
+Authorization: Bearer {{token}}
+
+# ============================================================================
+# CLEANUP
+# ============================================================================
+
+### 66. Cleanup: Remover todas as integrações de teste
+# Deletar manualmente os perfis criados durante os testes
