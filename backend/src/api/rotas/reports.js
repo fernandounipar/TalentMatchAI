@@ -6,7 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const { Pool } = require('pg');
-const { verificarAutenticacao } = require('../../middlewares/autenticacao');
+const { exigirAutenticacao } = require('../../middlewares/autenticacao');
 const { verificarPermissao } = require('../../middlewares/permissoes');
 const { gerarRelatorioEntrevista } = require('../../servicos/iaService');
 
@@ -22,7 +22,7 @@ const pool = new Pool({
  * POST /api/reports
  * Criar novo relatório (gerar via IA ou manual)
  */
-router.post('/', verificarAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', 'SUPER_ADMIN']), async (req, res) => {
+router.post('/', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', 'SUPER_ADMIN']), async (req, res) => {
   const client = await pool.connect();
   
   try {
@@ -243,7 +243,7 @@ router.post('/', verificarAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN'
  * GET /api/reports
  * Listar relatórios com filtros
  */
-router.get('/', verificarAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', 'SUPER_ADMIN']), async (req, res) => {
+router.get('/', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', 'SUPER_ADMIN']), async (req, res) => {
   try {
     const { companyId } = req.user;
     const {
@@ -389,7 +389,7 @@ router.get('/', verificarAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN',
  * GET /api/reports/:id
  * Obter detalhes de um relatório
  */
-router.get('/:id', verificarAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', 'SUPER_ADMIN']), async (req, res) => {
+router.get('/:id', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', 'SUPER_ADMIN']), async (req, res) => {
   try {
     const { companyId } = req.user;
     const { id } = req.params;
@@ -433,7 +433,7 @@ router.get('/:id', verificarAutenticacao, verificarPermissao(['RECRUITER', 'ADMI
  * PUT /api/reports/:id
  * Atualizar relatório (regenerar ou editar campos)
  */
-router.put('/:id', verificarAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', 'SUPER_ADMIN']), async (req, res) => {
+router.put('/:id', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', 'SUPER_ADMIN']), async (req, res) => {
   const client = await pool.connect();
   
   try {
@@ -586,7 +586,7 @@ router.put('/:id', verificarAutenticacao, verificarPermissao(['RECRUITER', 'ADMI
  * DELETE /api/reports/:id
  * Arquivar/excluir relatório (soft delete)
  */
-router.delete('/:id', verificarAutenticacao, verificarPermissao(['ADMIN', 'SUPER_ADMIN']), async (req, res) => {
+router.delete('/:id', exigirAutenticacao, verificarPermissao(['ADMIN', 'SUPER_ADMIN']), async (req, res) => {
   try {
     const { companyId } = req.user;
     const { id } = req.params;
@@ -626,7 +626,7 @@ router.delete('/:id', verificarAutenticacao, verificarPermissao(['ADMIN', 'SUPER
  * GET /api/reports/interview/:interview_id
  * Buscar todos os relatórios de uma entrevista
  */
-router.get('/interview/:interview_id', verificarAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', 'SUPER_ADMIN']), async (req, res) => {
+router.get('/interview/:interview_id', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', 'SUPER_ADMIN']), async (req, res) => {
   try {
     const { companyId } = req.user;
     const { interview_id } = req.params;
