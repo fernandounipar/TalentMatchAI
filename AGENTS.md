@@ -916,4 +916,106 @@ Assim você vai fechando o ciclo **FrontEnd → BackEnd → Banco** funcional, t
 ---
 
 ### RF4 - Integração com GitHub API
-**Status:** ⏳ Não iniciado
+**Status:** ✅ Concluído  
+**Data:** 22/01/2025  
+**Migrations:**
+- ✅ 028_github_integration.sql - Tabela candidate_github_profiles (26 colunas) + 7 índices + 1 trigger + 1 view
+- ✅ 029_github_metrics_views.sql - 5 views + função get_github_metrics() + 3 índices adicionais
+
+**API Endpoints:**
+- ✅ POST /api/candidates/:id/github (vincular GitHub username + sync automático)
+- ✅ GET /api/candidates/:id/github (buscar perfil GitHub do candidato)
+- ✅ PUT /api/candidates/:id/github (re-sincronizar dados do GitHub)
+- ✅ DELETE /api/candidates/:id/github (remover integração - soft delete)
+- ✅ GET /api/candidates/github (listar todos perfis GitHub com 5 filtros: search, sync_status, sort, page, limit)
+- ✅ GET /api/dashboard/github/metrics (métricas consolidadas: 12 stats + top_languages + top_candidates + success_rate)
+- ✅ GET /api/dashboard/github/sync-timeline (timeline diária de syncs com 5 métricas por data)
+- ✅ GET /api/dashboard/github/top-languages (top N linguagens mais usadas)
+- ✅ GET /api/dashboard/github/top-candidates (top N candidatos por popularidade)
+- ✅ GET /api/dashboard/github/skills-distribution (distribuição de skills detectadas)
+
+**Documentação:** ✅ RF4_DOCUMENTACAO.md (completa com integração GitHub API, rate limiting, LGPD, troubleshooting)  
+**Testes:** ✅ RF4_GITHUB_API_COLLECTION.http (66 requests cobrindo CRUD, dashboard, E2E, segurança, performance, edge cases)
+
+**Validação:**
+- ✅ Migration 028 aplicada: candidate_github_profiles com 26 colunas, 2 FKs (candidate_id, company_id), 8 índices, 1 trigger (update_github_profiles_timestamps), 1 view (candidate_github_profiles_overview), 2 constraints
+- ✅ Migration 029 aplicada: 5 views funcionais (integration_stats, sync_timeline, top_languages, top_candidates, skills_distribution), get_github_metrics() retorna JSON com 4 seções, 3 índices adicionais
+- ✅ GitHubService implementado: Rate limiting, análise de repositórios, skills detection, completeness scoring
+- ⏳ Testes reais contra servidor pendentes
+
+**Estrutura de Dados:**
+- **candidate_github_profiles:** Perfis GitHub vinculados a candidatos (26 colunas):
+  * **Identity**: id, candidate_id, company_id, username, github_id
+  * **Profile**: avatar_url, profile_url, bio, location, blog, company, email, hireable
+  * **Stats**: public_repos, public_gists, followers, following
+  * **Analysis (JSONB)**: summary com top_languages (top 10 com %), total_stars/forks, top_repos (top 5), recent_activity_count, last_activity_date, skills_detected (max 20), profile_completeness_score (0-100), original_repos_count, fork_repos_count
+  * **Sync**: last_synced_at, sync_status (pending/syncing/success/error/rate_limited), sync_error
+  * **Consent (LGPD)**: consent_given (obrigatório), consent_given_at
+  * **Audit**: created_at, updated_at, deleted_at
+- **GitHubService (servicos/githubService.js):** Cliente completo da GitHub API v3:
+  * **Rate Limit Management**: Rastreia remaining + reset, isRateLimited() previne requests quando limitado, suporta GITHUB_TOKEN env var (5000 req/h vs 60 req/h)
+  * **Methods**: getUserProfile(username), getUserRepositories(username, options), analyzeRepositories(repos), getCompleteProfile(username), getRateLimitInfo()
+  * **Analysis Layer**: Extrai top_languages com %, total_stars/forks, top_repos, recent_activity, skills (de languages + topics filtrados), completeness_score (0-100), distingue original vs fork repos
+  * **Error Handling**: 404 (user not found), 403 (rate limited), timeout, generic errors
+- **Soft Delete:** deleted_at preserva auditoria, permite "direito ao esquecimento" (LGPD)
+- **Multitenant:** Isolamento por company_id em todas as queries
+
+**Features:**
+- Integração opcional com consentimento explícito do candidato (LGPD compliance)
+- Sync automático ao vincular username (busca profile + repos + análise)
+- Re-sync manual para atualizar dados (útil para monitorar evolução do candidato)
+- Análise avançada de repositórios:
+  * Top 10 linguagens com percentuais de uso
+  * Skills detectadas de languages + repo topics (filtrados, max 20)
+  * Completeness score (0-100) baseado em atividade, repos, stars
+  * Top 5 repos por stars com descrição
+  * Contagem de repos originais vs forks (foca em trabalho original)
+- Dashboard com 5 endpoints de métricas:
+  * Métricas consolidadas (12 KPIs: total, syncs, averages, activity, stale profiles)
+  * Timeline diária de syncs (success rate, volume temporal)
+  * Top languages mais usadas na company (identifica stack técnico)
+  * Top candidates por popularidade (ranking por stars + followers + repos)
+  * Skills distribution (quais skills são mais comuns)
+- Rate limit management:
+  * Service rastreia limites client-side
+  * Marca sync_status='rate_limited' quando bloqueado
+  * Suporta GITHUB_TOKEN para 5000 req/h
+- Filtros avançados: search (username/bio/location), sync_status, sort por followers/repos/last_sync
+- Paginação: 20 itens default, max 100
+- LGPD compliance: Consentimento obrigatório, soft delete preserva auditoria, dados públicos apenas
+
+**Casos de Uso:**
+1. **Enriquecer perfil técnico:** Recrutador vincula GitHub do candidato → Sistema busca repos/languages/stats → Gera análise automática → Exibe skills, popularidade, completeness score
+2. **Avaliar experiência real:** Recrutador vê top_languages do candidato → Compara com requisitos da vaga → Verifica repos originais (não só forks) → Analisa atividade recente (last 6 months)
+3. **Ranking técnico:** Gestor acessa top_candidates dashboard → Vê ranking por popularidade (stars + followers + repos) → Identifica desenvolvedores mais ativos/reconhecidos → Prioriza entrevistas
+4. **Stack analysis:** Gestor visualiza top_languages da company → Identifica gap de skills (falta Python?) → Direciona recrutamento → Compara com mercado
+5. **Monitorar evolução:** Candidato em processo → Recrutador re-sync após 2 semanas → Verifica novos commits/repos → Valida interesse genuíno por vaga
+
+**Integração com Outros RFs:**
+- **RF1 (Resumes):** candidates.id ← candidate_github_profiles.candidate_id; resume pode mencionar GitHub, integração valida/enriquece
+- **RF2 (Jobs):** Comparar skills_detected do candidato com job_requirements; filtrar candidatos por linguagens da vaga
+- **RF8 (Interviews):** Durante entrevista, mostrar GitHub profile do candidato; perguntas técnicas baseadas em repos/languages
+- **RF9 (Dashboard):** Dashboard global pode incluir "% candidatos com GitHub", "Top skills na company"
+
+**Diferenças vs Outros RFs:**
+- RF4: Único RF com integração externa (GitHub API v3) vs. CRUD interno
+- Usa JSONB extensivamente para análise flexível (summary field) sem schema changes futuros
+- Rate limiting é concern único (GitHub API tem limites, precisa gerenciar)
+- Opt-in feature (consentimento obrigatório) vs. core features (RFs 1-3, 6-10)
+- Análise algorítmica (completeness score, popularity ranking) vs. apenas CRUD
+- Client externo (githubService.js com axios) vs. apenas db queries
+- Privacy critical (LGPD consent tracking) mais explícito que outros RFs
+
+**Design Decisions:**
+1. **JSONB summary:** Análise flexível (languages, skills, repos, scores) sem migrations futuras
+2. **Consent tracking:** consent_given + consent_given_at explícitos para LGPD compliance
+3. **Sync status enum:** 5-state machine (pending → syncing → success/error/rate_limited) para robustez
+4. **Rate limit management:** Service rastreia GitHub API limits client-side para graceful degradation
+5. **Analysis layer:** Não só armazenar raw data, extrair insights (language %, skill detection, completeness score)
+6. **Fork filtering:** Focar em repos originais para skill assessment (forks menos indicativos)
+7. **Skills detection:** Combinar languages + repo topics curados (max 20 skills)
+8. **Completeness scoring:** Gamificação (0-100 score) incentiva candidatos a manter GitHub ativos
+9. **Soft delete:** deleted_at preserva auditoria para LGPD "direito ao esquecimento"
+10. **Multitenant isolation:** Todas queries filtram por company_id como outros RFs
+
+---
