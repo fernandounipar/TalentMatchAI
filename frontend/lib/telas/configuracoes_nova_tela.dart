@@ -62,21 +62,9 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
   List<Map<String, dynamic>> _apiKeys = [];
   bool _carregandoApiKeys = false;
 
-
-  final List<Map<String, String>> _usuariosEquipeMock = const [
-    {
-      'nome': 'João Mendes',
-      'email': 'joao.mendes@empresa.com',
-      'papel': 'Recrutador',
-      'iniciais': 'JM',
-    },
-    {
-      'nome': 'Mariana Costa',
-      'email': 'mariana.costa@empresa.com',
-      'papel': 'Recrutador',
-      'iniciais': 'MC',
-    },
-  ];
+  // Usuários da equipe (RF10)
+  List<Map<String, dynamic>> _usuariosEquipe = [];
+  bool _carregandoEquipe = false;
 
   @override
   void initState() {
@@ -336,6 +324,29 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
   String _colorToHex(Color color) {
     final value = color.toARGB32().toRadixString(16).padLeft(8, '0').toUpperCase();
     return '#${value.substring(2)}';
+  }
+  
+  String _formatarRole(String role) {
+    switch (role) {
+      case 'SUPER_ADMIN':
+        return 'Super Admin';
+      case 'ADMIN':
+        return 'Admin';
+      case 'RECRUITER':
+        return 'Recrutador';
+      case 'USER':
+      default:
+        return 'Usuário';
+    }
+  }
+  
+  String _getIniciais(String nome) {
+    if (nome.isEmpty) return 'U';
+    final partes = nome.trim().split(' ');
+    if (partes.length == 1) {
+      return partes[0].substring(0, 1).toUpperCase();
+    }
+    return (partes[0].substring(0, 1) + partes[partes.length - 1].substring(0, 1)).toUpperCase();
   }
 
   void _atualizarCorPorHex(String value) {
@@ -892,21 +903,26 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
                 ),
                 const SizedBox(height: 12),
               ],
-              ..._usuariosEquipeMock.map((u) {
+              ..._usuariosEquipe.map((u) {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: _buildUsuarioEquipeItem(
-                    nome: u['nome'] ?? '',
+                    nome: u['full_name'] ?? '',
                     email: u['email'] ?? '',
-                    papel: u['papel'] ?? 'Recrutador',
-                    iniciais: u['iniciais'] ?? '',
+                    papel: _formatarRole(u['role'] ?? 'USER'),
+                    iniciais: _getIniciais(u['full_name'] ?? u['email'] ?? 'U'),
                     isPrimary: false,
                   ),
                 );
               }),
+              if (_carregandoEquipe)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
               const SizedBox(height: 12),
               OutlinedButton(
-                onPressed: () => _mostrarMensagem('Convite de membro ainda não implementado'),
+                onPressed: () => _mostrarMensagem('Use a tela Admin/Usuários para convidar novos membros'),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

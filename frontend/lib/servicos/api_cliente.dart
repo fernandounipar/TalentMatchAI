@@ -644,26 +644,240 @@ class ApiCliente {
     }
   }
 
-  // Usuários - criar (admin only)
+  // ========== RF10: CRUD Completo de Usuários ==========
+  
+  /// RF10.1 - Criar Usuário (ADMIN, SUPER_ADMIN)
   Future<Map<String, dynamic>> criarUsuario({
-    required String nome,
+    required String fullName,
     required String email,
-    required String senha,
-    String perfil = 'RECRUTADOR',
+    required String role,
+    String? password,
+    String? phone,
+    String? department,
+    String? jobTitle,
+    bool? isActive,
+    bool? emailVerified,
     Map<String, dynamic>? company,
   }) async {
+    final payload = {
+      'full_name': fullName,
+      'email': email,
+      'role': role,
+      if (password != null) 'password': password,
+      if (phone != null) 'phone': phone,
+      if (department != null) 'department': department,
+      if (jobTitle != null) 'job_title': jobTitle,
+      if (isActive != null) 'is_active': isActive,
+      if (emailVerified != null) 'email_verified': emailVerified,
+      if (company != null) 'company': company,
+    };
+    
     final r = await _execWithRefresh(() => http.post(
-          Uri.parse('$baseUrl/api/usuarios'),
-          headers: _headers(),
-          body: jsonEncode({
-            'nome': nome,
-            'email': email,
-            'senha': senha,
-            'perfil': perfil,
-            if (company != null) 'company': company
-          }),
-        ));
-    if (r.statusCode >= 400) throw Exception(r.body);
-    return jsonDecode(r.body) as Map<String, dynamic>;
+      Uri.parse('$baseUrl/api/usuarios'),
+      headers: _headers(),
+      body: jsonEncode(payload),
+    ));
+    
+    if (r.statusCode >= 400) {
+      final body = jsonDecode(r.body);
+      if (body is Map && body['error'] is Map) {
+        final error = body['error'];
+        throw Exception('${error['code']}: ${error['message']}');
+      }
+      throw Exception(r.body);
+    }
+    
+    final decoded = jsonDecode(r.body);
+    return _asMap(decoded['data'] ?? decoded);
+  }
+
+  /// RF10.2 - Enviar Convite (ADMIN, SUPER_ADMIN)
+  Future<Map<String, dynamic>> enviarConvite({
+    required String fullName,
+    required String email,
+    String role = 'USER',
+    String? phone,
+    String? department,
+    String? jobTitle,
+    int expiresInDays = 7,
+  }) async {
+    final payload = {
+      'full_name': fullName,
+      'email': email,
+      'role': role,
+      if (phone != null) 'phone': phone,
+      if (department != null) 'department': department,
+      if (jobTitle != null) 'job_title': jobTitle,
+      'expires_in_days': expiresInDays,
+    };
+    
+    final r = await _execWithRefresh(() => http.post(
+      Uri.parse('$baseUrl/api/usuarios/invite'),
+      headers: _headers(),
+      body: jsonEncode(payload),
+    ));
+    
+    if (r.statusCode >= 400) {
+      final body = jsonDecode(r.body);
+      if (body is Map && body['error'] is Map) {
+        final error = body['error'];
+        throw Exception('${error['code']}: ${error['message']}');
+      }
+      throw Exception(r.body);
+    }
+    
+    final decoded = jsonDecode(r.body);
+    return _asMap(decoded['data'] ?? decoded);
+  }
+
+  /// RF10.3 - Aceitar Convite (Público - sem autenticação)
+  Future<Map<String, dynamic>> aceitarConvite({
+    required String token,
+    required String password,
+  }) async {
+    final payload = {
+      'token': token,
+      'password': password,
+    };
+    
+    final r = await http.post(
+      Uri.parse('$baseUrl/api/usuarios/accept-invite'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(payload),
+    );
+    
+    if (r.statusCode >= 400) {
+      final body = jsonDecode(r.body);
+      if (body is Map && body['error'] is Map) {
+        final error = body['error'];
+        throw Exception('${error['code']}: ${error['message']}');
+      }
+      throw Exception(r.body);
+    }
+    
+    final decoded = jsonDecode(r.body);
+    return _asMap(decoded['data'] ?? decoded);
+  }
+
+  /// RF10.4 - Listar Usuários (USER, RECRUITER, ADMIN, SUPER_ADMIN)
+  Future<Map<String, dynamic>> listarUsuarios({
+    int page = 1,
+    int limit = 20,
+    String? search,
+    String? role,
+    String? department,
+    String? status,
+  }) async {
+    final qp = <String, String>{
+      'page': page.toString(),
+      'limit': limit.toString(),
+      if (search != null && search.isNotEmpty) 'search': search,
+      if (role != null && role.isNotEmpty) 'role': role,
+      if (department != null && department.isNotEmpty) 'department': department,
+      if (status != null && status.isNotEmpty) 'status': status,
+    };
+    
+    final uri = Uri.parse('$baseUrl/api/usuarios').replace(queryParameters: qp);
+    final r = await _execWithRefresh(() => http.get(uri, headers: _headers()));
+    
+    if (r.statusCode >= 400) {
+      final body = jsonDecode(r.body);
+      if (body is Map && body['error'] is Map) {
+        final error = body['error'];
+        throw Exception('${error['code']}: ${error['message']}');
+      }
+      throw Exception(r.body);
+    }
+    
+    final decoded = jsonDecode(r.body);
+    return {
+      'data': _asList(decoded['data'] ?? decoded),
+      'meta': decoded['meta'] ?? {},
+    };
+  }
+
+  /// RF10.5 - Detalhes do Usuário (USER, RECRUITER, ADMIN, SUPER_ADMIN)
+  Future<Map<String, dynamic>> obterUsuarioPorId(String id) async {
+    final r = await _execWithRefresh(
+      () => http.get(Uri.parse('$baseUrl/api/usuarios/$id'), headers: _headers()),
+    );
+    
+    if (r.statusCode >= 400) {
+      final body = jsonDecode(r.body);
+      if (body is Map && body['error'] is Map) {
+        final error = body['error'];
+        throw Exception('${error['code']}: ${error['message']}');
+      }
+      throw Exception(r.body);
+    }
+    
+    final decoded = jsonDecode(r.body);
+    return _asMap(decoded['data'] ?? decoded);
+  }
+
+  /// RF10.6 - Atualizar Usuário (ADMIN, SUPER_ADMIN)
+  Future<Map<String, dynamic>> atualizarUsuario(
+    String id, {
+    String? fullName,
+    String? email,
+    String? role,
+    String? phone,
+    String? department,
+    String? jobTitle,
+    String? bio,
+    bool? isActive,
+    bool? emailVerified,
+    Map<String, dynamic>? preferences,
+    String? password,
+    bool? forcePasswordReset,
+  }) async {
+    final payload = <String, dynamic>{
+      if (fullName != null) 'full_name': fullName,
+      if (email != null) 'email': email,
+      if (role != null) 'role': role,
+      if (phone != null) 'phone': phone,
+      if (department != null) 'department': department,
+      if (jobTitle != null) 'job_title': jobTitle,
+      if (bio != null) 'bio': bio,
+      if (isActive != null) 'is_active': isActive,
+      if (emailVerified != null) 'email_verified': emailVerified,
+      if (preferences != null) 'preferences': preferences,
+      if (password != null) 'password': password,
+      if (forcePasswordReset != null) 'force_password_reset': forcePasswordReset,
+    };
+    
+    final r = await _execWithRefresh(() => http.put(
+      Uri.parse('$baseUrl/api/usuarios/$id'),
+      headers: _headers(),
+      body: jsonEncode(payload),
+    ));
+    
+    if (r.statusCode >= 400) {
+      final body = jsonDecode(r.body);
+      if (body is Map && body['error'] is Map) {
+        final error = body['error'];
+        throw Exception('${error['code']}: ${error['message']}');
+      }
+      throw Exception(r.body);
+    }
+    
+    final decoded = jsonDecode(r.body);
+    return _asMap(decoded['data'] ?? decoded);
+  }
+
+  /// RF10.7 - Deletar Usuário / Soft Delete (ADMIN, SUPER_ADMIN)
+  Future<void> deletarUsuario(String id) async {
+    final r = await _execWithRefresh(
+      () => http.delete(Uri.parse('$baseUrl/api/usuarios/$id'), headers: _headers()),
+    );
+    
+    if (r.statusCode >= 400) {
+      final body = jsonDecode(r.body);
+      if (body is Map && body['error'] is Map) {
+        final error = body['error'];
+        throw Exception('${error['code']}: ${error['message']}');
+      }
+      throw Exception(r.body);
+    }
   }
 }

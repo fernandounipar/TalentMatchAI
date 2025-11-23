@@ -59,6 +59,7 @@
 ### 📚 Documentação
 - [x] **README_SETUP.md** - Guia completo de setup e deployment
 - [x] **API_COLLECTION.http** - Collection de testes da API
+- [x] **BOB_ENTREGA_RF10_RF1.md** - Documentação completa de RF10 (Usuários) e RF1 (Upload Currículo) para frontend
 - [x] Documentação de endpoints principais
 - [x] Troubleshooting guide
 
@@ -97,11 +98,13 @@
   - [ ] GET /api/entrevistas/:id/mensagens (chat)
   - [ ] POST /api/entrevistas/:id/chat (enviar mensagem)
 
-- [ ] **Currículos** (`/api/curriculos`)
-  - [ ] POST /api/curriculos/upload (multipart)
-  - [ ] Parse de PDF/DOCX
-  - [ ] Análise de currículo com OpenAI
-  - [ ] Armazenamento em `/uploads` ou cloud
+- [x] **Currículos** (`/api/curriculos`) ✅ **RF1 100% COMPLETO**
+  - [x] POST /api/curriculos/upload (multipart) - **alias pt-BR para /api/resumes/upload**
+  - [x] Aceita: file, candidate_id (ou full_name+email para criar), job_id, phone, linkedin, github_url
+  - [x] Parse de PDF/TXT/DOCX
+  - [x] Cria candidato automaticamente se não existe
+  - [x] Armazenamento em `/uploads/{company_id}/{uuid}.{ext}`
+  - [x] Resposta envelope: `{data: {resume + file_url}}`
 
 - [ ] **Relatórios** (`/api/relatorios`)
   - [ ] GET /api/relatorios (listar)
@@ -119,11 +122,16 @@
   - [ ] GET /api/historico (timeline de eventos)
   - [ ] Filtros por entity/tipo
 
-- [ ] **Usuários Admin** (`/api/usuarios`)
-  - [ ] GET /api/usuarios (listar do tenant)
-  - [ ] POST /api/usuarios (criar - ADMIN only)
-  - [ ] PUT /api/usuarios/:id (atualizar)
-  - [ ] DELETE /api/usuarios/:id (desativar)
+- [x] **Usuários Admin** (`/api/usuarios`) ✅ **RF10 100% COMPLETO**
+  - [x] GET /api/usuarios (listar do tenant com paginação/filtros)
+  - [x] POST /api/usuarios (criar com company - ADMIN only)
+  - [x] POST /api/usuarios/invite (enviar convite)
+  - [x] POST /api/usuarios/accept-invite (aceitar convite - público)
+  - [x] GET /api/usuarios/:id (detalhes)
+  - [x] PUT /api/usuarios/:id (atualizar)
+  - [x] DELETE /api/usuarios/:id (soft delete)
+  - [x] Respostas padronizadas no formato envelope `{data, meta}` ou `{error: {code, message}}`
+  - [x] Códigos de erro semânticos (EMAIL_EXISTS, INVALID_ROLE, USER_NOT_FOUND, etc.)
 
 #### Segurança e Infraestrutura
 - [ ] Implementar `helmet` para headers de segurança
@@ -305,5 +313,5 @@ Se tiver dúvidas ou encontrar problemas:
 ---
 
 **Status**: 🚧 MVP em desenvolvimento ativo  
-**Progresso estimado**: ~30% concluído  
-**Tempo estimado para MVP completo**: 6-10 dias de desenvolvimento
+**Progresso estimado**: ~45% concluído ✅ (**+15%**: RF10 e RF1 completos)  
+**Tempo estimado para MVP completo**: 4-7 dias de desenvolvimento
