@@ -44,11 +44,11 @@ router.post('/', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
 
     // Validações
     if (!full_name || !email) {
-      return res.status(400).json({ error: 'full_name and email are required' });
+      return res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'full_name and email are required' } });
     }
 
     if (!['USER', 'RECRUITER', 'ADMIN', 'SUPER_ADMIN'].includes(role)) {
-      return res.status(400).json({ error: 'Invalid role' });
+      return res.status(400).json({ error: { code: 'INVALID_ROLE', message: 'Invalid role' } });
     }
 
     // Resolver company_id
@@ -57,7 +57,7 @@ router.post('/', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
       const tipo = String(company.type).toUpperCase();
       const documento = normalizaDocumento(company.document);
       if (!['CPF', 'CNPJ'].includes(tipo) || !validaDocumento(tipo, documento)) {
-        return res.status(400).json({ error: 'Invalid company type/document' });
+        return res.status(400).json({ error: { code: 'INVALID_DOCUMENT', message: 'Invalid company type/document' } });
       }
       const companyResult = await db.query(
         `INSERT INTO companies (type, document, name)
@@ -97,13 +97,13 @@ router.post('/', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
     const user = result.rows[0];
     await audit(req, 'create', 'users', user.id, { email: user.email, role: user.role });
 
-    res.status(201).json(user);
+    res.status(201).json({ data: user });
   } catch (error) {
     if (error.message?.includes('duplicate') || error.code === '23505') {
-      return res.status(409).json({ error: 'Email already exists' });
+      return res.status(409).json({ error: { code: 'EMAIL_EXISTS', message: 'Email already exists' } });
     }
     console.error('Error creating user:', error);
-    res.status(500).json({ error: 'Failed to create user' });
+    res.status(500).json({ error: { code: 'CREATE_USER_FAILED', message: 'Failed to create user' } });
   }
 });
 
@@ -123,11 +123,11 @@ router.post('/invite', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
 
     // Validações
     if (!full_name || !email) {
-      return res.status(400).json({ error: 'full_name and email are required' });
+      return res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'full_name and email are required' } });
     }
 
     if (!['USER', 'RECRUITER', 'ADMIN', 'SUPER_ADMIN'].includes(role)) {
-      return res.status(400).json({ error: 'Invalid role' });
+      return res.status(400).json({ error: { code: 'INVALID_ROLE', message: 'Invalid role' } });
     }
 
     // Verificar se email já existe
@@ -137,7 +137,7 @@ router.post('/invite', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
     );
 
     if (existingUser.rows.length > 0) {
-      return res.status(409).json({ error: 'User with this email already exists' });
+      return res.status(409).json({ error: { code: 'EMAIL_EXISTS', message: 'User with this email already exists' } });
     }
 
     // Gerar token único
@@ -174,12 +174,14 @@ router.post('/invite', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
     // await emailService.sendInvitation(email, full_name, inviteLink);
 
     res.status(201).json({
-      ...user,
-      message: 'Invitation sent successfully'
+      data: {
+        ...user,
+        message: 'Invitation sent successfully'
+      }
     });
   } catch (error) {
     console.error('Error sending invitation:', error);
-    res.status(500).json({ error: 'Failed to send invitation' });
+    res.status(500).json({ error: { code: 'INVITE_FAILED', message: 'Failed to send invitation' } });
   }
 });
 
@@ -193,7 +195,7 @@ router.post('/accept-invite', async (req, res) => {
     const { invitation_token, password, preferences } = req.body;
 
     if (!invitation_token || !password) {
-      return res.status(400).json({ error: 'invitation_token and password are required' });
+      return res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'invitation_token and password are required' } });
     }
 
     // Buscar convite
@@ -206,14 +208,14 @@ router.post('/accept-invite', async (req, res) => {
     );
 
     if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Invalid invitation token' });
+      return res.status(404).json({ error: { code: 'INVALID_TOKEN', message: 'Invalid invitation token' } });
     }
 
     const user = userResult.rows[0];
 
     // Verificar expiração
     if (new Date(user.invitation_expires_at) < new Date()) {
-      return res.status(410).json({ error: 'Invitation has expired' });
+      return res.status(410).json({ error: { code: 'TOKEN_EXPIRED', message: 'Invitation has expired' } });
     }
 
     // Hash da senha
@@ -235,16 +237,18 @@ router.post('/accept-invite', async (req, res) => {
     );
 
     res.json({
-      message: 'Invitation accepted successfully',
-      user: {
-        id: user.id,
-        full_name: user.full_name,
-        email: user.email
+      data: {
+        message: 'Invitation accepted successfully',
+        user: {
+          id: user.id,
+          full_name: user.full_name,
+          email: user.email
+        }
       }
     });
   } catch (error) {
     console.error('Error accepting invitation:', error);
-    res.status(500).json({ error: 'Failed to accept invitation' });
+    res.status(500).json({ error: { code: 'ACCEPT_INVITE_FAILED', message: 'Failed to accept invitation' } });
   }
 });
 
@@ -341,8 +345,8 @@ router.get('/', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
     const total = parseInt(countResult.rows[0].total);
 
     res.json({
-      users: result.rows,
-      pagination: {
+      data: result.rows,
+      meta: {
         page: parseInt(page),
         limit: parseInt(limit),
         total,
@@ -351,7 +355,7 @@ router.get('/', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
     });
   } catch (error) {
     console.error('Error listing users:', error);
-    res.status(500).json({ error: 'Failed to list users' });
+    res.status(500).json({ error: { code: 'LIST_USERS_FAILED', message: 'Failed to list users' } });
   }
 });
 
@@ -388,13 +392,13 @@ router.get('/:id', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: { code: 'USER_NOT_FOUND', message: 'User not found' } });
     }
 
-    res.json(result.rows[0]);
+    res.json({ data: result.rows[0] });
   } catch (error) {
     console.error('Error getting user:', error);
-    res.status(500).json({ error: 'Failed to get user details' });
+    res.status(500).json({ error: { code: 'GET_USER_FAILED', message: 'Failed to get user details' } });
   }
 });
 
@@ -421,12 +425,12 @@ router.put('/:id', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
     );
 
     if (existingUser.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: { code: 'USER_NOT_FOUND', message: 'User not found' } });
     }
 
     // Validar role se fornecido
     if (role && !['USER', 'RECRUITER', 'ADMIN', 'SUPER_ADMIN'].includes(role)) {
-      return res.status(400).json({ error: 'Invalid role' });
+      return res.status(400).json({ error: { code: 'INVALID_ROLE', message: 'Invalid role' } });
     }
 
     // Construir SET clause dinamicamente
@@ -507,7 +511,7 @@ router.put('/:id', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
     }
 
     if (updates.length === 0) {
-      return res.status(400).json({ error: 'No fields to update' });
+      return res.status(400).json({ error: { code: 'NO_FIELDS', message: 'No fields to update' } });
     }
 
     // Adicionar updated_at
@@ -529,13 +533,13 @@ router.put('/:id', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
 
     await audit(req, 'update', 'users', id, req.body);
 
-    res.json(result.rows[0]);
+    res.json({ data: result.rows[0] });
   } catch (error) {
     if (error.message?.includes('duplicate') || error.code === '23505') {
-      return res.status(409).json({ error: 'Email already exists' });
+      return res.status(409).json({ error: { code: 'EMAIL_EXISTS', message: 'Email already exists' } });
     }
     console.error('Error updating user:', error);
-    res.status(500).json({ error: 'Failed to update user' });
+    res.status(500).json({ error: { code: 'UPDATE_USER_FAILED', message: 'Failed to update user' } });
   }
 });
 
@@ -555,12 +559,12 @@ router.delete('/:id', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
     );
 
     if (existingUser.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: { code: 'USER_NOT_FOUND', message: 'User not found' } });
     }
 
     // Impedir auto-delete
     if (id === req.usuario.id) {
-      return res.status(400).json({ error: 'Cannot delete your own account' });
+      return res.status(400).json({ error: { code: 'CANNOT_DELETE_SELF', message: 'Cannot delete your own account' } });
     }
 
     // Soft delete
@@ -571,10 +575,10 @@ router.delete('/:id', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
 
     await audit(req, 'delete', 'users', id, { email: existingUser.rows[0].email });
 
-    res.json({ message: 'User deleted successfully' });
+    res.json({ data: { message: 'User deleted successfully' } });
   } catch (error) {
     console.error('Error deleting user:', error);
-    res.status(500).json({ error: 'Failed to delete user' });
+    res.status(500).json({ error: { code: 'DELETE_USER_FAILED', message: 'Failed to delete user' } });
   }
 });
 
