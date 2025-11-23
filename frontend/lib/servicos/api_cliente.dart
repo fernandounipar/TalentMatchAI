@@ -22,6 +22,19 @@ class ApiCliente {
   set token(String? t) => _token = t;
   set refreshToken(String? t) => _refresh = t;
 
+  // Helper para extrair listas de respostas com envelope {data}
+  List<dynamic> _asList(dynamic body) {
+    if (body is List) return body;
+    if (body is Map && body['data'] is List) return body['data'] as List;
+    return const [];
+  }
+
+  Map<String, dynamic> _asMap(dynamic body) {
+    if (body is Map<String, dynamic>) return body;
+    if (body is Map) return Map<String, dynamic>.from(body);
+    return {};
+  }
+
   Future<http.Response> _execWithRefresh(Future<http.Response> Function() call) async {
     final resp = await call();
     if (resp.statusCode == 401 && _refresh != null) {
@@ -232,10 +245,11 @@ class ApiCliente {
     final qp = <String, String>{'page': '$page', 'limit': '$limit'};
     if (status != null) qp['status'] = status;
     if (q != null) qp['q'] = q;
-    final uri = Uri.parse('$baseUrl/api/jobs').replace(queryParameters: qp);
+    final uri = Uri.parse('$baseUrl/api/vagas').replace(queryParameters: qp);
     final r = await _execWithRefresh(() => http.get(uri, headers: _headers()));
     if (r.statusCode >= 400) throw Exception(r.body);
-    return jsonDecode(r.body) as List<dynamic>;
+    final decoded = jsonDecode(r.body);
+    return _asList(decoded);
   }
 
   Future<Map<String, dynamic>> criarVaga(Map<String, dynamic> vaga) async {
@@ -278,19 +292,22 @@ class ApiCliente {
     final uri = Uri.parse('$baseUrl/api/candidates').replace(queryParameters: qp);
     final r = await _execWithRefresh(() => http.get(uri, headers: _headers()));
     if (r.statusCode >= 400) throw Exception(r.body);
-    return jsonDecode(r.body) as List<dynamic>;
+    final decoded = jsonDecode(r.body);
+    return _asList(decoded);
   }
 
   Future<List<dynamic>> historico() async {
     final r = await _execWithRefresh(() => http.get(Uri.parse('$baseUrl/api/historico'), headers: _headers()));
     if (r.statusCode >= 400) throw Exception(r.body);
-    return jsonDecode(r.body) as List<dynamic>;
+    final decoded = jsonDecode(r.body);
+    return _asList(decoded);
   }
 
   Future<List<String>> skills() async {
     final r = await _execWithRefresh(() => http.get(Uri.parse('$baseUrl/api/skills'), headers: _headers()));
     if (r.statusCode >= 400) throw Exception(r.body);
-    final data = jsonDecode(r.body) as List;
+    final decoded = jsonDecode(r.body);
+    final data = _asList(decoded);
     return data.map((e) => (e['name'] as String)).toList();
   }
 
@@ -312,7 +329,8 @@ class ApiCliente {
     };
     final r = await _execWithRefresh(() => http.post(Uri.parse('$baseUrl/api/applications'), headers: _headers(), body: jsonEncode(payload)));
     if (r.statusCode >= 400) throw Exception(r.body);
-    return jsonDecode(r.body) as Map<String, dynamic>;
+    final decoded = jsonDecode(r.body);
+    return _asMap(decoded['data'] ?? decoded);
   }
 
   Future<List<dynamic>> listarCandidaturas({String? jobId, String? candidateId}) async {
@@ -322,7 +340,8 @@ class ApiCliente {
     final uri = Uri.parse('$baseUrl/api/applications').replace(queryParameters: qs.isEmpty ? null : qs);
     final r = await _execWithRefresh(() => http.get(uri, headers: _headers()));
     if (r.statusCode >= 400) throw Exception(r.body);
-    return jsonDecode(r.body) as List<dynamic>;
+    final decoded = jsonDecode(r.body);
+    return _asList(decoded);
   }
 
   Future<void> moverCandidatura({
@@ -341,7 +360,8 @@ class ApiCliente {
   Future<Map<String, dynamic>> historicoCandidatura(String applicationId) async {
     final r = await _execWithRefresh(() => http.get(Uri.parse('$baseUrl/api/applications/$applicationId/history'), headers: _headers()));
     if (r.statusCode >= 400) throw Exception(r.body);
-    return jsonDecode(r.body) as Map<String, dynamic>;
+    final decoded = jsonDecode(r.body);
+    return _asMap(decoded['data'] ?? decoded);
   }
 
   Future<List<dynamic>> listarEntrevistas({String? status, String? jobId, String? candidateId, DateTime? from, DateTime? to, int page = 1, int limit = 20}) async {
@@ -354,7 +374,8 @@ class ApiCliente {
     final uri = Uri.parse('$baseUrl/api/interviews').replace(queryParameters: qp.isEmpty ? null : qp);
     final r = await _execWithRefresh(() => http.get(uri, headers: _headers()));
     if (r.statusCode >= 400) throw Exception(r.body);
-    return jsonDecode(r.body) as List<dynamic>;
+    final decoded = jsonDecode(r.body);
+    return _asList(decoded);
   }
 
   Future<Map<String, dynamic>> agendarEntrevista({
@@ -376,14 +397,16 @@ class ApiCliente {
           }),
         ));
     if (r.statusCode >= 400) throw Exception(r.body);
-    return jsonDecode(r.body) as Map<String, dynamic>;
+    final decoded = jsonDecode(r.body);
+    return _asMap(decoded['data'] ?? decoded);
   }
 
   // Interview Questions & Answers
   Future<List<dynamic>> listarPerguntasEntrevista(String interviewId) async {
     final r = await _execWithRefresh(() => http.get(Uri.parse('$baseUrl/api/interviews/$interviewId/questions'), headers: _headers()));
     if (r.statusCode >= 400) throw Exception(r.body);
-    return jsonDecode(r.body) as List<dynamic>;
+    final decoded = jsonDecode(r.body);
+    return _asList(decoded);
   }
 
   Future<List<dynamic>> gerarPerguntasAIParaEntrevista(String interviewId, {int qtd = 8, String kind = 'TECNICA'}) async {
@@ -393,7 +416,8 @@ class ApiCliente {
       body: jsonEncode({'generate_ai': true, 'kind': kind}),
     ));
     if (r.statusCode >= 400) throw Exception(r.body);
-    return jsonDecode(r.body) as List<dynamic>;
+    final decoded = jsonDecode(r.body);
+    return _asList(decoded);
   }
 
   Future<Map<String, dynamic>> criarPerguntaManual(String interviewId, {required String prompt, String origin = 'MANUAL', String kind = 'TECNICA'}) async {
@@ -403,13 +427,15 @@ class ApiCliente {
       body: jsonEncode({'prompt': prompt, 'origin': origin, 'kind': kind}),
     ));
     if (r.statusCode >= 400) throw Exception(r.body);
-    return jsonDecode(r.body) as Map<String, dynamic>;
+    final decoded = jsonDecode(r.body);
+    return _asMap(decoded['data'] ?? decoded);
   }
 
   Future<List<dynamic>> listarRespostasEntrevista(String interviewId) async {
     final r = await _execWithRefresh(() => http.get(Uri.parse('$baseUrl/api/interviews/$interviewId/answers'), headers: _headers()));
     if (r.statusCode >= 400) throw Exception(r.body);
-    return jsonDecode(r.body) as List<dynamic>;
+    final decoded = jsonDecode(r.body);
+    return _asList(decoded);
   }
 
   Future<Map<String, dynamic>> responderPergunta(String interviewId, {required String questionId, required String texto}) async {
@@ -419,7 +445,8 @@ class ApiCliente {
       body: jsonEncode({'question_id': questionId, 'raw_text': texto}),
     ));
     if (r.statusCode >= 400) throw Exception(r.body);
-    return jsonDecode(r.body) as Map<String, dynamic>;
+    final decoded = jsonDecode(r.body);
+    return _asMap(decoded['data'] ?? decoded);
   }
 
   Future<Map<String, dynamic>> atualizarEntrevista(String id, {DateTime? scheduledAt, DateTime? endsAt, String? mode, String? status}) async {
@@ -431,7 +458,8 @@ class ApiCliente {
     };
     final r = await _execWithRefresh(() => http.put(Uri.parse('$baseUrl/api/interviews/$id'), headers: _headers(), body: jsonEncode(payload)));
     if (r.statusCode >= 400) throw Exception(r.body);
-    return jsonDecode(r.body) as Map<String, dynamic>;
+    final decoded = jsonDecode(r.body);
+    return _asMap(decoded['data'] ?? decoded);
   }
 
   // Ingestion jobs
@@ -496,15 +524,17 @@ class ApiCliente {
   }
 
   Future<Map<String, dynamic>> entrevista(String id) async {
-    final r = await _execWithRefresh(() => http.get(Uri.parse('$baseUrl/api/entrevistas/$id'), headers: _headers()));
+    final r = await _execWithRefresh(() => http.get(Uri.parse('$baseUrl/api/interviews/$id'), headers: _headers()));
     if (r.statusCode >= 400) throw Exception(r.body);
-    return jsonDecode(r.body) as Map<String, dynamic>;
+    final decoded = jsonDecode(r.body);
+    return _asMap(decoded['data'] ?? decoded);
   }
 
   Future<List<dynamic>> gerarPerguntas(String entrevistaId, {int qtd = 8}) async {
-    final r = await _execWithRefresh(() => http.post(Uri.parse('$baseUrl/api/entrevistas/$entrevistaId/perguntas?qtd=$qtd'), headers: _headers()));
+    final r = await _execWithRefresh(() => http.post(Uri.parse('$baseUrl/api/interviews/$entrevistaId/questions?qtd=$qtd'), headers: _headers()));
     if (r.statusCode >= 400) throw Exception(r.body);
-    return jsonDecode(r.body) as List<dynamic>;
+    final decoded = jsonDecode(r.body);
+    return _asList(decoded);
   }
 
   // Upload de currículo (multipart/form-data) usando bytes
@@ -521,14 +551,20 @@ class ApiCliente {
         req.headers['Authorization'] = 'Bearer $_token';
       }
       req.files.add(
-        http.MultipartFile.fromBytes('arquivo', bytes, filename: filename),
+        http.MultipartFile.fromBytes('file', bytes, filename: filename),
       );
       if (candidato != null) {
-        req.fields['candidato'] = jsonEncode(candidato);
+        if (candidato['id'] != null) {
+          req.fields['candidate_id'] = candidato['id'].toString();
+        } else {
+          if (candidato['full_name'] != null) req.fields['full_name'] = candidato['full_name'];
+          if (candidato['email'] != null) req.fields['email'] = candidato['email'];
+          if (candidato['phone'] != null) req.fields['phone'] = candidato['phone'];
+          if (candidato['linkedin'] != null) req.fields['linkedin'] = candidato['linkedin'];
+          if (candidato['github_url'] != null) req.fields['github_url'] = candidato['github_url'];
+        }
       }
-      if (vagaId != null) {
-        req.fields['vagaId'] = vagaId;
-      }
+      if (vagaId != null) req.fields['job_id'] = vagaId;
       final streamed = await req.send();
       return http.Response.fromStream(streamed);
     }
@@ -555,32 +591,36 @@ class ApiCliente {
       throw Exception(resp.body);
     }
 
-    return jsonDecode(resp.body) as Map<String, dynamic>;
+    final decoded = jsonDecode(resp.body);
+    return _asMap(decoded['data'] ?? decoded);
   }
 
   // Chat - listar mensagens
   Future<List<dynamic>> listarMensagens(String entrevistaId) async {
-    final r = await _execWithRefresh(() => http.get(Uri.parse('$baseUrl/api/entrevistas/$entrevistaId/mensagens'), headers: _headers()));
+    final r = await _execWithRefresh(() => http.get(Uri.parse('$baseUrl/api/interviews/$entrevistaId/messages'), headers: _headers()));
     if (r.statusCode >= 400) throw Exception(r.body);
-    return jsonDecode(r.body) as List<dynamic>;
+    final decoded = jsonDecode(r.body);
+    return _asList(decoded);
   }
 
   // Chat - enviar mensagem
   Future<Map<String, dynamic>> enviarMensagem(String entrevistaId, String mensagem) async {
     final r = await _execWithRefresh(() => http.post(
-          Uri.parse('$baseUrl/api/entrevistas/$entrevistaId/chat'),
+          Uri.parse('$baseUrl/api/interviews/$entrevistaId/chat'),
           headers: _headers(),
           body: jsonEncode({'mensagem': mensagem}),
         ));
     if (r.statusCode >= 400) throw Exception(r.body);
-    return jsonDecode(r.body) as Map<String, dynamic>;
+    final decoded = jsonDecode(r.body);
+    return _asMap(decoded['data'] ?? decoded);
   }
 
   // Relatório - gerar/atualizar
   Future<Map<String, dynamic>> gerarRelatorio(String entrevistaId) async {
     final r = await _execWithRefresh(() => http.post(Uri.parse('$baseUrl/api/interviews/$entrevistaId/report'), headers: _headers()));
     if (r.statusCode >= 400) throw Exception(r.body);
-    return jsonDecode(r.body) as Map<String, dynamic>;
+    final decoded = jsonDecode(r.body);
+    return _asMap(decoded['data'] ?? decoded);
   }
 
   // API Keys - deletar
