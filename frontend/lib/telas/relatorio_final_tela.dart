@@ -158,7 +158,7 @@ class RelatorioFinalTela extends StatelessWidget {
             children: [
               Expanded(
                 child: Card(
-                  color: _corRecomendacao(recomendacao).withOpacity(0.1),
+                  color: _corRecomendacao(recomendacao).withValues(alpha: 0.1),
                   child: Padding(
                     padding: const EdgeInsets.all(24),
                     child: Column(
@@ -389,7 +389,7 @@ class RelatorioFinalTela extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: corCategoria.withOpacity(0.1),
+                    color: corCategoria.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
@@ -448,38 +448,6 @@ class RelatorioFinalTela extends StatelessWidget {
       return '${now.day}/${now.month}/${now.year}';
     }
     return '${parsed.day}/${parsed.month}/${parsed.year}';
-  }
-
-  Widget _buildProximoPasso(String numero, String descricao) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              color: Colors.blue.shade700,
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(
-                numero,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(descricao, style: const TextStyle(fontSize: 14)),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   Color _corRecomendacao(String recomendacao) {

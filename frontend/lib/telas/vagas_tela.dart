@@ -156,6 +156,7 @@ class _VagasTelaState extends State<VagasTela> {
       if (!mounted) return;
       Navigator.of(context).pop();
       await _carregarVagas();
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(_editingVaga != null ? 'Vaga atualizada com sucesso!' : 'Vaga criada com sucesso!'),
@@ -163,6 +164,7 @@ class _VagasTelaState extends State<VagasTela> {
         ),
       );
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Falha ao salvar vaga'), backgroundColor: Colors.red),
       );
@@ -186,8 +188,10 @@ class _VagasTelaState extends State<VagasTela> {
                 await widget.api.deletarVaga(id);
                 await _carregarVagas();
                 if (!mounted) return;
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
+                final nav = Navigator.of(context);
+                final messenger = ScaffoldMessenger.of(context);
+                nav.pop();
+                messenger.showSnackBar(
                   const SnackBar(
                     content: Text('Vaga excluída com sucesso!'),
                     backgroundColor: Colors.red,
@@ -195,8 +199,10 @@ class _VagasTelaState extends State<VagasTela> {
                 );
               } catch (e) {
                 if (!mounted) return;
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
+                final nav = Navigator.of(context);
+                final messenger = ScaffoldMessenger.of(context);
+                nav.pop();
+                messenger.showSnackBar(
                   const SnackBar(
                     content: Text('Falha ao excluir vaga'),
                     backgroundColor: Colors.red,
@@ -390,7 +396,7 @@ class _VagasTelaState extends State<VagasTela> {
 
   Widget _buildStatusDropdown() {
     return DropdownButtonFormField<String>(
-      value: _filterStatus,
+      initialValue: _filterStatus,
       decoration: InputDecoration(
         prefixIcon: const Icon(Icons.filter_list, size: 20),
         border: OutlineInputBorder(
@@ -716,7 +722,7 @@ class _VagasTelaState extends State<VagasTela> {
                                 const Text('Senioridade *', style: TextStyle(fontWeight: FontWeight.w600)),
                                 const SizedBox(height: 8),
                                 DropdownButtonFormField<String>(
-                                  value: _senioridade,
+                                  initialValue: _senioridade,
                                   decoration: InputDecoration(
                                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                                   ),
@@ -739,7 +745,7 @@ class _VagasTelaState extends State<VagasTela> {
                                 const Text('Regime *', style: TextStyle(fontWeight: FontWeight.w600)),
                                 const SizedBox(height: 8),
                                 DropdownButtonFormField<String>(
-                                  value: _regime,
+                                  initialValue: _regime,
                                   decoration: InputDecoration(
                                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                                   ),
