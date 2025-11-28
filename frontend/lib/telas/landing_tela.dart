@@ -63,9 +63,12 @@ class _LandingTelaState extends State<LandingTela> {
               return CustomScrollView(
                 controller: _scrollController,
                 slivers: [
-                  SliverToBoxAdapter(child: _buildHeroSection(constraints.maxWidth)),
+                  SliverToBoxAdapter(
+                      child: _buildHeroSection(constraints.maxWidth)),
                   const SliverToBoxAdapter(child: SizedBox(height: 16)),
-                  const SliverToBoxAdapter(child: Divider(height: 1, thickness: 1, indent: 24, endIndent: 24)),
+                  const SliverToBoxAdapter(
+                      child: Divider(
+                          height: 1, thickness: 1, indent: 24, endIndent: 24)),
                   const SliverToBoxAdapter(child: SizedBox(height: 16)),
                   SliverToBoxAdapter(child: _buildTrustedSection()),
                   SliverToBoxAdapter(
@@ -134,7 +137,9 @@ class _LandingTelaState extends State<LandingTela> {
               Flex(
                 direction: isMobile ? Axis.vertical : Axis.horizontal,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: isMobile ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+                crossAxisAlignment: isMobile
+                    ? CrossAxisAlignment.start
+                    : CrossAxisAlignment.center,
                 children: [
                   Expanded(
                     flex: isMobile ? 0 : 5,
@@ -149,13 +154,19 @@ class _LandingTelaState extends State<LandingTela> {
                 ],
               ),
               const SizedBox(height: 48),
-              Wrap(
+              const Wrap(
                 spacing: 16,
                 runSpacing: 12,
-                children: const [
-                  _BadgeDestaque(icone: Icons.shield_moon, texto: 'Conformidade LGPD e GDPR'),
-                  _BadgeDestaque(icone: Icons.auto_awesome, texto: 'IA como co-piloto, não substituto'),
-                  _BadgeDestaque(icone: Icons.timer, texto: 'Resultados em menos de 10 segundos'),
+                children: [
+                  _BadgeDestaque(
+                      icone: Icons.shield_moon,
+                      texto: 'Conformidade LGPD e GDPR'),
+                  _BadgeDestaque(
+                      icone: Icons.auto_awesome,
+                      texto: 'IA como co-piloto, não substituto'),
+                  _BadgeDestaque(
+                      icone: Icons.timer,
+                      texto: 'Resultados em menos de 10 segundos'),
                 ],
               ),
             ],
@@ -183,11 +194,11 @@ class _LandingTelaState extends State<LandingTela> {
                 ),
               ),
               const SizedBox(height: 16),
-              Wrap(
+              const Wrap(
                 alignment: WrapAlignment.center,
                 spacing: 32,
                 runSpacing: 16,
-                children: const [
+                children: [
                   _LogoEmpresa(nome: 'TechCorp'),
                   _LogoEmpresa(nome: 'InovaRH'),
                   _LogoEmpresa(nome: 'Skyline Digital'),
@@ -325,7 +336,8 @@ class _LandingTelaState extends State<LandingTela> {
                           children: [
                             for (var i = 0; i < etapas.length; i++)
                               Padding(
-                                padding: EdgeInsets.only(bottom: i == etapas.length - 1 ? 0 : 24),
+                                padding: EdgeInsets.only(
+                                    bottom: i == etapas.length - 1 ? 0 : 24),
                                 child: _ProcessStep(
                                   indice: i + 1,
                                   titulo: etapas[i].titulo,
@@ -335,7 +347,9 @@ class _LandingTelaState extends State<LandingTela> {
                           ],
                         ),
                       ),
-                      SizedBox(width: isVertical ? 0 : 48, height: isVertical ? 32 : 0),
+                      SizedBox(
+                          width: isVertical ? 0 : 48,
+                          height: isVertical ? 32 : 0),
                       Expanded(
                         child: _ProcessHighlightCard(onDemo: widget.onDemo),
                       ),
@@ -403,7 +417,8 @@ class _LandingTelaState extends State<LandingTela> {
                       ],
                     ),
                   ),
-                  SizedBox(width: isVertical ? 0 : 40, height: isVertical ? 32 : 0),
+                  SizedBox(
+                      width: isVertical ? 0 : 40, height: isVertical ? 32 : 0),
                   Expanded(
                     child: _IAInsightCard(onLogin: widget.onLogin),
                   ),
@@ -482,7 +497,8 @@ class _LandingTelaState extends State<LandingTela> {
             children: [
               const _SectionHeader(
                 titulo: 'Perguntas frequentes',
-                descricao: 'Transparência total para que seu time tome a decisão com confiança.',
+                descricao:
+                    'Transparência total para que seu time tome a decisão com confiança.',
                 alinhamentoCentro: true,
               ),
               const SizedBox(height: 32),
@@ -546,7 +562,8 @@ class _LandingTelaState extends State<LandingTela> {
                     ElevatedButton(
                       onPressed: widget.onDemo,
                       style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 16),
                         backgroundColor: Colors.white,
                         foregroundColor: const Color(0xFF4F46E5),
                       ),
@@ -555,7 +572,8 @@ class _LandingTelaState extends State<LandingTela> {
                     OutlinedButton(
                       onPressed: widget.onLogin,
                       style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 16),
                         foregroundColor: Colors.white,
                         side: const BorderSide(color: Colors.white70),
                       ),
@@ -604,12 +622,15 @@ class _LandingTelaState extends State<LandingTela> {
                             SizedBox(height: 8),
                             Text(
                               'IA que potencializa decisões humanas. Plataforma completa para recrutamento técnico justo e eficiente.',
-                              style: TextStyle(color: Colors.white70, height: 1.6),
+                              style:
+                                  TextStyle(color: Colors.white70, height: 1.6),
                             ),
                           ],
                         ),
                       ),
-                      SizedBox(width: isVertical ? 0 : 48, height: isVertical ? 32 : 0),
+                      SizedBox(
+                          width: isVertical ? 0 : 48,
+                          height: isVertical ? 32 : 0),
                       const Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -623,7 +644,9 @@ class _LandingTelaState extends State<LandingTela> {
                           ],
                         ),
                       ),
-                      SizedBox(width: isVertical ? 0 : 48, height: isVertical ? 32 : 0),
+                      SizedBox(
+                          width: isVertical ? 0 : 48,
+                          height: isVertical ? 32 : 0),
                       const Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -637,7 +660,9 @@ class _LandingTelaState extends State<LandingTela> {
                           ],
                         ),
                       ),
-                      SizedBox(width: isVertical ? 0 : 48, height: isVertical ? 32 : 0),
+                      SizedBox(
+                          width: isVertical ? 0 : 48,
+                          height: isVertical ? 32 : 0),
                       const Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -819,7 +844,8 @@ class _HeroContent extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        Text('IA que potencializa decisões humanas no recrutamento.', style: headlineStyle),
+        Text('IA que potencializa decisões humanas no recrutamento.',
+            style: headlineStyle),
         const SizedBox(height: 16),
         Text(
           'Simplifique o fluxo de análise de currículos, gere perguntas sob medida e acompanhe entrevistas com relatórios em tempo real.',
@@ -835,7 +861,8 @@ class _HeroContent extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF4F46E5),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
               ),
               icon: const Icon(Icons.play_circle_fill),
               label: const Text('Ver demo guiada'),
@@ -845,7 +872,8 @@ class _HeroContent extends StatelessWidget {
               icon: const Icon(Icons.login),
               label: const Text('Entrar agora'),
               style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                 side: BorderSide(color: Colors.indigo.shade200),
                 foregroundColor: const Color(0xFF4F46E5),
               ),
@@ -857,7 +885,8 @@ class _HeroContent extends StatelessWidget {
           spacing: 24,
           runSpacing: 12,
           children: [
-            _HeroMetric(titulo: 'Tempo médio de triagem', valor: '5x mais rápido'),
+            _HeroMetric(
+                titulo: 'Tempo médio de triagem', valor: '5x mais rápido'),
             _HeroMetric(titulo: 'Aderência média', valor: '92%'),
             _HeroMetric(titulo: 'Satisfação dos gestores', valor: '9,4/10'),
           ],
@@ -985,7 +1014,9 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textAlign = alinhamentoCentro ? TextAlign.center : TextAlign.start;
-    final crossAxis = alinhamentoCentro ? CrossAxisAlignment.center : CrossAxisAlignment.start;
+    final crossAxis = alinhamentoCentro
+        ? CrossAxisAlignment.center
+        : CrossAxisAlignment.start;
 
     return Column(
       crossAxisAlignment: crossAxis,
@@ -1056,7 +1087,10 @@ class _FeatureCard extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             titulo,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF111827)),
+            style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF111827)),
           ),
           const SizedBox(height: 8),
           Text(
@@ -1152,7 +1186,8 @@ class _ProcessHighlightCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: const Color(0xFF2C3347)),
         boxShadow: const [
-          BoxShadow(color: Colors.black38, blurRadius: 40, offset: Offset(0, 24)),
+          BoxShadow(
+              color: Colors.black38, blurRadius: 40, offset: Offset(0, 24)),
         ],
       ),
       child: Column(
@@ -1160,7 +1195,8 @@ class _ProcessHighlightCard extends StatelessWidget {
         children: [
           const Text(
             'Pipeline monitorado em tempo real',
-            style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700),
+            style: TextStyle(
+                color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 12),
           const Text(
@@ -1174,14 +1210,26 @@ class _ProcessHighlightCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(20),
               color: const Color(0xFF2A3147),
             ),
-            child: Column(
+            child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                _MiniStatus(label: 'Triagem', valor: '18 candidatos', progresso: 0.7, cor: Color(0xFF4F46E5)),
+              children: [
+                _MiniStatus(
+                    label: 'Triagem',
+                    valor: '18 candidatos',
+                    progresso: 0.7,
+                    cor: Color(0xFF4F46E5)),
                 SizedBox(height: 12),
-                _MiniStatus(label: 'Entrevista técnica', valor: '7 candidatos', progresso: 0.45, cor: Color(0xFF22C55E)),
+                _MiniStatus(
+                    label: 'Entrevista técnica',
+                    valor: '7 candidatos',
+                    progresso: 0.45,
+                    cor: Color(0xFF22C55E)),
                 SizedBox(height: 12),
-                _MiniStatus(label: 'Gestor', valor: '3 candidatos', progresso: 0.2, cor: Color(0xFFFACC15)),
+                _MiniStatus(
+                    label: 'Gestor',
+                    valor: '3 candidatos',
+                    progresso: 0.2,
+                    cor: Color(0xFFFACC15)),
               ],
             ),
           ),
@@ -1224,7 +1272,9 @@ class _MiniStatus extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(label, style: const TextStyle(color: Colors.white70)),
-            Text(valor, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+            Text(valor,
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.w600)),
           ],
         ),
         const SizedBox(height: 6),
@@ -1270,7 +1320,8 @@ class _InsightListTile extends StatelessWidget {
               color: const Color(0xFFEEF2FF),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.auto_fix_high, color: Color(0xFF4F46E5), size: 18),
+            child: const Icon(Icons.auto_fix_high,
+                color: Color(0xFF4F46E5), size: 18),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -1279,7 +1330,10 @@ class _InsightListTile extends StatelessWidget {
               children: [
                 Text(
                   titulo,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF111827)),
+                  style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF111827)),
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -1325,12 +1379,15 @@ class _IAInsightCard extends StatelessWidget {
               color: const Color(0xFFEEF2FF),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: Column(
+            child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
+              children: [
                 Text(
                   'Relatório automático',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: Color(0xFF111827)),
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: Color(0xFF111827)),
                 ),
                 SizedBox(height: 8),
                 Text(
@@ -1351,11 +1408,16 @@ class _IAInsightCard extends StatelessWidget {
             child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _Bullet(texto: 'Geração de perguntas adaptativas por senioridade'),
+                _Bullet(
+                    texto: 'Geração de perguntas adaptativas por senioridade'),
                 SizedBox(height: 8),
-                _Bullet(texto: 'Transcrição opcional de áudio e identificação de palavras-chave'),
+                _Bullet(
+                    texto:
+                        'Transcrição opcional de áudio e identificação de palavras-chave'),
                 SizedBox(height: 8),
-                _Bullet(texto: 'Notas automáticas com justificativa baseada em evidências'),
+                _Bullet(
+                    texto:
+                        'Notas automáticas com justificativa baseada em evidências'),
               ],
             ),
           ),
@@ -1381,7 +1443,9 @@ class _Bullet extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('• ', style: TextStyle(color: Color(0xFF4F46E5), fontWeight: FontWeight.bold)),
+        const Text('• ',
+            style: TextStyle(
+                color: Color(0xFF4F46E5), fontWeight: FontWeight.bold)),
         Expanded(
           child: Text(
             texto,
@@ -1468,7 +1532,8 @@ class _FaqItemState extends State<_FaqItem> {
         childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
         title: Text(
           widget.pergunta,
-          style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF111827)),
+          style: const TextStyle(
+              fontWeight: FontWeight.w600, color: Color(0xFF111827)),
         ),
         children: [
           Text(
@@ -1494,7 +1559,8 @@ class _FooterLink extends StatelessWidget {
       children: [
         Text(
           titulo,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14),
+          style: const TextStyle(
+              color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14),
         ),
         const SizedBox(height: 12),
         ...links.map(

@@ -31,25 +31,31 @@ class _HistoricoTelaState extends State<HistoricoTela> {
       final hist = await widget.api.historico();
       _atividades = hist.map<AtividadeHistorico>((e) {
         final m = e as Map<String, dynamic>;
-        final created = DateTime.tryParse(m['criado_em']?.toString() ?? m['data']?.toString() ?? '') ?? DateTime.now();
-        final tipo = m['tipo']?.toString() ?? (m['vaga'] != null ? 'Entrevista' : 'Edição');
-        final entidade = m['entidade']?.toString() ?? (tipo == 'Upload' ? 'Currículo' : 'Entrevista');
-        final entidadeId = (m['entidade_id'] ?? m['entidadeId'] ?? m['id'] ?? '').toString();
+        final created = DateTime.tryParse(
+                m['criado_em']?.toString() ?? m['data']?.toString() ?? '') ??
+            DateTime.now();
+        final tipo = m['tipo']?.toString() ??
+            (m['vaga'] != null ? 'Entrevista' : 'Edição');
+        final entidade = m['entidade']?.toString() ??
+            (tipo == 'Upload' ? 'Currículo' : 'Entrevista');
+        final entidadeId =
+            (m['entidade_id'] ?? m['entidadeId'] ?? m['id'] ?? '').toString();
         final usuario = (m['usuario'] ?? m['candidato'] ?? '').toString();
         final vaga = m['vaga']?.toString();
         final temRelatorio = m['tem_relatorio'] == true;
 
         final descricaoBackend = m['descricao']?.toString();
-        final descricao = descricaoBackend ?? (() {
-          if (tipo == 'Upload') {
-            final filename = m['filename']?.toString();
-            return 'Upload de currículo ${filename ?? ''}'.trim();
-          }
-          if (tipo == 'Entrevista') {
-            return 'Entrevista ${temRelatorio ? 'com relatório' : 'registrada'} para ${vaga ?? 'Vaga'}';
-          }
-          return vaga ?? '';
-        })();
+        final descricao = descricaoBackend ??
+            (() {
+              if (tipo == 'Upload') {
+                final filename = m['filename']?.toString();
+                return 'Upload de currículo ${filename ?? ''}'.trim();
+              }
+              if (tipo == 'Entrevista') {
+                return 'Entrevista ${temRelatorio ? 'com relatório' : 'registrada'} para ${vaga ?? 'Vaga'}';
+              }
+              return vaga ?? '';
+            })();
 
         return AtividadeHistorico(
           id: (m['id'] ?? '').toString(),
@@ -72,7 +78,8 @@ class _HistoricoTelaState extends State<HistoricoTela> {
           a.descricao.toLowerCase().contains(_busca.toLowerCase()) ||
           a.usuario.toLowerCase().contains(_busca.toLowerCase());
       final matchTipo = _filtroTipo == 'Todos' || a.tipo == _filtroTipo;
-      final matchEntidade = _filtroEntidade == 'Todas' || a.entidade == _filtroEntidade;
+      final matchEntidade =
+          _filtroEntidade == 'Todas' || a.entidade == _filtroEntidade;
       return matchBusca && matchTipo && matchEntidade;
     }).toList()
       ..sort((a, b) => b.data.compareTo(a.data));
@@ -84,8 +91,8 @@ class _HistoricoTelaState extends State<HistoricoTela> {
       final k = DateTime(a.data.year, a.data.month, a.data.day);
       mapa.putIfAbsent(k, () => []).add(a);
     }
-    final ordenadas = Map.fromEntries(mapa.entries.toList()
-      ..sort((a, b) => b.key.compareTo(a.key)));
+    final ordenadas = Map.fromEntries(
+        mapa.entries.toList()..sort((a, b) => b.key.compareTo(a.key)));
     return ordenadas;
   }
 
@@ -98,9 +105,14 @@ class _HistoricoTelaState extends State<HistoricoTela> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Histórico & Auditoria', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: TMTokens.text)),
+          const Text('Histórico & Auditoria',
+              style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: TMTokens.text)),
           const SizedBox(height: 4),
-          const Text('Rastreie todas as atividades e eventos do sistema', style: TextStyle(fontSize: 16, color: TMTokens.textMuted)),
+          const Text('Rastreie todas as atividades e eventos do sistema',
+              style: TextStyle(fontSize: 16, color: TMTokens.textMuted)),
           const SizedBox(height: 16),
           _buildFilters(),
           const SizedBox(height: 24),
@@ -126,19 +138,23 @@ class _HistoricoTelaState extends State<HistoricoTela> {
                       const Positioned(
                         left: 12,
                         top: 12,
-                        child: Icon(Icons.search, size: 18, color: TMTokens.textMuted),
+                        child: Icon(Icons.search,
+                            size: 18, color: TMTokens.textMuted),
                       ),
                       TextField(
                         decoration: InputDecoration(
                           hintText: 'Buscar atividades...',
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 36, vertical: 10),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 36, vertical: 10),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: TMTokens.border),
+                            borderSide:
+                                const BorderSide(color: TMTokens.border),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: TMTokens.border),
+                            borderSide:
+                                const BorderSide(color: TMTokens.border),
                           ),
                           filled: true,
                           fillColor: const Color(0xFFF3F4F6),
@@ -161,7 +177,15 @@ class _HistoricoTelaState extends State<HistoricoTela> {
   }
 
   Widget _tipoDropdown() {
-    const tipos = ['Todos', 'Upload', 'Análise', 'Entrevista', 'Aprovação', 'Reprovação', 'Edição'];
+    const tipos = [
+      'Todos',
+      'Upload',
+      'Análise',
+      'Entrevista',
+      'Aprovação',
+      'Reprovação',
+      'Edição'
+    ];
     return DropdownButtonFormField<String>(
       initialValue: _filtroTipo,
       decoration: InputDecoration(
@@ -174,9 +198,11 @@ class _HistoricoTelaState extends State<HistoricoTela> {
           borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: TMTokens.border),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       ),
-      items: tipos.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+      items:
+          tipos.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
       onChanged: (v) => setState(() => _filtroTipo = v ?? 'Todos'),
     );
   }
@@ -195,9 +221,11 @@ class _HistoricoTelaState extends State<HistoricoTela> {
           borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: TMTokens.border),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       ),
-      items: ents.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+      items:
+          ents.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
       onChanged: (v) => setState(() => _filtroEntidade = v ?? 'Todas'),
     );
   }
@@ -210,7 +238,11 @@ class _HistoricoTelaState extends State<HistoricoTela> {
         const SizedBox(height: 8),
         Row(
           children: [
-            Text(titulo, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: TMTokens.text)),
+            Text(titulo,
+                style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: TMTokens.text)),
             const SizedBox(width: 8),
             Expanded(child: Container(height: 1, color: TMTokens.border)),
           ],
@@ -245,25 +277,35 @@ class _HistoricoTelaState extends State<HistoricoTela> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Expanded(
-                          child: Text(a.descricao, style: const TextStyle(color: TMTokens.text, fontSize: 14, fontWeight: FontWeight.w500)),
+                          child: Text(a.descricao,
+                              style: const TextStyle(
+                                  color: TMTokens.text,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500)),
                         ),
                         const SizedBox(width: 8),
-                        Text(_tempoDecorrido(a.data), style: const TextStyle(color: TMTokens.textMuted, fontSize: 12)),
+                        Text(_tempoDecorrido(a.data),
+                            style: const TextStyle(
+                                color: TMTokens.textMuted, fontSize: 12)),
                       ],
                     ),
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Text(a.usuario, style: const TextStyle(fontSize: 12, color: TMTokens.textMuted)),
+                        Text(a.usuario,
+                            style: const TextStyle(
+                                fontSize: 12, color: TMTokens.textMuted)),
                         const SizedBox(width: 8),
-                        const Text('•', style: TextStyle(color: TMTokens.textMuted)),
+                        const Text('•',
+                            style: TextStyle(color: TMTokens.textMuted)),
                         const SizedBox(width: 8),
                         _badgeEntidade(a.entidade),
                         const SizedBox(width: 8),
                         TextButton.icon(
                           onPressed: () => _verDetalhes(a),
                           icon: const Icon(Icons.open_in_new, size: 14),
-                          label: const Text('Ver detalhes', style: TextStyle(fontSize: 12)),
+                          label: const Text('Ver detalhes',
+                              style: TextStyle(fontSize: 12)),
                           style: TextButton.styleFrom(
                             foregroundColor: TMTokens.primary,
                             padding: EdgeInsets.zero,
@@ -289,23 +331,42 @@ class _HistoricoTelaState extends State<HistoricoTela> {
     Color fg;
     switch (tipo) {
       case 'Upload':
-  icon = Icons.upload_file; bg = TMTokens.info.withValues(alpha: 0.15); fg = TMTokens.info; break;
+        icon = Icons.upload_file;
+        bg = TMTokens.info.withValues(alpha: 0.15);
+        fg = TMTokens.info;
+        break;
       case 'Análise':
-  icon = Icons.psychology; bg = TMTokens.secondary.withValues(alpha: 0.15); fg = TMTokens.secondary; break;
+        icon = Icons.psychology;
+        bg = TMTokens.secondary.withValues(alpha: 0.15);
+        fg = TMTokens.secondary;
+        break;
       case 'Entrevista':
-  icon = Icons.calendar_today; bg = TMTokens.warning.withValues(alpha: 0.15); fg = TMTokens.warning; break;
+        icon = Icons.calendar_today;
+        bg = TMTokens.warning.withValues(alpha: 0.15);
+        fg = TMTokens.warning;
+        break;
       case 'Aprovação':
-  icon = Icons.check_circle; bg = TMTokens.success.withValues(alpha: 0.15); fg = TMTokens.success; break;
+        icon = Icons.check_circle;
+        bg = TMTokens.success.withValues(alpha: 0.15);
+        fg = TMTokens.success;
+        break;
       case 'Reprovação':
-  icon = Icons.cancel; bg = TMTokens.error.withValues(alpha: 0.15); fg = TMTokens.error; break;
+        icon = Icons.cancel;
+        bg = TMTokens.error.withValues(alpha: 0.15);
+        fg = TMTokens.error;
+        break;
       case 'Edição':
       default:
-  icon = Icons.edit_square; bg = TMTokens.textMuted.withValues(alpha: 0.15); fg = TMTokens.textMuted; break;
+        icon = Icons.edit_square;
+        bg = TMTokens.textMuted.withValues(alpha: 0.15);
+        fg = TMTokens.textMuted;
+        break;
     }
     return Container(
       width: 40,
       height: 40,
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
+      decoration:
+          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
       child: Icon(icon, color: fg, size: 20),
     );
   }
@@ -315,17 +376,28 @@ class _HistoricoTelaState extends State<HistoricoTela> {
     Color bg;
     switch (entidade) {
       case 'Vaga':
-  fg = TMTokens.primary; bg = TMTokens.primary.withValues(alpha: 0.08); break;
+        fg = TMTokens.primary;
+        bg = TMTokens.primary.withValues(alpha: 0.08);
+        break;
       case 'Entrevista':
-  fg = TMTokens.warning; bg = TMTokens.warning.withValues(alpha: 0.15); break;
+        fg = TMTokens.warning;
+        bg = TMTokens.warning.withValues(alpha: 0.15);
+        break;
       case 'Candidato':
       default:
-  fg = TMTokens.secondary; bg = TMTokens.secondary.withValues(alpha: 0.15); break;
+        fg = TMTokens.secondary;
+        bg = TMTokens.secondary.withValues(alpha: 0.15);
+        break;
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(6), border: Border.all(color: bg)),
-      child: Text(entidade, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: fg)),
+      decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: bg)),
+      child: Text(entidade,
+          style:
+              TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: fg)),
     );
   }
 
@@ -347,11 +419,17 @@ class _HistoricoTelaState extends State<HistoricoTela> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Estatísticas do Período', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: TMTokens.text)),
+            const Text('Estatísticas do Período',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: TMTokens.text)),
             const SizedBox(height: 12),
             LayoutBuilder(
               builder: (context, constraints) {
-                final cols = constraints.maxWidth >= 1024 ? 6 : (constraints.maxWidth >= 640 ? 3 : 2);
+                final cols = constraints.maxWidth >= 1024
+                    ? 6
+                    : (constraints.maxWidth >= 640 ? 3 : 2);
                 return GridView.count(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
@@ -360,12 +438,18 @@ class _HistoricoTelaState extends State<HistoricoTela> {
                   mainAxisSpacing: 12,
                   crossAxisSpacing: 12,
                   children: [
-                    _kpiTile(Icons.upload_file, 'Upload', counts['Upload'] ?? 0, TMTokens.info),
-                    _kpiTile(Icons.psychology, 'Análise', counts['Análise'] ?? 0, TMTokens.secondary),
-                    _kpiTile(Icons.calendar_today, 'Entrevista', counts['Entrevista'] ?? 0, TMTokens.warning),
-                    _kpiTile(Icons.check_circle, 'Aprovação', counts['Aprovação'] ?? 0, TMTokens.success),
-                    _kpiTile(Icons.cancel, 'Reprovação', counts['Reprovação'] ?? 0, TMTokens.error),
-                    _kpiTile(Icons.edit_square, 'Edição', counts['Edição'] ?? 0, TMTokens.textMuted),
+                    _kpiTile(Icons.upload_file, 'Upload', counts['Upload'] ?? 0,
+                        TMTokens.info),
+                    _kpiTile(Icons.psychology, 'Análise',
+                        counts['Análise'] ?? 0, TMTokens.secondary),
+                    _kpiTile(Icons.calendar_today, 'Entrevista',
+                        counts['Entrevista'] ?? 0, TMTokens.warning),
+                    _kpiTile(Icons.check_circle, 'Aprovação',
+                        counts['Aprovação'] ?? 0, TMTokens.success),
+                    _kpiTile(Icons.cancel, 'Reprovação',
+                        counts['Reprovação'] ?? 0, TMTokens.error),
+                    _kpiTile(Icons.edit_square, 'Edição', counts['Edição'] ?? 0,
+                        TMTokens.textMuted),
                   ],
                 );
               },
@@ -383,12 +467,19 @@ class _HistoricoTelaState extends State<HistoricoTela> {
         Container(
           width: 44,
           height: 44,
-          decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
+          decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10)),
           child: Icon(icon, color: color),
         ),
         const SizedBox(height: 6),
-        Text('$valor', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: TMTokens.text)),
-        Text(label, style: const TextStyle(fontSize: 12, color: TMTokens.textMuted)),
+        Text('$valor',
+            style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                color: TMTokens.text)),
+        Text(label,
+            style: const TextStyle(fontSize: 12, color: TMTokens.textMuted)),
       ],
     );
   }
@@ -407,13 +498,27 @@ class _HistoricoTelaState extends State<HistoricoTela> {
   }
 
   String _formatarDiaCompleto(DateTime d) {
-    const meses = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+    const meses = [
+      'janeiro',
+      'fevereiro',
+      'março',
+      'abril',
+      'maio',
+      'junho',
+      'julho',
+      'agosto',
+      'setembro',
+      'outubro',
+      'novembro',
+      'dezembro'
+    ];
     return '${d.day.toString().padLeft(2, '0')} de ${meses[d.month - 1]} de ${d.year}';
   }
 
   void _verDetalhes(AtividadeHistorico a) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Abrir detalhes de ${a.entidade} (${a.entidadeId})')),
+      SnackBar(
+          content: Text('Abrir detalhes de ${a.entidade} (${a.entidadeId})')),
     );
   }
 }

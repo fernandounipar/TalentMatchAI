@@ -13,9 +13,9 @@ async function main() {
   try {
     const r = await client.query(
       "SELECT 'usuarios' AS t, COUNT(*)::int AS c FROM usuarios UNION ALL " +
-      "SELECT 'vagas', COUNT(*) FROM vagas UNION ALL " +
-      "SELECT 'candidatos', COUNT(*) FROM candidatos UNION ALL " +
-      "SELECT 'entrevistas', COUNT(*) FROM entrevistas"
+      "SELECT 'jobs', COUNT(*) FROM jobs UNION ALL " +
+      "SELECT 'candidates', COUNT(*) FROM candidates UNION ALL " +
+      "SELECT 'interviews', COUNT(*) FROM interviews"
     );
     console.log(JSON.stringify(r.rows, null, 2));
   } finally {

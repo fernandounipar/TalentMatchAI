@@ -30,7 +30,7 @@ router.get('/', async (req, res) => {
            WHEN length(token) <= 8 THEN '••••••••'
            ELSE substr(token, 1, 3) || '...' || right(token, 4)
          END AS token_preview
-       FROM api_keys
+       FROM chaves_api
        WHERE company_id = $1 AND is_active = true
        ORDER BY created_at DESC`,
       [companyId]
@@ -69,7 +69,7 @@ router.post('/', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
     const lab = (label && String(label).trim()) || `${prov} Key`;
 
     const insert = await db.query(
-      `INSERT INTO api_keys (company_id, user_id, provider, label, token)
+      `INSERT INTO chaves_api (company_id, user_id, provider, label, token)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING id, provider, label, created_at, is_active`,
       [companyId, userId, prov, lab, tok]
@@ -102,7 +102,7 @@ router.delete('/:id', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
   console.log('🗑️  DELETE /api/api-keys/:id chamado');
   console.log('   ID:', req.params.id);
   console.log('   Usuario:', req.usuario);
-  
+
   try {
     const companyId = req.usuario.company_id;
     const id = req.params.id;
@@ -116,7 +116,7 @@ router.delete('/:id', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
     console.log('   Executando UPDATE...');
 
     const result = await db.query(
-      `UPDATE api_keys 
+      `UPDATE chaves_api 
        SET is_active = false, last_used_at = now()
        WHERE id = $1 AND company_id = $2
        RETURNING id`,

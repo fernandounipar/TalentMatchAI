@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../design_system/tm_tokens.dart';
 import '../servicos/api_cliente.dart';
+import 'package:talentmatchia_frontend/utils/validadores.dart';
 
 /// Tela de Configurações com dados reais do backend
 class ConfiguracoesNovaTela extends StatefulWidget {
@@ -52,11 +53,7 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
 
   // Integrações
   late final TextEditingController _githubTokenController;
-  late final TextEditingController _webhookUrlController;
   bool _analiseGithubAtiva = true;
-  bool _eventoWebhookNovo = true;
-  bool _eventoWebhookAnalise = true;
-  bool _eventoWebhookEntrevista = false;
 
   // API Keys
   List<Map<String, dynamic>> _apiKeys = [];
@@ -83,9 +80,6 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
     _novaSenhaController = TextEditingController();
     _confirmarSenhaController = TextEditingController();
     _githubTokenController = TextEditingController();
-    _webhookUrlController = TextEditingController(
-      text: 'https://seu-sistema.com/webhook',
-    );
     _corHexController.text = _colorToHex(_corPrimaria);
     _carregarDados();
   }
@@ -103,7 +97,6 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
     _novaSenhaController.dispose();
     _confirmarSenhaController.dispose();
     _githubTokenController.dispose();
-    _webhookUrlController.dispose();
     super.dispose();
   }
 
@@ -117,8 +110,10 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
       final dados = await widget.api.obterUsuario();
 
       // Compatibilidade: backend pode retornar { user, company } ou { usuario: { company } }
-      final rawUser = (dados['user'] ?? dados['usuario']) as Map<String, dynamic>?;
-      final rawCompany = (dados['company'] ?? rawUser?['company']) as Map<String, dynamic>?;
+      final rawUser =
+          (dados['user'] ?? dados['usuario']) as Map<String, dynamic>?;
+      final rawCompany =
+          (dados['company'] ?? rawUser?['company']) as Map<String, dynamic>?;
 
       setState(() {
         _dadosUsuario = {
@@ -133,16 +128,33 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
           _perfilEmailController.text = (rawUser['email'] ?? '') as String;
           _perfilCargoController.text =
               (rawUser['cargo'] ?? 'Recrutador(a)') as String;
+
+          // Ajuste do Cargo selecionado
+          final cargoVindo = rawUser['cargo'] as String?;
+          if (['Admin', 'Recrutador(a)', 'Gestor(a)'].contains(cargoVindo)) {
+            _cargoSelecionado = cargoVindo;
+          } else {
+            // Se for null ou desconhecido, tenta mapear pelo role ou deixa null
+            final role = rawUser['role'] as String?;
+            if (role == 'ADMIN' || role == 'SUPER_ADMIN')
+              _cargoSelecionado = 'Admin';
+            else if (role == 'RECRUITER')
+              _cargoSelecionado = 'Recrutador(a)';
+            else
+              _cargoSelecionado = null;
+          }
         }
 
         // Se tem empresa, preenche os campos
         if (rawCompany != null) {
           final empresa = rawCompany;
-          _empresaTipoSelecionado =
-              (empresa['type'] ?? empresa['tipo'] ?? '').toString().toUpperCase();
+          _empresaTipoSelecionado = (empresa['type'] ?? empresa['tipo'] ?? '')
+              .toString()
+              .toUpperCase();
           _empresaDocumentoController.text =
               (empresa['document'] ?? empresa['documento'] ?? '') as String;
-          _empresaNomeController.text = (empresa['name'] ?? empresa['nome'] ?? '') as String;
+          _empresaNomeController.text =
+              (empresa['name'] ?? empresa['nome'] ?? '') as String;
         }
       });
 
@@ -164,33 +176,31 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
   }
 
   Future<void> _salvarEmpresa() async {
-    final tipo = (_empresaTipoSelecionado ?? '').toUpperCase();
-    final documento = _empresaDocumentoController.text.trim().replaceAll(RegExp(r'[^\d]'), '');
     final nome = _empresaNomeController.text.trim();
+    final documentoRaw = _empresaDocumentoController.text.trim();
+    final documento = documentoRaw.replaceAll(RegExp(r'[^\d]'), '');
+    // Usa o tipo selecionado ou o que já estava salvo (fallback)
+    final tipo =
+        _empresaTipoSelecionado ?? _dadosUsuario?['company']?['type'] ?? 'CPF';
 
-    // Validações
-    if (tipo.isEmpty || (tipo != 'CPF' && tipo != 'CNPJ')) {
+    if (nome.isEmpty || documento.isEmpty) {
+      _mostrarMensagem('Preencha todos os campos obrigatórios', erro: true);
+      return;
+    }
+
+    // Validação de CPF/CNPJ
+    if (tipo == 'CPF') {
+      if (!Validadores.isCPF(documento)) {
+        _mostrarMensagem('CPF inválido. Verifique os dígitos.', erro: true);
+        return;
+      }
+    } else if (tipo == 'CNPJ') {
+      if (!Validadores.isCNPJ(documento)) {
+        _mostrarMensagem('CNPJ inválido. Verifique os dígitos.', erro: true);
+        return;
+      }
+    } else {
       _mostrarMensagem('Selecione se a empresa é CPF ou CNPJ', erro: true);
-      return;
-    }
-
-    if (documento.isEmpty) {
-      _mostrarMensagem('Documento é obrigatório', erro: true);
-      return;
-    }
-
-    if (tipo == 'CPF' && documento.length != 11) {
-      _mostrarMensagem('CPF deve ter 11 dígitos', erro: true);
-      return;
-    }
-
-    if (tipo == 'CNPJ' && documento.length != 14) {
-      _mostrarMensagem('CNPJ deve ter 14 dígitos', erro: true);
-      return;
-    }
-
-    if (nome.isEmpty) {
-      _mostrarMensagem('Nome é obrigatório', erro: true);
       return;
     }
 
@@ -318,14 +328,16 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
     if (partes.length == 1) {
       return partes.first.substring(0, 1).toUpperCase();
     }
-    return (partes.first.substring(0, 1) + partes.last.substring(0, 1)).toUpperCase();
+    return (partes.first.substring(0, 1) + partes.last.substring(0, 1))
+        .toUpperCase();
   }
 
   String _colorToHex(Color color) {
-    final value = color.toARGB32().toRadixString(16).padLeft(8, '0').toUpperCase();
+    final value =
+        color.toARGB32().toRadixString(16).padLeft(8, '0').toUpperCase();
     return '#${value.substring(2)}';
   }
-  
+
   String _formatarRole(String role) {
     switch (role) {
       case 'SUPER_ADMIN':
@@ -339,14 +351,16 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
         return 'Usuário';
     }
   }
-  
+
   String _getIniciais(String nome) {
     if (nome.isEmpty) return 'U';
     final partes = nome.trim().split(' ');
     if (partes.length == 1) {
       return partes[0].substring(0, 1).toUpperCase();
     }
-    return (partes[0].substring(0, 1) + partes[partes.length - 1].substring(0, 1)).toUpperCase();
+    return (partes[0].substring(0, 1) +
+            partes[partes.length - 1].substring(0, 1))
+        .toUpperCase();
   }
 
   void _atualizarCorPorHex(String value) {
@@ -396,7 +410,7 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
                           border: Border.all(color: Colors.white, width: 3),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.1),
+                              color: Colors.black.withOpacity(0.1),
                               blurRadius: 6,
                               offset: const Offset(0, 3),
                             ),
@@ -517,9 +531,13 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
                 border: Border.all(color: const Color(0xFFE5E7EB)),
               ),
               indicatorPadding: const EdgeInsets.all(4),
+              indicatorSize:
+                  TabBarIndicatorSize.tab, // Ajuste para preencher a aba
               dividerColor: Colors.transparent,
-              labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-              unselectedLabelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+              labelStyle:
+                  const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              unselectedLabelStyle:
+                  const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
               tabs: const [
                 Tab(
                   height: 44,
@@ -575,7 +593,11 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
             subtitle: 'Dados cadastrais e identificação',
             children: [
               if (temEmpresa) ...[
-                _buildInfoRow('Tipo', empresa?['type'] == 'CPF' ? 'Pessoa Física' : 'Pessoa Jurídica'),
+                _buildInfoRow(
+                    'Tipo',
+                    empresa?['type'] == 'CPF'
+                        ? 'Pessoa Física'
+                        : 'Pessoa Jurídica'),
                 const Divider(height: 32),
                 _buildInfoRow(
                   empresa?['type'] == 'CPF' ? 'CPF' : 'CNPJ',
@@ -606,7 +628,8 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
                       Expanded(
                         child: const Text(
                           'Você ainda não tem uma empresa cadastrada. Configure agora para desbloquear todas as funcionalidades!',
-                          style: TextStyle(fontSize: 13, color: Color(0xFF1E40AF)),
+                          style:
+                              TextStyle(fontSize: 13, color: Color(0xFF1E40AF)),
                         ),
                       ),
                     ],
@@ -645,7 +668,8 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
                               selected: _empresaTipoSelecionado == 'CNPJ',
                               onSelected: (v) {
                                 if (!v) return;
-                                setState(() => _empresaTipoSelecionado = 'CNPJ');
+                                setState(
+                                    () => _empresaTipoSelecionado = 'CNPJ');
                               },
                             ),
                           ],
@@ -660,9 +684,10 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
                           ? 'CPF'
                           : 'CNPJ',
                       _empresaDocumentoController,
-                      hintText: (_empresaTipoSelecionado ?? empresa?['type']) == 'CPF'
-                          ? 'Informe o CPF (somente números)'
-                          : 'Informe o CNPJ (somente números)',
+                      hintText:
+                          (_empresaTipoSelecionado ?? empresa?['type']) == 'CPF'
+                              ? 'Informe o CPF (somente números)'
+                              : 'Informe o CNPJ (somente números)',
                       keyboardType: TextInputType.number,
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     ),
@@ -686,15 +711,19 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
                       ? const SizedBox(
                           width: 16,
                           height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
                         )
                       : const Icon(Icons.save, size: 18),
-                  label: Text(_salvandoEmpresa ? 'Salvando...' : 'Salvar Alterações'),
+                  label: Text(
+                      _salvandoEmpresa ? 'Salvando...' : 'Salvar Alterações'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: TMTokens.primary,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
                   ),
                 ),
               ),
@@ -710,7 +739,10 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
             children: [
               const Text(
                 'Logo da Empresa',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF111827)),
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF111827)),
               ),
               const SizedBox(height: 12),
               Row(
@@ -720,19 +752,24 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
                     height: 88,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE5E7EB), width: 2),
+                      border:
+                          Border.all(color: const Color(0xFFE5E7EB), width: 2),
                       color: const Color(0xFFF9FAFB),
                     ),
-                    child: const Icon(Icons.apartment, size: 36, color: Color(0xFF9CA3AF)),
+                    child: const Icon(Icons.apartment,
+                        size: 36, color: Color(0xFF9CA3AF)),
                   ),
                   const SizedBox(width: 16),
                   OutlinedButton.icon(
-                    onPressed: () => _mostrarMensagem('Upload de logo em breve'),
+                    onPressed: () =>
+                        _mostrarMensagem('Upload de logo em breve'),
                     icon: const Icon(Icons.upload_file_outlined),
                     label: const Text('Upload de Logo'),
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
                 ],
@@ -740,7 +777,10 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
               const SizedBox(height: 24),
               const Text(
                 'Cor Primária',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF111827)),
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF111827)),
               ),
               const SizedBox(height: 12),
               Row(
@@ -770,8 +810,10 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
                   OutlinedButton(
                     onPressed: _selecionarCorPrimaria,
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                     ),
                     child: const Text('Selecionar cor'),
                   ),
@@ -781,12 +823,15 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
               Align(
                 alignment: Alignment.centerRight,
                 child: ElevatedButton(
-                  onPressed: () => _mostrarMensagem('Identidade visual atualizada (somente visual)'),
+                  onPressed: () => _mostrarMensagem(
+                      'Identidade visual atualizada (somente visual)'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: TMTokens.primary,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                   child: const Text('Aplicar Alterações'),
                 ),
@@ -811,12 +856,14 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
                       children: [
                         Text(
                           'Retenção automática de currículos',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w600),
                         ),
                         SizedBox(height: 4),
                         Text(
                           'Manter currículos por até 90 dias após o processo seletivo',
-                          style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                          style:
+                              TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
                         ),
                       ],
                     ),
@@ -838,12 +885,14 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
                       children: [
                         Text(
                           'Anonimização de dados rejeitados',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w600),
                         ),
                         SizedBox(height: 4),
                         Text(
                           'Anonimizar dados de candidatos reprovados automaticamente',
-                          style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                          style:
+                              TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
                         ),
                       ],
                     ),
@@ -867,12 +916,15 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
               Align(
                 alignment: Alignment.centerRight,
                 child: ElevatedButton(
-                  onPressed: () => _mostrarMensagem('Configurações de privacidade salvas (somente visual)'),
+                  onPressed: () => _mostrarMensagem(
+                      'Configurações de privacidade salvas (somente visual)'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: TMTokens.primary,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                   child: const Text('Salvar Configurações'),
                 ),
@@ -922,12 +974,14 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
                 ),
               const SizedBox(height: 12),
               OutlinedButton(
-                onPressed: () => _mostrarMensagem('Use a tela Admin/Usuários para convidar novos membros'),
+                onPressed: _mostrarDialogAdicionarUsuario,
                 style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text('+ Convidar Membro'),
+                child: const Text('+ Adicionar Usuário'),
               ),
             ],
           ),
@@ -952,7 +1006,7 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
                 backgroundImage: usuario?['foto_url'] != null
                     ? NetworkImage(usuario!['foto_url'])
                     : null,
-                backgroundColor: TMTokens.primary.withValues(alpha: 0.12),
+                backgroundColor: TMTokens.primary.withOpacity(0.12),
                 child: usuario?['foto_url'] == null
                     ? Text(
                         _iniciais(usuario?['full_name'] ?? usuario?['nome']),
@@ -973,7 +1027,8 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
                     icon: const Icon(Icons.upload_outlined, size: 18),
                     label: const Text('Alterar Foto'),
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -1033,15 +1088,20 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2),
+                    borderSide:
+                        const BorderSide(color: Color(0xFF3B82F6), width: 2),
                   ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 ),
                 items: const [
-                  DropdownMenuItem(value: null, child: Text('Selecione um cargo')),
+                  DropdownMenuItem(
+                      value: null, child: Text('Selecione um cargo')),
                   DropdownMenuItem(value: 'Admin', child: Text('Admin')),
-                  DropdownMenuItem(value: 'Recrutador(a)', child: Text('Recrutador(a)')),
-                  DropdownMenuItem(value: 'Gestor(a)', child: Text('Gestor(a)')),
+                  DropdownMenuItem(
+                      value: 'Recrutador(a)', child: Text('Recrutador(a)')),
+                  DropdownMenuItem(
+                      value: 'Gestor(a)', child: Text('Gestor(a)')),
                 ],
                 onChanged: (valor) {
                   setState(() {
@@ -1059,8 +1119,10 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: TMTokens.primary,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
               child: _salvando
                   ? const SizedBox(
@@ -1091,35 +1153,34 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
             'Senha Atual',
             _senhaAtualController,
             keyboardType: TextInputType.visiblePassword,
+            obscureText: true,
           ),
           const SizedBox(height: 16),
           _buildTextField(
             'Nova Senha',
             _novaSenhaController,
             keyboardType: TextInputType.visiblePassword,
+            obscureText: true,
           ),
           const SizedBox(height: 16),
           _buildTextField(
             'Confirmar Nova Senha',
             _confirmarSenhaController,
             keyboardType: TextInputType.visiblePassword,
+            obscureText: true,
           ),
           const SizedBox(height: 24),
           Align(
             alignment: Alignment.centerRight,
             child: ElevatedButton(
-              onPressed: () {
-                if (_novaSenhaController.text != _confirmarSenhaController.text) {
-                  _mostrarMensagem('As senhas não conferem', erro: true);
-                } else {
-                  _mostrarMensagem('Alteração de senha ainda não implementada');
-                }
-              },
+              onPressed: _salvando ? null : _alterarSenha,
               style: ElevatedButton.styleFrom(
                 backgroundColor: TMTokens.primary,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
               child: const Text('Atualizar Senha'),
             ),
@@ -1213,7 +1274,8 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(999),
                                 border: Border.all(
@@ -1238,9 +1300,11 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
                             ),
                             const SizedBox(width: 8),
                             IconButton(
-                              icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFDC2626)),
+                              icon: const Icon(Icons.delete_outline,
+                                  size: 18, color: Color(0xFFDC2626)),
                               tooltip: 'Excluir API Key',
-                              onPressed: () => _confirmarExcluirApiKey(key['id']?.toString()),
+                              onPressed: () => _confirmarExcluirApiKey(
+                                  key['id']?.toString()),
                             ),
                           ],
                         ),
@@ -1253,8 +1317,10 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
               OutlinedButton(
                 onPressed: _mostrarDialogNovaApiKey,
                 style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
                 child: const Text('+ Adicionar Nova API Key'),
               ),
@@ -1275,12 +1341,14 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
                       children: [
                         Text(
                           'Habilitar análise de GitHub',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w600),
                         ),
                         SizedBox(height: 4),
                         Text(
                           'Buscar repositórios e analisar contribuições',
-                          style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                          style:
+                              TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
                         ),
                       ],
                     ),
@@ -1302,13 +1370,15 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
               Align(
                 alignment: Alignment.centerRight,
                 child: ElevatedButton(
-                  onPressed: () =>
-                      _mostrarMensagem('Configuração de GitHub salva (somente visual)'),
+                  onPressed: () => _mostrarMensagem(
+                      'Configuração de GitHub salva (somente visual)'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: TMTokens.primary,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                   child: const Text('Salvar Configuração'),
                 ),
@@ -1316,56 +1386,7 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
             ],
           ),
           const SizedBox(height: 24),
-          _buildCard(
-            icon: Icons.webhook_outlined,
-            titulo: 'Webhooks',
-            subtitle: 'Receba notificações em seus sistemas',
-            children: [
-              _buildTextField(
-                'URL do Webhook',
-                _webhookUrlController,
-                hintText: 'https://seu-sistema.com/webhook',
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Eventos',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF111827)),
-              ),
-              const SizedBox(height: 8),
-              _buildWebhookToggle(
-                'Novo candidato',
-                _eventoWebhookNovo,
-                (v) => setState(() => _eventoWebhookNovo = v),
-              ),
-              const SizedBox(height: 8),
-              _buildWebhookToggle(
-                'Análise concluída',
-                _eventoWebhookAnalise,
-                (v) => setState(() => _eventoWebhookAnalise = v),
-              ),
-              const SizedBox(height: 8),
-              _buildWebhookToggle(
-                'Entrevista agendada',
-                _eventoWebhookEntrevista,
-                (v) => setState(() => _eventoWebhookEntrevista = v),
-              ),
-              const SizedBox(height: 24),
-              Align(
-                alignment: Alignment.centerRight,
-                child: ElevatedButton(
-                  onPressed: () =>
-                      _mostrarMensagem('Configuração de webhook salva (somente visual)'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: TMTokens.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: const Text('Salvar Webhook'),
-                ),
-              ),
-            ],
-          ),
+          // Webhooks removido conforme solicitado
         ],
       ),
     );
@@ -1408,7 +1429,8 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
                         const SizedBox(height: 4),
                         Text(
                           subtitle,
-                          style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                          style: const TextStyle(
+                              fontSize: 13, color: Color(0xFF6B7280)),
                         ),
                       ],
                     ],
@@ -1456,6 +1478,7 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
     List<TextInputFormatter>? inputFormatters,
     int maxLines = 1,
     void Function(String)? onChanged,
+    bool obscureText = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1475,6 +1498,7 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
           inputFormatters: inputFormatters,
           maxLines: maxLines,
           onChanged: onChanged,
+          obscureText: obscureText,
           decoration: InputDecoration(
             hintText: hintText,
             filled: true,
@@ -1491,28 +1515,9 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
               borderRadius: BorderRadius.circular(8),
               borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildWebhookToggle(
-    String label,
-    bool value,
-    ValueChanged<bool> onChanged,
-  ) {
-    return Row(
-      children: [
-        Switch(
-          value: value,
-          onChanged: onChanged,
-        ),
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 13, color: Color(0xFF111827)),
         ),
       ],
     );
@@ -1538,7 +1543,7 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
             children: [
               CircleAvatar(
                 radius: 24,
-                backgroundColor: TMTokens.primary.withValues(alpha: 0.12),
+                backgroundColor: TMTokens.primary.withOpacity(0.12),
                 child: Text(
                   iniciais,
                   style: const TextStyle(
@@ -1575,7 +1580,9 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(999),
               border: Border.all(
-                color: isPrimary ? const Color(0xFF4338CA) : const Color(0xFFE5E7EB),
+                color: isPrimary
+                    ? const Color(0xFF4338CA)
+                    : const Color(0xFFE5E7EB),
               ),
               color: isPrimary ? const Color(0xFFE0E7FF) : Colors.white,
             ),
@@ -1584,11 +1591,174 @@ class _ConfiguracoesNovaTelaState extends State<ConfiguracoesNovaTela> {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: isPrimary ? const Color(0xFF4338CA) : const Color(0xFF4B5563),
+                color: isPrimary
+                    ? const Color(0xFF4338CA)
+                    : const Color(0xFF4B5563),
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _alterarSenha() async {
+    final atual = _senhaAtualController.text;
+    final nova = _novaSenhaController.text;
+    final confirmacao = _confirmarSenhaController.text;
+
+    if (atual.isEmpty || nova.isEmpty || confirmacao.isEmpty) {
+      _mostrarMensagem('Preencha todos os campos', erro: true);
+      return;
+    }
+
+    if (nova != confirmacao) {
+      _mostrarMensagem('As senhas não conferem', erro: true);
+      return;
+    }
+
+    setState(() => _salvando = true);
+    try {
+      await widget.api.trocarSenha(atual, nova);
+      _mostrarMensagem('Senha alterada com sucesso!');
+      _senhaAtualController.clear();
+      _novaSenhaController.clear();
+      _confirmarSenhaController.clear();
+    } catch (e) {
+      _mostrarMensagem('Erro ao alterar senha: $e', erro: true);
+    } finally {
+      if (mounted) setState(() => _salvando = false);
+    }
+  }
+
+  Future<void> _mostrarDialogAdicionarUsuario() async {
+    final nomeController = TextEditingController();
+    final emailController = TextEditingController();
+    final senhaController = TextEditingController();
+    String roleSelecionada = 'USER';
+    bool carregando = false;
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          return AlertDialog(
+            title: const Text('Adicionar Usuário'),
+            content: SingleChildScrollView(
+              child: SizedBox(
+                width: 400,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nomeController,
+                      decoration: const InputDecoration(
+                        labelText: 'Nome Completo',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: emailController,
+                      decoration: const InputDecoration(
+                        labelText: 'Email',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.emailAddress,
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: senhaController,
+                      decoration: const InputDecoration(
+                        labelText: 'Senha',
+                        border: OutlineInputBorder(),
+                      ),
+                      obscureText: true,
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: roleSelecionada,
+                      decoration: const InputDecoration(
+                        labelText: 'Permissão',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'USER', child: Text('Usuário')),
+                        DropdownMenuItem(
+                            value: 'RECRUITER', child: Text('Recrutador')),
+                        DropdownMenuItem(value: 'ADMIN', child: Text('Admin')),
+                      ],
+                      onChanged: (v) {
+                        if (v != null)
+                          setStateDialog(() => roleSelecionada = v);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: carregando ? null : () => Navigator.pop(context),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: carregando
+                    ? null
+                    : () async {
+                        final nome = nomeController.text.trim();
+                        final email = emailController.text.trim();
+                        final senha = senhaController.text;
+
+                        if (nome.isEmpty || email.isEmpty || senha.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text('Preencha todos os campos'),
+                                backgroundColor: Colors.red),
+                          );
+                          return;
+                        }
+
+                        setStateDialog(() => carregando = true);
+                        try {
+                          await widget.api.criarUsuario(
+                            fullName: nome,
+                            email: email,
+                            role: roleSelecionada,
+                            password: senha,
+                            isActive: true,
+                            emailVerified:
+                                true, // Cria já verificado para simplificar
+                          );
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            _mostrarMensagem('Usuário adicionado com sucesso!');
+                            _carregarDados(); // Recarrega para atualizar a lista (se estiver sendo exibida)
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                  content: Text('Erro ao criar usuário: $e'),
+                                  backgroundColor: Colors.red),
+                            );
+                          }
+                        } finally {
+                          if (context.mounted) {
+                            setStateDialog(() => carregando = false);
+                          }
+                        }
+                      },
+                child: carregando
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('Adicionar'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

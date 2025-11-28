@@ -7,8 +7,10 @@ import '../servicos/api_cliente.dart';
 
 class EntrevistasTela extends StatefulWidget {
   final ApiCliente api;
-  final void Function(String entrevistaId, String candidato, String vaga) onAbrirAssistida;
-  final void Function(String entrevistaId, String candidato, String vaga) onAbrirRelatorio;
+  final void Function(String entrevistaId, String candidato, String vaga)
+      onAbrirAssistida;
+  final void Function(String entrevistaId, String candidato, String vaga)
+      onAbrirRelatorio;
 
   const EntrevistasTela({
     super.key,
@@ -37,10 +39,13 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
     setState(() => _carregando = true);
     try {
       _itens.clear();
-      final list = await widget.api.listarEntrevistas(page: _page, to: null, from: null);
+      final list =
+          await widget.api.listarEntrevistas(page: _page, to: null, from: null);
       for (final m in list.whereType<Map<String, dynamic>>()) {
         final status = (m['status']?.toString() ?? '').toLowerCase();
-        final tipo = status == 'completed' ? _InterviewType.concluded : _InterviewType.scheduled;
+        final tipo = status == 'completed'
+            ? _InterviewType.concluded
+            : _InterviewType.scheduled;
         final dt = DateTime.tryParse(m['scheduled_at']?.toString() ?? '');
         _itens.add(_InterviewCardData(
           id: m['id']?.toString() ?? '',
@@ -66,7 +71,20 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
   }
 
   String _formatarDataPt(DateTime d) {
-    const meses = ['jan.', 'fev.', 'mar.', 'abr.', 'mai.', 'jun.', 'jul.', 'ago.', 'set.', 'out.', 'nov.', 'dez.'];
+    const meses = [
+      'jan.',
+      'fev.',
+      'mar.',
+      'abr.',
+      'mai.',
+      'jun.',
+      'jul.',
+      'ago.',
+      'set.',
+      'out.',
+      'nov.',
+      'dez.'
+    ];
     final dia = d.day.toString().padLeft(2, '0');
     final mes = meses[d.month - 1];
     final ano = d.year.toString();
@@ -106,19 +124,32 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
                     childAspectRatio: 2.1,
                   ),
                   itemCount: _itens.length,
-                  itemBuilder: (context, index) => _buildCard(_itens[index], index),
+                  itemBuilder: (context, index) =>
+                      _buildCard(_itens[index], index),
                 ),
               const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   OutlinedButton(
-                    onPressed: _page > 1 ? () { setState(() { _page -= 1; }); _carregar(); } : null,
+                    onPressed: _page > 1
+                        ? () {
+                            setState(() {
+                              _page -= 1;
+                            });
+                            _carregar();
+                          }
+                        : null,
                     child: const Text('Anterior'),
                   ),
                   const SizedBox(width: 8),
                   ElevatedButton(
-                    onPressed: () { setState(() { _page += 1; }); _carregar(); },
+                    onPressed: () {
+                      setState(() {
+                        _page += 1;
+                      });
+                      _carregar();
+                    },
                     child: const Text('Próxima'),
                   ),
                 ],
@@ -138,7 +169,10 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
           children: [
             Text(
               'Entrevistas',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: TMTokens.text),
+              style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: TMTokens.text),
             ),
             SizedBox(height: 4),
             Text(
@@ -149,18 +183,25 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
         ),
       ),
       const SizedBox(width: 16),
-      TMButton('Agendar Entrevista', icon: Icons.add, onPressed: _agendarEntrevista),
+      TMButton('Agendar Entrevista',
+          icon: Icons.add, onPressed: _agendarEntrevista),
     ];
 
     if (isCompact) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Entrevistas', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: TMTokens.text)),
+          const Text('Entrevistas',
+              style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: TMTokens.text)),
           const SizedBox(height: 4),
-          const Text('Gerencie e conduza entrevistas assistidas por IA', style: TextStyle(fontSize: 16, color: TMTokens.textMuted)),
+          const Text('Gerencie e conduza entrevistas assistidas por IA',
+              style: TextStyle(fontSize: 16, color: TMTokens.textMuted)),
           const SizedBox(height: 16),
-          TMButton('Agendar Entrevista', icon: Icons.add, onPressed: _agendarEntrevista),
+          TMButton('Agendar Entrevista',
+              icon: Icons.add, onPressed: _agendarEntrevista),
         ],
       );
     }
@@ -212,9 +253,15 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(item.candidato, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: TMTokens.text)),
+                          Text(item.candidato,
+                              style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: TMTokens.text)),
                           const SizedBox(height: 4),
-                          Text(item.vaga, style: const TextStyle(fontSize: 13, color: TMTokens.textMuted)),
+                          Text(item.vaga,
+                              style: const TextStyle(
+                                  fontSize: 13, color: TMTokens.textMuted)),
                         ],
                       ),
                     ),
@@ -232,11 +279,13 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
                   runSpacing: 8,
                   children: [
                     if (item.quando != null)
-                      _meta(Icons.calendar_month, _formatarDataPt(item.quando!)),
+                      _meta(
+                          Icons.calendar_month, _formatarDataPt(item.quando!)),
                     if (item.duracaoMin != null)
                       _meta(Icons.access_time, '${item.duracaoMin} minutos'),
                     if (item.perguntas != null)
-                      _meta(Icons.message_outlined, '${item.perguntas} perguntas'),
+                      _meta(Icons.message_outlined,
+                          '${item.perguntas} perguntas'),
                   ],
                 ),
                 if (item.rating != null) ...[
@@ -250,7 +299,8 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
                       children: [
                         const Icon(Icons.star, color: Colors.amber),
                         const SizedBox(width: 6),
-                        Text('${item.rating!.toStringAsFixed(1)} / 5.0', style: const TextStyle(color: TMTokens.text)),
+                        Text('${item.rating!.toStringAsFixed(1)} / 5.0',
+                            style: const TextStyle(color: TMTokens.text)),
                       ],
                     ),
                   ),
@@ -269,7 +319,8 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
       children: [
         Icon(icon, size: 16, color: TMTokens.textMuted),
         const SizedBox(width: 6),
-        Text(text, style: const TextStyle(fontSize: 13, color: TMTokens.textMuted)),
+        Text(text,
+            style: const TextStyle(fontSize: 13, color: TMTokens.textMuted)),
       ],
     );
   }
@@ -299,11 +350,17 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
             children: [
               Icon(Icons.calendar_today, size: 64, color: Colors.grey.shade400),
               const SizedBox(height: 16),
-              const Text('Nenhuma entrevista encontrada', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: TMTokens.text)),
+              const Text('Nenhuma entrevista encontrada',
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: TMTokens.text)),
               const SizedBox(height: 8),
-              const Text('Agende uma nova entrevista para começar', style: TextStyle(fontSize: 14, color: TMTokens.textMuted)),
+              const Text('Agende uma nova entrevista para começar',
+                  style: TextStyle(fontSize: 14, color: TMTokens.textMuted)),
               const SizedBox(height: 16),
-              TMButton('Agendar Entrevista', icon: Icons.add, onPressed: _agendarEntrevista),
+              TMButton('Agendar Entrevista',
+                  icon: Icons.add, onPressed: _agendarEntrevista),
             ],
           ),
         ),
@@ -314,8 +371,9 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
   Widget _statusDropdown(_InterviewCardData item) {
     const options = ['scheduled', 'completed', 'cancelled', 'no_show'];
     // Garante que o status atual está na lista de opções
-    final currentStatus = options.contains(item.status) ? item.status : 'scheduled';
-    
+    final currentStatus =
+        options.contains(item.status) ? item.status : 'scheduled';
+
     return DropdownButtonHideUnderline(
       child: DropdownButton<String>(
         value: currentStatus,
@@ -326,13 +384,17 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
             await _carregar();
           } catch (_) {
             if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Falha ao atualizar status')));
+            ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Falha ao atualizar status')));
           }
         },
-        items: options.map((s) => DropdownMenuItem(
-          value: s, 
-          child: Text(_displayStatus(s), style: const TextStyle(fontSize: 12)),
-        )).toList(),
+        items: options
+            .map((s) => DropdownMenuItem(
+                  value: s,
+                  child: Text(_displayStatus(s),
+                      style: const TextStyle(fontSize: 12)),
+                ))
+            .toList(),
       ),
     );
   }
@@ -358,14 +420,24 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
               children: [
                 DropdownButtonFormField<String>(
                   initialValue: jobId,
-                  items: jobs.map<DropdownMenuItem<String>>((j) => DropdownMenuItem(value: j['id'].toString(), child: Text(j['title']?.toString() ?? 'Vaga'))).toList(),
+                  items: jobs
+                      .map<DropdownMenuItem<String>>((j) => DropdownMenuItem(
+                          value: j['id'].toString(),
+                          child: Text(j['title']?.toString() ?? 'Vaga')))
+                      .toList(),
                   onChanged: (v) => setSB(() => jobId = v),
                   decoration: const InputDecoration(labelText: 'Vaga'),
                 ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   initialValue: candidateId,
-                  items: cands.map<DropdownMenuItem<String>>((c) => DropdownMenuItem(value: c['id'].toString(), child: Text(c['nome']?.toString() ?? c['full_name']?.toString() ?? 'Candidato'))).toList(),
+                  items: cands
+                      .map<DropdownMenuItem<String>>((c) => DropdownMenuItem(
+                          value: c['id'].toString(),
+                          child: Text(c['nome']?.toString() ??
+                              c['full_name']?.toString() ??
+                              'Candidato')))
+                      .toList(),
                   onChanged: (v) => setSB(() => candidateId = v),
                   decoration: const InputDecoration(labelText: 'Candidato'),
                 ),
@@ -374,7 +446,8 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
                   initialValue: mode,
                   items: const [
                     DropdownMenuItem(value: 'online', child: Text('Online')),
-                    DropdownMenuItem(value: 'on_site', child: Text('Presencial')),
+                    DropdownMenuItem(
+                        value: 'on_site', child: Text('Presencial')),
                     DropdownMenuItem(value: 'phone', child: Text('Telefone')),
                   ],
                   onChanged: (v) => setSB(() => mode = v ?? 'online'),
@@ -385,13 +458,24 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
                   Expanded(child: Text('Quando: ${_formatarDataPt(when)}')),
                   TextButton(
                     onPressed: () async {
-                      final date = await showDatePicker(context: context, initialDate: when, firstDate: DateTime.now().subtract(const Duration(days: 1)), lastDate: DateTime.now().add(const Duration(days: 365)));
+                      final date = await showDatePicker(
+                          context: context,
+                          initialDate: when,
+                          firstDate:
+                              DateTime.now().subtract(const Duration(days: 1)),
+                          lastDate:
+                              DateTime.now().add(const Duration(days: 365)));
+                      if (!context.mounted) return;
                       if (date != null) {
-                        final time = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(when));
+                        final time = await showTimePicker(
+                            context: context,
+                            initialTime: TimeOfDay.fromDateTime(when));
                         if (time != null) {
-                          setSB(() => when = DateTime(date.year, date.month, date.day, time.hour, time.minute));
+                          setSB(() => when = DateTime(date.year, date.month,
+                              date.day, time.hour, time.minute));
                         } else {
-                          setSB(() => when = DateTime(date.year, date.month, date.day, when.hour, when.minute));
+                          setSB(() => when = DateTime(date.year, date.month,
+                              date.day, when.hour, when.minute));
                         }
                       }
                     },
@@ -402,24 +486,36 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
+            TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancelar')),
             ElevatedButton(
-              onPressed: (loading || jobId == null || candidateId == null) ? null : () async {
-                setSB(() => loading = true);
-                try {
-                  await widget.api.agendarEntrevista(jobId: jobId!, candidateId: candidateId!, scheduledAt: when, mode: mode);
-                  if (!context.mounted) return;
-                  Navigator.of(context).pop();
-                  await _carregar();
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Entrevista agendada')));
-                } catch (e) {
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Falha ao agendar entrevista')));
-                } finally {
-                  if (context.mounted) setSB(() => loading = false);
-                }
-              },
+              onPressed: (loading || jobId == null || candidateId == null)
+                  ? null
+                  : () async {
+                      setSB(() => loading = true);
+                      try {
+                        await widget.api.agendarEntrevista(
+                            jobId: jobId!,
+                            candidateId: candidateId!,
+                            scheduledAt: when,
+                            mode: mode);
+                        if (!context.mounted) return;
+                        Navigator.of(context).pop();
+                        await _carregar();
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text('Entrevista agendada')));
+                      } catch (e) {
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text('Falha ao agendar entrevista')));
+                      } finally {
+                        if (context.mounted) setSB(() => loading = false);
+                      }
+                    },
               child: Text(loading ? 'Agendando...' : 'Agendar'),
             )
           ],

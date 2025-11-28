@@ -11,6 +11,8 @@ class AnaliseCurriculoResultado extends StatefulWidget {
   final Map<String, dynamic>? candidato;
   final Map<String, dynamic>? vaga;
   final VoidCallback? onAprovar;
+  final VoidCallback? onReprovar;
+  final void Function(DateTime data)? onAgendar;
   final VoidCallback? onGerarPerguntas;
 
   const AnaliseCurriculoResultado({
@@ -20,11 +22,14 @@ class AnaliseCurriculoResultado extends StatefulWidget {
     this.candidato,
     this.vaga,
     this.onAprovar,
+    this.onReprovar,
+    this.onAgendar,
     this.onGerarPerguntas,
   });
 
   @override
-  State<AnaliseCurriculoResultado> createState() => _AnaliseCurriculoResultadoState();
+  State<AnaliseCurriculoResultado> createState() =>
+      _AnaliseCurriculoResultadoState();
 }
 
 class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
@@ -76,17 +81,25 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
   }
 
   List<Map<String, String>> _experienciasDetalhadas() {
-    final raw = widget.analiseBruta?['experiencias'] ?? widget.analiseBruta?['experiences'];
+    final raw = widget.analiseBruta?['experiencias'] ??
+        widget.analiseBruta?['experiences'];
     final List<Map<String, String>> parsed = [];
 
     if (raw is List) {
       for (final item in raw) {
         if (item is Map) {
           parsed.add({
-            'cargo': _stringFrom(item['cargo']) ?? _stringFrom(item['role']) ?? '',
-            'empresa': _stringFrom(item['empresa']) ?? _stringFrom(item['company']) ?? '',
-            'periodo': _stringFrom(item['periodo']) ?? _stringFrom(item['inicio']) ?? '',
-            'descricao': _stringFrom(item['descricao']) ?? _stringFrom(item['summary']) ?? '',
+            'cargo':
+                _stringFrom(item['cargo']) ?? _stringFrom(item['role']) ?? '',
+            'empresa': _stringFrom(item['empresa']) ??
+                _stringFrom(item['company']) ??
+                '',
+            'periodo': _stringFrom(item['periodo']) ??
+                _stringFrom(item['inicio']) ??
+                '',
+            'descricao': _stringFrom(item['descricao']) ??
+                _stringFrom(item['summary']) ??
+                '',
           });
         } else if (item is String) {
           parsed.add({'descricao': item});
@@ -96,23 +109,30 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
 
     // Se não veio estruturado, converte lista simples de experiências em descrição
     if (parsed.isEmpty) {
-      final simples = _listFromKeys(['experiences', 'experiencia', 'experiencias']);
+      final simples =
+          _listFromKeys(['experiences', 'experiencia', 'experiencias']);
       parsed.addAll(simples.map((e) => {'descricao': e}));
     }
     return parsed;
   }
 
   List<Map<String, String>> _educacaoDetalhada() {
-    final raw = widget.analiseBruta?['educacao'] ?? widget.analiseBruta?['education'];
+    final raw =
+        widget.analiseBruta?['educacao'] ?? widget.analiseBruta?['education'];
     final List<Map<String, String>> parsed = [];
 
     if (raw is List) {
       for (final item in raw) {
         if (item is Map) {
           parsed.add({
-            'curso': _stringFrom(item['curso']) ?? _stringFrom(item['course']) ?? '',
-            'instituicao': _stringFrom(item['instituicao']) ?? _stringFrom(item['institution']) ?? '',
-            'periodo': _stringFrom(item['periodo']) ?? _stringFrom(item['period']) ?? '',
+            'curso':
+                _stringFrom(item['curso']) ?? _stringFrom(item['course']) ?? '',
+            'instituicao': _stringFrom(item['instituicao']) ??
+                _stringFrom(item['institution']) ??
+                '',
+            'periodo': _stringFrom(item['periodo']) ??
+                _stringFrom(item['period']) ??
+                '',
             'status': _stringFrom(item['status']) ?? '',
           });
         } else if (item is String) {
@@ -130,17 +150,23 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
   }
 
   List<Map<String, String>> _certificacoesDetalhadas() {
-    final raw = widget.analiseBruta?['certificacoes'] ?? widget.analiseBruta?['certifications'];
+    final raw = widget.analiseBruta?['certificacoes'] ??
+        widget.analiseBruta?['certifications'];
     final List<Map<String, String>> parsed = [];
 
     if (raw is List) {
       for (final item in raw) {
         if (item is Map) {
           parsed.add({
-            'nome': _stringFrom(item['nome']) ?? _stringFrom(item['name']) ?? '',
-            'instituicao': _stringFrom(item['instituicao']) ?? _stringFrom(item['institution']) ?? '',
+            'nome':
+                _stringFrom(item['nome']) ?? _stringFrom(item['name']) ?? '',
+            'instituicao': _stringFrom(item['instituicao']) ??
+                _stringFrom(item['institution']) ??
+                '',
             'ano': _stringFrom(item['ano']) ?? _stringFrom(item['year']) ?? '',
-            'cargaHoraria': _stringFrom(item['cargaHoraria']) ?? _stringFrom(item['hours']) ?? '',
+            'cargaHoraria': _stringFrom(item['cargaHoraria']) ??
+                _stringFrom(item['hours']) ??
+                '',
           });
         } else if (item is String) {
           parsed.add({'nome': item});
@@ -168,7 +194,8 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: bg.withValues(alpha: ((bg.a * 255.0).round() & 0xff) * 0.5)),
+        border: Border.all(
+            color: bg.withValues(alpha: ((bg.a * 255.0).round() & 0xff) * 0.5)),
       ),
       child: Text(
         text,
@@ -227,13 +254,16 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
       widget.candidato?['name'],
     ]);
     final email = _firstNonEmpty([widget.candidato?['email']]);
-    final telefone = _firstNonEmpty([widget.candidato?['telefone'], widget.candidato?['phone']]);
+    final telefone = _firstNonEmpty(
+        [widget.candidato?['telefone'], widget.candidato?['phone']]);
     final github = _firstNonEmpty([widget.candidato?['github']]);
     final linkedin = _firstNonEmpty([widget.candidato?['linkedin']]);
-    final vagaTitulo = _firstNonEmpty([widget.vaga?['title'], widget.vaga?['titulo']]);
+    final vagaTitulo =
+        _firstNonEmpty([widget.vaga?['title'], widget.vaga?['titulo']]);
 
     final skills = _listFromKeys(['skills', 'keywords']);
-    final softSkills = _listFromKeys(['softSkills', 'soft_skills', 'softskills', 'comportamentais']);
+    final softSkills = _listFromKeys(
+        ['softSkills', 'soft_skills', 'softskills', 'comportamentais']);
     final experienciasDetalhadas = _experienciasDetalhadas();
     final formacoesDetalhadas = _educacaoDetalhada();
     final certificacoesDetalhadas = _certificacoesDetalhadas();
@@ -262,10 +292,7 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
                 final titulo = [
                   exp['cargo'],
                   if ((exp['empresa'] ?? '').isNotEmpty) exp['empresa'],
-                ]
-                    .whereType<String>()
-                    .where((e) => e.isNotEmpty)
-                    .join(' • ');
+                ].whereType<String>().where((e) => e.isNotEmpty).join(' • ');
 
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
@@ -278,7 +305,8 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
                           Expanded(
                             child: Text(
                               titulo.isEmpty ? 'Experiência' : titulo,
-                              style: const TextStyle(fontWeight: FontWeight.w700),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w700),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
@@ -286,8 +314,9 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
                             Text(
                               exp['periodo']!,
                               style: const TextStyle(
-                                color: TMTokens.secondary,
+                                color: TMTokens.primary,
                                 fontSize: 13,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                         ],
@@ -313,7 +342,8 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
               children: formacoesDetalhadas.map((formacao) {
                 final titulo = [
                   formacao['curso'],
-                  if ((formacao['instituicao'] ?? '').isNotEmpty) formacao['instituicao'],
+                  if ((formacao['instituicao'] ?? '').isNotEmpty)
+                    formacao['instituicao'],
                 ].where((e) => e != null && e.isNotEmpty).join(' • ');
 
                 return Padding(
@@ -327,7 +357,8 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
                           Expanded(
                             child: Text(
                               titulo.isEmpty ? 'Formação' : titulo,
-                              style: const TextStyle(fontWeight: FontWeight.w700),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w700),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
@@ -377,7 +408,8 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
                     spacing: 8,
                     runSpacing: 8,
                     children: skills
-                        .map((s) => _buildBadge(s, const Color(0xFFEDE9FE), const Color(0xFF6B21A8)))
+                        .map((s) => _buildBadge(s, const Color(0xFFEDE9FE),
+                            const Color(0xFF6B21A8)))
                         .toList(),
                   ),
                   const SizedBox(height: 12),
@@ -392,7 +424,8 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
                     spacing: 8,
                     runSpacing: 8,
                     children: softSkills
-                        .map((s) => _buildBadge(s, const Color(0xFFDBEAFE), const Color(0xFF1E3A8A)))
+                        .map((s) => _buildBadge(s, const Color(0xFFDBEAFE),
+                            const Color(0xFF1E3A8A)))
                         .toList(),
                   ),
                 ],
@@ -419,7 +452,8 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
                               Expanded(
                                 child: Text(
                                   item.requisito,
-                                  style: const TextStyle(fontWeight: FontWeight.w600),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w600),
                                 ),
                               ),
                               Text(
@@ -442,11 +476,14 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
                             const SizedBox(height: 8),
                             ...item.evidencias.map(
                               (ev) => Padding(
-                                padding: const EdgeInsets.only(left: 12, bottom: 4),
+                                padding:
+                                    const EdgeInsets.only(left: 12, bottom: 4),
                                 child: Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text('• ', style: TextStyle(color: TMTokens.secondary)),
+                                    const Text('• ',
+                                        style: TextStyle(
+                                            color: TMTokens.secondary)),
                                     Expanded(child: Text(ev)),
                                   ],
                                 ),
@@ -471,12 +508,14 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
               children: certificacoesDetalhadas.map((cert) {
                 final titulo = [
                   cert['nome'],
-                  if ((cert['instituicao'] ?? '').isNotEmpty) cert['instituicao'],
+                  if ((cert['instituicao'] ?? '').isNotEmpty)
+                    cert['instituicao'],
                 ].where((e) => e != null && e.isNotEmpty).join(' • ');
 
                 final detalhes = [
                   if ((cert['ano'] ?? '').isNotEmpty) cert['ano'],
-                  if ((cert['cargaHoraria'] ?? '').isNotEmpty) cert['cargaHoraria'],
+                  if ((cert['cargaHoraria'] ?? '').isNotEmpty)
+                    cert['cargaHoraria'],
                 ].where((e) => e != null && e.isNotEmpty).join(' • ');
 
                 return Padding(
@@ -506,20 +545,38 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
           ),
         ],
         const SizedBox(height: 16),
-        _buildActions(candidatoNome, vagaTitulo, email, telefone, github, linkedin),
+        _buildActions(
+            candidatoNome, vagaTitulo, email, telefone, github, linkedin),
         if (_mostrarAgendamento) ...[
           const SizedBox(height: 12),
-          _buildAgendamentoCard(candidatoNome, vagaTitulo, email, telefone, github, linkedin),
+          _buildAgendamentoCard(
+              candidatoNome, vagaTitulo, email, telefone, github, linkedin),
         ],
         if (_mostrarAprovacao) ...[
           const SizedBox(height: 12),
-          _buildStatusCard('Aprovado', Colors.green.shade100, Colors.green.shade800, candidatoNome,
-              vagaTitulo, email, telefone, github, linkedin),
+          _buildStatusCard(
+              'Aprovado',
+              Colors.green.shade100,
+              Colors.green.shade800,
+              candidatoNome,
+              vagaTitulo,
+              email,
+              telefone,
+              github,
+              linkedin),
         ],
         if (_mostrarReprovacao) ...[
           const SizedBox(height: 12),
-          _buildStatusCard('Reprovado', Colors.red.shade100, Colors.red.shade800, candidatoNome,
-              vagaTitulo, email, telefone, github, linkedin),
+          _buildStatusCard(
+              'Reprovado',
+              Colors.red.shade100,
+              Colors.red.shade800,
+              candidatoNome,
+              vagaTitulo,
+              email,
+              telefone,
+              github,
+              linkedin),
         ],
       ],
     );
@@ -542,7 +599,8 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
                 children: [
                   const Text(
                     'Score de Compatibilidade',
-                    style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF6B21A8)),
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700, color: Color(0xFF6B21A8)),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -608,10 +666,16 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
     required String? linkedin,
     required String? vagaTitulo,
   }) {
-    final nomeDisplay = candidatoNome.isEmpty ? 'Nome não informado' : candidatoNome;
-    final vagaDisplay = (vagaTitulo != null && vagaTitulo.isNotEmpty) ? vagaTitulo : 'Vaga não informada';
-    final emailDisplay = (email != null && email.isNotEmpty) ? email : 'E-mail não informado';
-    final telefoneDisplay = (telefone != null && telefone.isNotEmpty) ? telefone : 'Telefone não informado';
+    final nomeDisplay =
+        candidatoNome.isEmpty ? 'Nome não informado' : candidatoNome;
+    final vagaDisplay = (vagaTitulo != null && vagaTitulo.isNotEmpty)
+        ? vagaTitulo
+        : 'Vaga não informada';
+    final emailDisplay =
+        (email != null && email.isNotEmpty) ? email : 'E-mail não informado';
+    final telefoneDisplay = (telefone != null && telefone.isNotEmpty)
+        ? telefone
+        : 'Telefone não informado';
 
     return _sectionCard(
       title: 'Informações do Candidato',
@@ -637,7 +701,8 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
             padding: const EdgeInsets.only(bottom: 6),
             child: Row(
               children: [
-                const Icon(Icons.mail_outlined, size: 18, color: TMTokens.secondary),
+                const Icon(Icons.mail_outlined,
+                    size: 18, color: TMTokens.secondary),
                 const SizedBox(width: 8),
                 Expanded(child: Text(emailDisplay)),
               ],
@@ -647,7 +712,8 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
             padding: const EdgeInsets.only(bottom: 6),
             child: Row(
               children: [
-                const Icon(Icons.phone_outlined, size: 18, color: TMTokens.secondary),
+                const Icon(Icons.phone_outlined,
+                    size: 18, color: TMTokens.secondary),
                 const SizedBox(width: 8),
                 Expanded(child: Text(telefoneDisplay)),
               ],
@@ -727,6 +793,7 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
                     _mostrarAprovacao = false;
                     _mostrarReprovacao = true;
                   });
+                  widget.onReprovar?.call();
                 },
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: TMTokens.error),
@@ -803,11 +870,39 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
               alignment: Alignment.centerRight,
               child: FilledButton(
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Agendamento registrado localmente.'),
-                    ),
-                  );
+                  if (_dataController.text.isEmpty ||
+                      _horaController.text.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Preencha data e hora para agendar.')),
+                    );
+                    return;
+                  }
+
+                  try {
+                    // Formato esperado: dd/mm/aaaa e HH:mm
+                    final dateParts = _dataController.text.split('/');
+                    final timeParts = _horaController.text.split(':');
+
+                    if (dateParts.length != 3 || timeParts.length != 2) {
+                      throw const FormatException('Formato inválido');
+                    }
+
+                    final day = int.parse(dateParts[0]);
+                    final month = int.parse(dateParts[1]);
+                    final year = int.parse(dateParts[2]);
+                    final hour = int.parse(timeParts[0]);
+                    final minute = int.parse(timeParts[1]);
+
+                    final dt = DateTime(year, month, day, hour, minute);
+                    widget.onAgendar?.call(dt);
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text(
+                              'Data/Hora inválida. Use dd/mm/aaaa e HH:mm.')),
+                    );
+                  }
                 },
                 child: const Text('Salvar agendamento'),
               ),
@@ -839,7 +934,9 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
             Row(
               children: [
                 Icon(
-                  status == 'Reprovado' ? Icons.cancel_outlined : Icons.check_circle_outline,
+                  status == 'Reprovado'
+                      ? Icons.cancel_outlined
+                      : Icons.check_circle_outline,
                   color: fg,
                 ),
                 const SizedBox(width: 8),

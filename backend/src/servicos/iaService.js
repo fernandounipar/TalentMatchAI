@@ -14,7 +14,7 @@ async function getOpenAIClientForCompany(companyId) {
     try {
       const r = await db.query(
         `SELECT token
-           FROM api_keys
+           FROM chaves_api
           WHERE company_id = $1
             AND provider = 'OPENAI'
             AND is_active = true
@@ -89,10 +89,10 @@ async function gerarAnaliseCurriculo(texto, vagaCtx, opts = {}) {
         descricao: vagaDescricao,
         requisitos: vagaRequisitos
       });
-      
+
       console.log('\n🔍 [DEBUG] JSON retornado pelo OpenRouter (fallback inicial):');
       console.log(JSON.stringify(resultadoOpenRouter, null, 2));
-      
+
       // Adapta formato do OpenRouter para o formato esperado pelo frontend
       const openRouterModel = process.env.OPENROUTER_MODEL || 'x-ai/grok-4.1-fast';
       const resultadoAdaptado = {
@@ -118,11 +118,11 @@ async function gerarAnaliseCurriculo(texto, vagaCtx, opts = {}) {
         provider: 'OPENROUTER',
         model: openRouterModel,
       };
-      
+
       console.log('\n🔄 [DEBUG] JSON adaptado para o frontend (fallback inicial):');
       console.log(JSON.stringify(resultadoAdaptado, null, 2));
       console.log('\n');
-      
+
       return resultadoAdaptado;
     } catch (openRouterError) {
       console.error('❌ Erro ao usar OpenRouter:', openRouterError.message);
@@ -169,8 +169,8 @@ async function gerarAnaliseCurriculo(texto, vagaCtx, opts = {}) {
   }
 
   const prompt = `
-Você é o motor de análise de currículos do sistema TalentMatchIA (frontend em Flutter, backend em Node.js e banco PostgreSQL).
-Analise o currículo e a vaga abaixo e responda APENAS com um JSON válido, sem comentários e sem texto extra fora do JSON.
+Você é o motor de análise de currículos do sistema TalentMatchIA.
+Analise o currículo e a vaga abaixo e responda APENAS com um JSON válido.
 
 O formato exato do JSON deve ser:
 {
@@ -209,28 +209,27 @@ O formato exato do JSON deve ser:
   ]
 }
 
-Regras de preenchimento:
-1) "summary": resumo em 3–5 frases do perfil, focando na vaga.
-2) "skills" e "keywords": habilidades técnicas/comportamentais e palavras-chave em português quando possível.
-3) "candidato": preencha nome/email/telefone/github/linkedin se existirem; caso contrário, use null.
-   - Se só houver usuário do GitHub, monte a URL: https://github.com/USUARIO
-4) "experiencias": lista estruturada de experiências; copie o período exatamente como está no currículo (ex.: "2009 ~ 2011" ou "jan/2020 - atual").
-5) "experiences": lista de frases curtas resumindo pontos principais (pode reaproveitar descrições).
-6) "matchingScore": 0 a 100 considerando aderência à vaga.
-7) "recomendacao": use exatamente um destes valores: "Forte Recomendação" | "Recomendado" | "Considerar" | "Não Recomendado".
-8) "pontosFortes"/"pontosAtencao": liste pontos fortes e lacunas/alertas.
-9) "aderenciaRequisitos": um objeto por requisito da vaga com score 0..100 e evidências citando o currículo (ou justificando ausência).
-10) Dados ausentes: use null ou [] e NÃO invente empresas, datas, tecnologias ou links.
+Regras CRÍTICAS de preenchimento:
+1) "candidato": EXTRAIA COM MÁXIMA ATENÇÃO.
+   - Nome: Geralmente na primeira linha ou em destaque.
+   - Email: Procure por @.
+   - Telefone: Procure por formatos (XX) XXXXX-XXXX ou +55...
+   - Links: Extraia URLs completas de LinkedIn e GitHub. Se apenas o usuário for citado (ex: github.com/usuario), complete a URL.
+2) "experiencias":
+   - "periodo": COPIE EXATAMENTE como está no documento (ex: "Jan 2020 - Atual", "2019-2021"). NÃO converta para datas ISO. Se não houver data, use null.
+   - Ordene da mais recente para a mais antiga.
+3) "summary": Resumo profissional focado na aderência à vaga (3-5 linhas).
+4) "matchingScore": 0 a 100 (seja rigoroso).
+5) "recomendacao": "Forte Recomendação" | "Recomendado" | "Considerar" | "Não Recomendado".
+6) Se algum dado não existir, use null. NÃO ALUCINE DADOS.
 
-Retorne APENAS o JSON, sem markdown, sem explicações adicionais.
+Currículo (texto extraído):
+${String(texto || '').slice(0, 12000)}
 
-Currículo (texto livre):
-${String(texto || '').slice(0, 8000)}
-
-Vaga selecionada:
+Vaga Alvo:
 Título: ${vagaTitulo}
-Descrição: ${vagaDescricao}
-Requisitos: ${vagaRequisitos}
+Desc: ${vagaDescricao}
+Reqs: ${vagaRequisitos}
 `.trim();
 
   try {
@@ -252,11 +251,11 @@ Requisitos: ${vagaRequisitos}
 
     try {
       const parsed = JSON.parse(content);
-      
+
       console.log('\n🔍 [DEBUG] JSON retornado pela OpenAI:');
       console.log(JSON.stringify(parsed, null, 2));
       console.log('\n');
-      
+
       // Garante campos mínimos esperados pelo restante do backend/frontend
       return {
         summary: parsed.summary || '',
@@ -306,25 +305,25 @@ Requisitos: ${vagaRequisitos}
     const errorMsg = e.message || String(e);
     console.error('❌ Erro ao chamar OpenAI para análise de currículo:', errorMsg);
     console.error('Stack:', e.stack);
-    
+
     // Tenta OpenRouter como fallback automático para qualquer erro da OpenAI
     if (process.env.OPENROUTER_API_KEY) {
       console.log('⚠️  OpenAI com erro. Tentando OpenRouter como fallback...');
       console.log('Erro OpenAI:', errorMsg);
-      
+
       try {
         const resultadoOpenRouter = await openRouterService.analisarCurriculo(texto, {
           titulo: vagaTitulo,
           descricao: vagaDescricao,
           requisitos: vagaRequisitos
         });
-        
+
         const openRouterModel = process.env.OPENROUTER_MODEL || 'x-ai/grok-4.1-fast';
         console.log('✅ OpenRouter retornou com sucesso. Modelo:', openRouterModel);
-        
+
         console.log('\n🔍 [DEBUG] JSON retornado pelo OpenRouter:');
         console.log(JSON.stringify(resultadoOpenRouter, null, 2));
-        
+
         // Adapta formato do OpenRouter para o formato esperado pelo frontend
         const resultadoAdaptado = {
           summary: resultadoOpenRouter.experiencia || 'Análise realizada com sucesso',
@@ -349,18 +348,18 @@ Requisitos: ${vagaRequisitos}
           provider: 'OPENROUTER',
           model: openRouterModel,
         };
-        
+
         console.log('\n🔄 [DEBUG] JSON adaptado para o frontend:');
         console.log(JSON.stringify(resultadoAdaptado, null, 2));
         console.log('\n');
-        
+
         return resultadoAdaptado;
       } catch (openRouterError) {
         console.error('❌ Erro ao usar OpenRouter como fallback:', openRouterError.message);
         console.error('Stack OpenRouter:', openRouterError.stack);
       }
     }
-    
+
     // Fallback seguro quando todas as APIs falharem
     console.error('\n⚠️  TODAS AS APIs DE IA FALHARAM!');
     console.error('OpenAI: Chave inválida ou limite atingido');
@@ -369,7 +368,7 @@ Requisitos: ${vagaRequisitos}
     console.error('   1. Verifique/atualize OPENAI_API_KEY em https://platform.openai.com/api-keys');
     console.error('   2. Ou gere OPENROUTER_API_KEY em https://openrouter.ai/keys');
     console.error('   3. Verifique se tem créditos em sua conta\n');
-    
+
     return {
       summary:
         'Nenhuma API de IA configurada ou disponível. Configure OpenAI ou OpenRouter no arquivo .env',
@@ -485,7 +484,7 @@ async function avaliarResposta({ pergunta, resposta, companyId = null }) {
   const resp = await client.chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [
-      { role: 'system', content: 'Você é um avaliador técnico. Responda apenas JSON válido.'},
+      { role: 'system', content: 'Você é um avaliador técnico. Responda apenas JSON válido.' },
       { role: 'user', content: prompt }
     ],
     temperature: 0.2,
@@ -501,7 +500,7 @@ async function gerarRelatorioEntrevista({ candidato, vaga, respostas = [], feedb
   if (!client) {
     const strengths = feedbacks.filter(f => (f.verdict || '').toUpperCase() === 'FORTE').map(f => f.topic || 'Ponto forte');
     const risks = feedbacks.filter(f => (f.verdict || '').toUpperCase() === 'FRACO' || (f.verdict || '').toUpperCase() === 'INCONSISTENTE').map(f => f.topic || 'Risco');
-    const score = Math.round((feedbacks.reduce((a, b) => a + (Number(b.score)||60), 0) / Math.max(1, feedbacks.length)));
+    const score = Math.round((feedbacks.reduce((a, b) => a + (Number(b.score) || 60), 0) / Math.max(1, feedbacks.length)));
     const recommendation = score >= 80 ? 'APROVAR' : (score >= 65 ? 'DÚVIDA' : 'REPROVAR');
     return {
       summary_text: `Resumo automático (sem IA): candidato ${candidato} para a vaga ${vaga}.`,
@@ -514,7 +513,7 @@ async function gerarRelatorioEntrevista({ candidato, vaga, respostas = [], feedb
   const resp = await client.chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [
-      { role: 'system', content: 'Você é um tech lead avaliando entrevistas. Responda apenas JSON válido.'},
+      { role: 'system', content: 'Você é um tech lead avaliando entrevistas. Responda apenas JSON válido.' },
       { role: 'user', content: prompt }
     ],
     temperature: 0.2,
@@ -542,7 +541,7 @@ function _determinarRecomendacao(score) {
 
 function _gerarAderenciaRequisitos(requisitosTexto, resultadoOpenRouter) {
   if (!requisitosTexto) return [];
-  
+
   // Normaliza requisitos para array
   let requisitosLista = [];
   if (Array.isArray(requisitosTexto)) {
@@ -556,22 +555,22 @@ function _gerarAderenciaRequisitos(requisitosTexto, resultadoOpenRouter) {
   } else {
     return [];
   }
-  
+
   const skills = resultadoOpenRouter.skills || [];
   const pontosFortesVaga = resultadoOpenRouter.pontosFortesVaga || [];
   const aderenciaVaga = resultadoOpenRouter.aderenciaVaga || 0;
-  
+
   return requisitosLista.map(requisito => {
     // Calcula score baseado em se o requisito está nas skills ou pontos fortes
-    const encontradoEmSkills = skills.some(skill => 
+    const encontradoEmSkills = skills.some(skill =>
       skill.toLowerCase().includes(requisito.toLowerCase()) ||
       requisito.toLowerCase().includes(skill.toLowerCase())
     );
-    
+
     const encontradoEmPontoFortes = pontosFortesVaga.some(ponto =>
       ponto.toLowerCase().includes(requisito.toLowerCase())
     );
-    
+
     let score = aderenciaVaga;
     if (encontradoEmSkills && encontradoEmPontoFortes) {
       score = Math.min(100, aderenciaVaga + 10);
@@ -582,7 +581,7 @@ function _gerarAderenciaRequisitos(requisitosTexto, resultadoOpenRouter) {
     } else {
       score = Math.max(0, aderenciaVaga - 30);
     }
-    
+
     // Gera evidências
     const evidencias = [];
     if (encontradoEmSkills) {
@@ -592,7 +591,7 @@ function _gerarAderenciaRequisitos(requisitosTexto, resultadoOpenRouter) {
       );
       evidencias.push(...skillsRelacionadas.map(s => `Habilidade: ${s}`));
     }
-    
+
     if (encontradoEmPontoFortes) {
       const pontosRelacionados = pontosFortesVaga.filter(ponto =>
         ponto.toLowerCase().includes(requisito.toLowerCase())
@@ -601,11 +600,11 @@ function _gerarAderenciaRequisitos(requisitosTexto, resultadoOpenRouter) {
         evidencias.push(pontosRelacionados[0]);
       }
     }
-    
+
     if (evidencias.length === 0) {
       evidencias.push('Não foram encontradas evidências claras deste requisito');
     }
-    
+
     return {
       requisito,
       score,

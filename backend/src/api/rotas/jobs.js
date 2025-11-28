@@ -90,7 +90,7 @@ router.get('/', async (req, res) => {
     }
 
     // Query de contagem total
-    const countSql = `SELECT COUNT(*) as total FROM jobs j WHERE ${conditions.join(' AND ')}`;
+    const countSql = `SELECT COUNT(*) as total FROM vagas j WHERE ${conditions.join(' AND ')}`;
     const countResult = await db.query(countSql, params);
     const total = parseInt(countResult.rows[0]?.total || 0);
 
@@ -123,10 +123,10 @@ router.get('/', async (req, res) => {
         j.created_at,
         j.updated_at,
         COALESCE(apps.cnt, 0)::int AS candidates_count
-      FROM jobs j
+      FROM vagas j
       LEFT JOIN (
         SELECT job_id, COUNT(*)::int AS cnt
-          FROM applications
+          FROM candidaturas
          WHERE company_id = $1
            AND deleted_at IS NULL
          GROUP BY job_id
@@ -169,15 +169,15 @@ router.get('/:id', async (req, res) => {
         creator.email as created_by_email,
         updater.full_name as updated_by_name,
         updater.email as updated_by_email
-      FROM jobs j
+      FROM vagas j
       LEFT JOIN (
         SELECT job_id, COUNT(*)::int AS cnt
-        FROM applications
+        FROM candidaturas
         WHERE company_id = $2 AND deleted_at IS NULL
         GROUP BY job_id
       ) apps ON apps.job_id = j.id
-      LEFT JOIN users creator ON creator.id = j.created_by
-      LEFT JOIN users updater ON updater.id = j.updated_by
+      LEFT JOIN usuarios creator ON creator.id = j.created_by
+      LEFT JOIN usuarios updater ON updater.id = j.updated_by
       WHERE j.id = $1 AND j.company_id = $2 AND j.deleted_at IS NULL`,
       [req.params.id, req.usuario.company_id]
     );
@@ -192,8 +192,8 @@ router.get('/:id', async (req, res) => {
         jr.*,
         u.full_name as changed_by_name,
         u.email as changed_by_email
-      FROM job_revisions jr
-      LEFT JOIN users u ON u.id = jr.changed_by
+      FROM revisoes_vagas jr
+      LEFT JOIN usuarios u ON u.id = jr.changed_by
       WHERE jr.job_id = $1 AND jr.company_id = $2
       ORDER BY jr.version DESC
       LIMIT 10`,
@@ -251,7 +251,7 @@ router.post('/', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
 
     try {
       const result = await db.query(
-        `INSERT INTO jobs (
+        `INSERT INTO vagas (
           company_id, title, slug, description, requirements, seniority,
           location_type, status, salary_min, salary_max, contract_type,
           department, unit, benefits, skills_required, is_remote,
@@ -402,7 +402,7 @@ router.put('/:id', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
     params.push(req.usuario.company_id);
 
     const sql = `
-      UPDATE jobs 
+      UPDATE vagas 
       SET ${fields.join(', ')}, updated_at = now()
       WHERE id = $${idx} AND company_id = $${idx + 1} AND deleted_at IS NULL
       RETURNING *
@@ -436,7 +436,7 @@ router.put('/:id', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
 router.delete('/:id', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
   try {
     const result = await db.query(
-      `UPDATE jobs 
+      `UPDATE vagas 
        SET deleted_at = now(), updated_by = $3
        WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL
        RETURNING id, title`,
@@ -475,7 +475,7 @@ router.get('/search/text', async (req, res) => {
       `SELECT 
         id, title, slug, description, status, department, 
         seniority, location_type, created_at, published_at
-      FROM jobs
+      FROM vagas
       WHERE company_id = $1
         AND deleted_at IS NULL
         AND (

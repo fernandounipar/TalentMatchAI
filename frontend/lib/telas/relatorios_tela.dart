@@ -34,35 +34,91 @@ class _RelatoriosTelaState extends State<RelatoriosTela> {
     setState(() => _carregando = true);
     try {
       final hist = await widget.api.historico();
-      final comRelatorio = hist.whereType<Map<String, dynamic>>()
+      final comRelatorio = hist
+          .whereType<Map<String, dynamic>>()
           .where((e) => e['tem_relatorio'] == true)
           .toList();
-      _itens
-        ..clear()
-        ..addAll(comRelatorio.map((e) {
-          final candidato = e['candidato']?.toString() ?? 'Candidato';
-          final vaga = e['vaga']?.toString() ?? 'Vaga';
-          final criado = DateTime.tryParse(e['criado_em']?.toString() ?? '') ?? DateTime.now();
-          return _ReportItem(
-            candidato: candidato,
-            vaga: vaga,
-            geradoEm: criado.add(const Duration(hours: 1, minutes: 30)),
-            recomendacao: 'Aprovar',
-            rating: 4.6,
-            criterios: const [
-              _Criterion(nome: 'Conhecimento Técnico', nota: 5),
-              _Criterion(nome: 'Comunicação', nota: 4),
-              _Criterion(nome: 'Experiência Relevante', nota: 5),
-              _Criterion(nome: 'Liderança', nota: 4),
-            ],
-            sintese:
-                'Candidato demonstrou excelente conhecimento técnico e fit cultural. Respostas consistentes e bem fundamentadas. Experiência prévia em liderança técnica é um diferencial.',
-          );
-        }));
+
+      _itens.clear();
+
+      // Para cada entrevista com relatório, buscar os dados reais
+      for (final e in comRelatorio) {
+        try {
+          final entrevistaId = e['id']?.toString();
+          if (entrevistaId == null) continue;
+
+          // Buscar relatório real do backend usando o método do ApiCliente
+          final report =
+              await widget.api.obterRelatorioEntrevista(entrevistaId);
+
+          // Mapear recommendation para português
+          final recMap = {
+            'APPROVE': 'Aprovar',
+            'MAYBE': 'Considerar',
+            'REJECT': 'Não Recomendado',
+            'PENDING': 'Pendente',
+          };
+
+          final recomendacao = recMap[report['recommendation']] ?? 'Pendente';
+          final overallScore = (report['overall_score'] ?? 0.0).toDouble();
+          final rating =
+              (overallScore / 100.0) * 5.0; // Converte de 0-100 para 0-5
+
+          // Extrair critérios do content (se disponível)
+          List<_Criterion> criterios = [];
+          if (report['content'] != null) {
+            final content = report['content'];
+            if (content is Map && content['criterios'] != null) {
+              final critList = content['criterios'] as List?;
+              if (critList != null) {
+                criterios = critList.map((c) {
+                  return _Criterion(
+                    nome: c['nome']?.toString() ?? '',
+                    nota: (c['nota'] ?? 0).toInt(),
+                  );
+                }).toList();
+              }
+            }
+          }
+
+          // Se não houver critérios, usar padrões baseados no score
+          if (criterios.isEmpty) {
+            final baseScore = (rating * 0.8).round();
+            criterios = [
+              _Criterion(nome: 'Conhecimento Técnico', nota: baseScore),
+              _Criterion(nome: 'Comunicação', nota: (baseScore * 0.9).round()),
+              _Criterion(nome: 'Experiência', nota: baseScore),
+              _Criterion(
+                  nome: 'Fit Cultural',
+                  nota: (baseScore * 1.1).round().clamp(0, 5)),
+            ];
+          }
+
+          _itens.add(_ReportItem(
+            candidato: report['candidate_name'] ??
+                e['candidato']?.toString() ??
+                'Candidato',
+            vaga: report['job_title'] ?? e['vaga']?.toString() ?? 'Vaga',
+            geradoEm:
+                DateTime.tryParse(report['generated_at']?.toString() ?? '') ??
+                    DateTime.now(),
+            recomendacao: recomendacao,
+            rating: rating.clamp(0.0, 5.0),
+            criterios: criterios,
+            sintese: report['summary_text'] ?? 'Relatório em análise.',
+          ));
+        } catch (reportError) {
+          // Se falhar ao buscar um relatório específico, continua com o próximo
+          debugPrint(
+              'Erro ao buscar relatório da entrevista ${e['id']}: $reportError');
+          continue;
+        }
+      }
 
       // Ordena por data de geração (mais recentes primeiro)
       _itens.sort((a, b) => (b.geradoEm).compareTo(a.geradoEm));
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Erro ao carregar relatórios: $e');
       // fallback silencioso – mantemos a tela vazia se falhar
     } finally {
       if (mounted) setState(() => _carregando = false);
@@ -71,8 +127,18 @@ class _RelatoriosTelaState extends State<RelatoriosTela> {
 
   String _formatarDataHoraPt(DateTime d) {
     const meses = [
-      'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
-      'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
+      'janeiro',
+      'fevereiro',
+      'março',
+      'abril',
+      'maio',
+      'junho',
+      'julho',
+      'agosto',
+      'setembro',
+      'outubro',
+      'novembro',
+      'dezembro',
     ];
     final dia = d.day.toString().padLeft(2, '0');
     final mes = meses[d.month - 1];
@@ -97,7 +163,10 @@ class _RelatoriosTelaState extends State<RelatoriosTela> {
             children: [
               const Text(
                 'Relatórios de Entrevistas',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: TMTokens.text),
+                style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: TMTokens.text),
               ),
               const SizedBox(height: 4),
               const Text(
@@ -113,7 +182,8 @@ class _RelatoriosTelaState extends State<RelatoriosTela> {
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: _itens.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 16),
-                  itemBuilder: (context, index) => _buildCard(_itens[index], index),
+                  itemBuilder: (context, index) =>
+                      _buildCard(_itens[index], index),
                 ),
             ],
           ),
@@ -145,11 +215,20 @@ class _RelatoriosTelaState extends State<RelatoriosTela> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(item.candidato, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: TMTokens.text)),
+                          Text(item.candidato,
+                              style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w600,
+                                  color: TMTokens.text)),
                           const SizedBox(height: 4),
-                          Text(item.vaga, style: const TextStyle(fontSize: 14, color: TMTokens.textMuted)),
+                          Text(item.vaga,
+                              style: const TextStyle(
+                                  fontSize: 14, color: TMTokens.textMuted)),
                           const SizedBox(height: 6),
-                          Text('Gerado em ${_formatarDataHoraPt(item.geradoEm)}', style: const TextStyle(fontSize: 12, color: TMTokens.textMuted)),
+                          Text(
+                              'Gerado em ${_formatarDataHoraPt(item.geradoEm)}',
+                              style: const TextStyle(
+                                  fontSize: 12, color: TMTokens.textMuted)),
                         ],
                       ),
                     ),
@@ -166,11 +245,17 @@ class _RelatoriosTelaState extends State<RelatoriosTela> {
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.trending_up, color: TMTokens.primary),
+                            const Icon(Icons.trending_up,
+                                color: TMTokens.primary),
                             const SizedBox(width: 6),
-                            Text(item.rating.toStringAsFixed(1), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: TMTokens.text)),
+                            Text(item.rating.toStringAsFixed(1),
+                                style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w600,
+                                    color: TMTokens.text)),
                             const SizedBox(width: 4),
-                            const Text('/ 5.0', style: TextStyle(color: TMTokens.textMuted)),
+                            const Text('/ 5.0',
+                                style: TextStyle(color: TMTokens.textMuted)),
                           ],
                         ),
                       ],
@@ -180,7 +265,8 @@ class _RelatoriosTelaState extends State<RelatoriosTela> {
                 const SizedBox(height: 12),
                 Text(
                   item.sintese,
-                  style: const TextStyle(color: TMTokens.text, fontSize: 14, height: 1.5),
+                  style: const TextStyle(
+                      color: TMTokens.text, fontSize: 14, height: 1.5),
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -188,7 +274,8 @@ class _RelatoriosTelaState extends State<RelatoriosTela> {
                 LayoutBuilder(
                   builder: (context, constraints) {
                     final isTwoCols = constraints.maxWidth >= 640;
-                    final children = item.criterios.map((c) => _criterionTile(c)).toList();
+                    final children =
+                        item.criterios.map((c) => _criterionTile(c)).toList();
                     if (isTwoCols) {
                       return GridView.count(
                         shrinkWrap: true,
@@ -201,7 +288,11 @@ class _RelatoriosTelaState extends State<RelatoriosTela> {
                       );
                     }
                     return Column(
-                      children: children.map((e) => Padding(padding: const EdgeInsets.only(bottom: 12), child: e)).toList(),
+                      children: children
+                          .map((e) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: e))
+                          .toList(),
                     );
                   },
                 ),
@@ -221,8 +312,11 @@ class _RelatoriosTelaState extends State<RelatoriosTela> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(c.nome, style: const TextStyle(fontSize: 13, color: TMTokens.textMuted)),
-            Text('${c.nota}/5', style: const TextStyle(fontSize: 13, color: TMTokens.text)),
+            Text(c.nome,
+                style:
+                    const TextStyle(fontSize: 13, color: TMTokens.textMuted)),
+            Text('${c.nota}/5',
+                style: const TextStyle(fontSize: 13, color: TMTokens.text)),
           ],
         ),
         const SizedBox(height: 6),
@@ -232,7 +326,7 @@ class _RelatoriosTelaState extends State<RelatoriosTela> {
             return Container(
               height: 6,
               decoration: BoxDecoration(
-                color: TMTokens.primary.withOpacity(0.2),
+                color: TMTokens.primary.withAlpha(51),
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Align(
@@ -261,13 +355,21 @@ class _RelatoriosTelaState extends State<RelatoriosTela> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.insert_drive_file_outlined, size: 64, color: Colors.grey.shade400),
+              Icon(Icons.insert_drive_file_outlined,
+                  size: 64, color: Colors.grey.shade400),
               const SizedBox(height: 16),
-              const Text('Nenhum relatório disponível', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: TMTokens.text)),
+              const Text('Nenhum relatório disponível',
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: TMTokens.text)),
               const SizedBox(height: 8),
-              const Text('Finalize uma entrevista para gerar o relatório', style: TextStyle(fontSize: 14, color: TMTokens.textMuted)),
+              const Text('Finalize uma entrevista para gerar o relatório',
+                  style: TextStyle(fontSize: 14, color: TMTokens.textMuted)),
               const SizedBox(height: 16),
-              TMButton('Voltar ao Dashboard', icon: Icons.chevron_left, onPressed: () => Navigator.of(context).maybePop()),
+              TMButton('Voltar ao Dashboard',
+                  icon: Icons.chevron_left,
+                  onPressed: () => Navigator.of(context).maybePop()),
             ],
           ),
         ),
@@ -301,4 +403,3 @@ class _Criterion {
   final int nota; // 0..5
   const _Criterion({required this.nome, required this.nota});
 }
-

@@ -35,7 +35,8 @@ class Educacao {
   final String curso;
   final String instituicao;
   final String periodo;
-  final String tipo; // 'Graduação', 'Pós-graduação', 'Mestrado', 'Doutorado', 'Técnico'
+  final String
+      tipo; // 'Graduação', 'Pós-graduação', 'Mestrado', 'Doutorado', 'Técnico'
 
   Educacao({
     required this.curso,
@@ -78,12 +79,14 @@ class Candidato {
   // Campos adicionais do Figma
   final String? github; // Alias para githubUrl
   final String? linkedin; // Alias para linkedinUrl
-  final String? status; // 'Novo', 'Em Análise', 'Entrevista Agendada', 'Aprovado', 'Reprovado'
+  final String?
+      status; // 'Novo', 'Em Análise', 'Entrevista Agendada', 'Aprovado', 'Reprovado'
   final String? vagaId;
   final int? matchingScore;
   final List<ExperienciaProfissional>? experiencia;
   final List<Educacao>? educacao;
   final List<String>? skills;
+  final List<Map<String, dynamic>>? applications;
   final DateTime? createdAt; // Alias para criadoEm
 
   Candidato({
@@ -105,6 +108,7 @@ class Candidato {
     this.experiencia,
     this.educacao,
     this.skills,
+    this.applications,
     this.createdAt,
   });
 
@@ -113,7 +117,8 @@ class Candidato {
     List<ExperienciaProfissional>? experienciaList;
     if (json['experiencia'] is List) {
       experienciaList = (json['experiencia'] as List)
-          .map((e) => ExperienciaProfissional.fromJson(e as Map<String, dynamic>))
+          .map((e) =>
+              ExperienciaProfissional.fromJson(e as Map<String, dynamic>))
           .toList();
     }
 
@@ -132,31 +137,41 @@ class Candidato {
     }
 
     final fullName = json['nome'] ?? json['full_name'] ?? json['fullName'];
+
     return Candidato(
-      id: json['id'].toString(),
-      nome: fullName is String ? fullName : fullName?.toString() ?? '',
-      email: json['email'] as String,
-      telefone: json['telefone'] as String?,
-      linkedinUrl: json['linkedin_url'] as String? ?? json['linkedin'] as String?,
-      githubUrl: json['github_url'] as String? ?? json['github'] as String?,
-      qtdCurriculos: json['qtd_curriculos'] as int? ?? 0,
-      qtdEntrevistas: json['qtd_entrevistas'] as int? ?? 0,
+      id: json['id']?.toString() ?? '',
+      nome: fullName is String ? fullName : fullName?.toString() ?? 'Sem Nome',
+      email: json['email']?.toString() ?? 'sem-email@exemplo.com',
+      telefone: json['telefone']?.toString() ?? json['phone']?.toString(),
+      linkedinUrl:
+          json['linkedin_url']?.toString() ?? json['linkedin']?.toString(),
+      githubUrl: json['github_url']?.toString() ?? json['github']?.toString(),
+      qtdCurriculos:
+          int.tryParse(json['qtd_curriculos']?.toString() ?? '0') ?? 0,
+      qtdEntrevistas:
+          int.tryParse(json['qtd_entrevistas']?.toString() ?? '0') ?? 0,
       criadoEm: json['criado_em'] != null
-          ? DateTime.parse(json['criado_em'] as String)
+          ? DateTime.tryParse(json['criado_em'].toString()) ?? DateTime.now()
           : json['createdAt'] != null
-              ? DateTime.parse(json['createdAt'] as String)
+              ? DateTime.tryParse(json['createdAt'].toString()) ??
+                  DateTime.now()
               : DateTime.now(),
       // Campos adicionais
-      github: json['github'] as String?,
-      linkedin: json['linkedin'] as String?,
-      status: json['status'] as String?,
-      vagaId: json['vagaId'] as String?,
-      matchingScore: json['matchingScore'] as int?,
+      github: json['github']?.toString(),
+      linkedin: json['linkedin']?.toString(),
+      status: json['status']?.toString(),
+      vagaId: json['vagaId']?.toString(),
+      matchingScore: json['matchingScore'] is int
+          ? json['matchingScore']
+          : int.tryParse(json['matchingScore']?.toString() ?? ''),
       experiencia: experienciaList,
       educacao: educacaoList,
       skills: skillsList,
+      applications: json['applications'] != null
+          ? List<Map<String, dynamic>>.from(json['applications'])
+          : null,
       createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'] as String)
+          ? DateTime.tryParse(json['createdAt'].toString())
           : null,
     );
   }
@@ -179,8 +194,10 @@ class Candidato {
       if (matchingScore != null) 'matchingScore': matchingScore,
       if (experiencia != null)
         'experiencia': experiencia!.map((e) => e.toJson()).toList(),
-      if (educacao != null) 'educacao': educacao!.map((e) => e.toJson()).toList(),
+      if (educacao != null)
+        'educacao': educacao!.map((e) => e.toJson()).toList(),
       if (skills != null) 'skills': skills,
+      if (applications != null) 'applications': applications,
       if (createdAt != null) 'createdAt': createdAt!.toIso8601String(),
     };
   }

@@ -14,12 +14,12 @@ function isoOrNull(v) {
 
 async function findOrCreateApplication(companyId, jobId, candidateId) {
   const exists = await db.query(
-    'SELECT id FROM applications WHERE company_id=$1 AND job_id=$2 AND candidate_id=$3 LIMIT 1',
+    'SELECT id FROM candidaturas WHERE company_id=$1 AND job_id=$2 AND candidate_id=$3 LIMIT 1',
     [companyId, jobId, candidateId]
   );
   if (exists.rows[0]) return exists.rows[0].id;
   const ins = await db.query(
-    `INSERT INTO applications (company_id, job_id, candidate_id, status, created_at)
+    `INSERT INTO candidaturas (company_id, job_id, candidate_id, status, created_at)
      VALUES ($1,$2,$3,'open', now()) RETURNING id`,
     [companyId, jobId, candidateId]
   );
@@ -29,7 +29,7 @@ async function findOrCreateApplication(companyId, jobId, candidateId) {
 async function createCalendarEvent(companyId, interviewId, startsAt, endsAt) {
   const ics = 'ics_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
   const r = await db.query(
-    `INSERT INTO calendar_events (company_id, interview_id, ics_uid, starts_at, ends_at, created_at)
+    `INSERT INTO eventos_calendario (company_id, interview_id, ics_uid, starts_at, ends_at, created_at)
      VALUES ($1,$2,$3,$4,$5, now()) RETURNING *`,
     [companyId, interviewId, ics, startsAt, endsAt]
   );
@@ -44,11 +44,11 @@ router.get('/', async (req, res) => {
     let sql = `SELECT i.*, a.job_id, a.candidate_id,
                   j.title AS job_title, c.full_name AS candidate_name,
                   u.full_name AS interviewer_name
-               FROM interviews i
-               JOIN applications a ON a.id = i.application_id
-               JOIN jobs j ON j.id = a.job_id
-               JOIN candidates c ON c.id = a.candidate_id
-               LEFT JOIN users u ON u.id = i.interviewer_id
+               FROM entrevistas i
+               JOIN candidaturas a ON a.id = i.application_id
+               JOIN vagas j ON j.id = a.job_id
+               JOIN candidatos c ON c.id = a.candidate_id
+               LEFT JOIN usuarios u ON u.id = i.interviewer_id
                WHERE i.company_id = $1 AND i.deleted_at IS NULL`;
     if (status) { params.push(String(status).toLowerCase()); sql += ` AND i.status = $${params.length}`; }
     if (job_id) { params.push(job_id); sql += ` AND a.job_id = $${params.length}`; }
@@ -83,7 +83,7 @@ router.post('/', async (req, res) => {
     const st = isoOrNull(scheduled_at);
     const et = isoOrNull(ends_at) || new Date(new Date(st).getTime() + 60 * 60 * 1000).toISOString();
     const r = await db.query(
-      `INSERT INTO interviews (company_id, application_id, scheduled_at, mode, status, interviewer_id, notes, metadata, created_at, updated_at)
+      `INSERT INTO entrevistas (company_id, application_id, scheduled_at, mode, status, interviewer_id, notes, metadata, created_at, updated_at)
        VALUES ($1,$2,$3,$4,'scheduled',$5,$6,$7::jsonb, now(), now()) RETURNING *`,
       [req.usuario.company_id, applicationId, st, (mode || 'online').toLowerCase(), interviewer_id || null, notes || null, JSON.stringify(metadata || {})]
     );
@@ -100,13 +100,13 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { scheduled_at, ends_at, mode, status, result, overall_score, notes, duration_minutes, cancellation_reason, interviewer_id, metadata } = req.body || {};
-    const r = await db.query('SELECT * FROM interviews WHERE id=$1 AND company_id=$2 AND deleted_at IS NULL', [req.params.id, req.usuario.company_id]);
+    const r = await db.query('SELECT * FROM entrevistas WHERE id=$1 AND company_id=$2 AND deleted_at IS NULL', [req.params.id, req.usuario.company_id]);
     const current = r.rows[0];
     if (!current) return res.status(404).json({ erro: 'Entrevista não encontrada' });
     const st = scheduled_at ? isoOrNull(scheduled_at) : null;
     const et = ends_at ? isoOrNull(ends_at) : null;
     const up = await db.query(
-      `UPDATE interviews SET
+      `UPDATE entrevistas SET
          scheduled_at = COALESCE($1, scheduled_at),
          mode = COALESCE($2, mode),
          status = COALESCE($3, status),
@@ -137,7 +137,7 @@ router.put('/:id', async (req, res) => {
     if (st || et) {
       // Atualiza calendar_events vinculado
       await db.query(
-        `UPDATE calendar_events SET starts_at = COALESCE($1, starts_at), ends_at = COALESCE($2, ends_at)
+        `UPDATE eventos_calendario SET starts_at = COALESCE($1, starts_at), ends_at = COALESCE($2, ends_at)
          WHERE interview_id = $3 AND company_id = $4`,
         [st, et, req.params.id, req.usuario.company_id]
       );
@@ -156,11 +156,11 @@ router.get('/:id', async (req, res) => {
       `SELECT i.*, a.job_id, a.candidate_id,
               j.title AS job_title, c.full_name AS candidate_name,
               u.full_name AS interviewer_name
-       FROM interviews i
-       JOIN applications a ON a.id = i.application_id
-       JOIN jobs j ON j.id = a.job_id
-       JOIN candidates c ON c.id = a.candidate_id
-       LEFT JOIN users u ON u.id = i.interviewer_id
+       FROM entrevistas i
+       JOIN candidaturas a ON a.id = i.application_id
+       JOIN vagas j ON j.id = a.job_id
+       JOIN candidatos c ON c.id = a.candidate_id
+       LEFT JOIN usuarios u ON u.id = i.interviewer_id
        WHERE i.id = $1 AND i.company_id = $2 AND i.deleted_at IS NULL`,
       [req.params.id, req.usuario.company_id]
     );
@@ -174,9 +174,9 @@ router.get('/:id', async (req, res) => {
 // Deletar entrevista (soft delete) - RF8 NEW
 router.delete('/:id', async (req, res) => {
   try {
-    const r = await db.query('SELECT id FROM interviews WHERE id=$1 AND company_id=$2 AND deleted_at IS NULL', [req.params.id, req.usuario.company_id]);
+    const r = await db.query('SELECT id FROM entrevistas WHERE id=$1 AND company_id=$2 AND deleted_at IS NULL', [req.params.id, req.usuario.company_id]);
     if (!r.rows[0]) return res.status(404).json({ erro: 'Entrevista não encontrada' });
-    await db.query('UPDATE interviews SET deleted_at = now(), updated_at = now() WHERE id=$1 AND company_id=$2', [req.params.id, req.usuario.company_id]);
+    await db.query('UPDATE entrevistas SET deleted_at = now(), updated_at = now() WHERE id=$1 AND company_id=$2', [req.params.id, req.usuario.company_id]);
     await audit(req, 'delete', 'interview', req.params.id, {});
     res.json({ data: { mensagem: 'Entrevista removida com sucesso' } });
   } catch (e) {
@@ -189,10 +189,10 @@ router.post('/:id/session', async (req, res) => {
   try {
     const { transcript_file_id } = req.body || {};
     // Ensure interview exists
-    const r = await db.query('SELECT id FROM interviews WHERE id=$1 AND company_id=$2', [req.params.id, req.usuario.company_id]);
+    const r = await db.query('SELECT id FROM entrevistas WHERE id=$1 AND company_id=$2', [req.params.id, req.usuario.company_id]);
     if (!r.rows[0]) return res.status(404).json({ erro: 'Entrevista não encontrada' });
     const s = await db.query(
-      `INSERT INTO interview_sessions (company_id, interview_id, started_at, transcript_file_id)
+      `INSERT INTO sessoes_entrevista (company_id, interview_id, started_at, transcript_file_id)
        VALUES ($1,$2, now(), $3) RETURNING *`,
       [req.usuario.company_id, req.params.id, transcript_file_id || null]
     );
@@ -244,7 +244,7 @@ const perguntasHandler = async (req, res) => {
     const perguntas = [];
     for (const texto of qs) {
       const insert = await db.query(
-        `INSERT INTO interview_questions (company_id, interview_id, text, created_at)
+        `INSERT INTO perguntas_entrevista (company_id, interview_id, text, created_at)
            VALUES ($1,$2,$3, now())
            RETURNING id, text, created_at`,
         [req.usuario.company_id, id, texto]
@@ -266,7 +266,7 @@ router.get('/:id/questions', async (req, res) => {
   try {
     const r = await db.query(
       `SELECT id, text, created_at
-         FROM interview_questions
+         FROM perguntas_entrevista
         WHERE interview_id = $1 AND company_id = $2
         ORDER BY created_at ASC`,
       [req.params.id, req.usuario.company_id]
@@ -316,13 +316,13 @@ router.post('/:id/chat', async (req, res) => {
 
     // Buscar histórico recente
     const hist = await db.query(
-      'SELECT sender as role, message as conteudo FROM interview_messages WHERE interview_id=$1 AND company_id=$2 ORDER BY created_at ASC LIMIT 50',
+      'SELECT sender as role, message as conteudo FROM mensagens_entrevista WHERE interview_id=$1 AND company_id=$2 ORDER BY created_at ASC LIMIT 50',
       [id, req.usuario.company_id]
     );
 
     // Persistir mensagem do usuário
     const insUser = await db.query(
-      'INSERT INTO interview_messages (interview_id, sender, message, company_id, created_at) VALUES ($1,$2,$3,$4, now()) RETURNING id, sender as role, message as conteudo, created_at as criado_em',
+      'INSERT INTO mensagens_entrevista (interview_id, sender, message, company_id, created_at) VALUES ($1,$2,$3,$4, now()) RETURNING id, sender as role, message as conteudo, created_at as criado_em',
       [id, 'user', String(mensagem), req.usuario.company_id]
     );
 
@@ -340,7 +340,7 @@ router.post('/:id/chat', async (req, res) => {
 
     // Persistir resposta do assistant
     const insIA = await db.query(
-      'INSERT INTO interview_messages (interview_id, sender, message, company_id, created_at) VALUES ($1,$2,$3,$4, now()) RETURNING id, sender as role, message as conteudo, created_at as criado_em',
+      'INSERT INTO mensagens_entrevista (interview_id, sender, message, company_id, created_at) VALUES ($1,$2,$3,$4, now()) RETURNING id, sender as role, message as conteudo, created_at as criado_em',
       [id, 'assistant', conteudoResposta, req.usuario.company_id]
     );
 
@@ -360,7 +360,7 @@ router.post('/:id/chat', async (req, res) => {
 router.get('/:id/messages', async (req, res) => {
   try {
     const msgs = await db.query(
-      'SELECT id, sender as role, message as conteudo, created_at as criado_em FROM interview_messages WHERE interview_id=$1 AND company_id=$2 ORDER BY created_at ASC',
+      'SELECT id, sender as role, message as conteudo, created_at as criado_em FROM mensagens_entrevista WHERE interview_id=$1 AND company_id=$2 ORDER BY created_at ASC',
       [req.params.id, req.usuario.company_id]
     );
     res.json({ data: msgs.rows });
@@ -376,10 +376,10 @@ router.post('/:id/report', async (req, res) => {
     // Verifica se entrevista existe
     const interview = await db.query(
       `SELECT i.id, i.company_id, a.job_id, a.candidate_id, j.title as job_title, c.full_name as candidate_name
-         FROM interviews i
-         JOIN applications a ON a.id = i.application_id
-         JOIN jobs j ON j.id = a.job_id
-         JOIN candidates c ON c.id = a.candidate_id
+         FROM entrevistas i
+         JOIN candidaturas a ON a.id = i.application_id
+         JOIN vagas j ON j.id = a.job_id
+         JOIN candidatos c ON c.id = a.candidate_id
         WHERE i.id = $1 AND i.company_id = $2`,
       [id, req.usuario.company_id]
     );
@@ -399,14 +399,14 @@ router.post('/:id/report', async (req, res) => {
 
     const versionQuery = await db.query(
       `SELECT COALESCE(MAX(version), 0) + 1 as next_version
-         FROM interview_reports
+         FROM relatorios_entrevista
         WHERE interview_id = $1 AND company_id = $2`,
       [id, req.usuario.company_id]
     );
     const version = versionQuery.rows[0].next_version;
 
     const insert = await db.query(
-      `INSERT INTO interview_reports (
+      `INSERT INTO relatorios_entrevista (
          company_id, interview_id, title, report_type, content,
          summary_text, candidate_name, job_title, overall_score, recommendation,
          strengths, weaknesses, risks, format, generated_by, generated_at, is_final, version, created_by
@@ -445,7 +445,7 @@ router.post('/:id/report', async (req, res) => {
 router.get('/:id/report', async (req, res) => {
   try {
     const r = await db.query(
-      `SELECT * FROM interview_reports WHERE interview_id = $1 AND company_id = $2 ORDER BY created_at DESC LIMIT 1`,
+      `SELECT * FROM relatorios_entrevista WHERE interview_id = $1 AND company_id = $2 ORDER BY created_at DESC LIMIT 1`,
       [req.params.id, req.usuario.company_id]
     );
     if (!r.rows[0]) return res.status(404).json({ erro: 'Relatório não encontrado' });

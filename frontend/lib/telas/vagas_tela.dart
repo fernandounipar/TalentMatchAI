@@ -60,9 +60,14 @@ class _VagasTelaState extends State<VagasTela> {
   Future<void> _carregarVagas() async {
     setState(() => _carregando = true);
     try {
-      final status = _filterStatus == 'all' ? null : (_filterStatus.toLowerCase() == 'aberta' ? 'open' : _filterStatus.toLowerCase());
+      final status = _filterStatus == 'all'
+          ? null
+          : (_filterStatus.toLowerCase() == 'aberta'
+              ? 'open'
+              : _filterStatus.toLowerCase());
       final q = _searchTerm.trim().isEmpty ? null : _searchTerm.trim();
-      final itens = await widget.api.vagas(page: _page, limit: 20, status: status, q: q);
+      final itens =
+          await widget.api.vagas(page: _page, limit: 20, status: status, q: q);
       final vagas = itens.map((j) {
         final createdAt = DateTime.tryParse(j['created_at']?.toString() ?? '');
         final candidatosCount = j['candidates_count'] ?? j['candidatos'] ?? 0;
@@ -100,16 +105,18 @@ class _VagasTelaState extends State<VagasTela> {
 
   List<Vaga> get _filteredVagas {
     return _vagas.where((vaga) {
-      final matchesSearch = vaga.titulo.toLowerCase().contains(_searchTerm.toLowerCase()) ||
-          vaga.descricao.toLowerCase().contains(_searchTerm.toLowerCase());
-      final matchesStatus = _filterStatus == 'all' || vaga.status == _filterStatus;
+      final matchesSearch =
+          vaga.titulo.toLowerCase().contains(_searchTerm.toLowerCase()) ||
+              vaga.descricao.toLowerCase().contains(_searchTerm.toLowerCase());
+      final matchesStatus =
+          _filterStatus == 'all' || vaga.status == _filterStatus;
       return matchesSearch && matchesStatus;
     }).toList();
   }
 
   void _openDialog([Vaga? vaga]) {
     _editingVaga = vaga;
-    
+
     if (vaga != null) {
       _tituloController.text = vaga.titulo;
       _descricaoController.text = vaga.descricao;
@@ -139,6 +146,9 @@ class _VagasTelaState extends State<VagasTela> {
   void _handleSave() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final nav = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+
     try {
       final payload = {
         'titulo': _tituloController.text,
@@ -153,20 +163,23 @@ class _VagasTelaState extends State<VagasTela> {
       } else {
         await widget.api.criarVaga(payload);
       }
+
       if (!mounted) return;
-      Navigator.of(context).pop();
+      nav.pop();
       await _carregarVagas();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+
+      messenger.showSnackBar(
         SnackBar(
-          content: Text(_editingVaga != null ? 'Vaga atualizada com sucesso!' : 'Vaga criada com sucesso!'),
+          content: Text(_editingVaga != null
+              ? 'Vaga atualizada com sucesso!'
+              : 'Vaga criada com sucesso!'),
           backgroundColor: Colors.green,
         ),
       );
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Falha ao salvar vaga'), backgroundColor: Colors.red),
+      messenger.showSnackBar(
+        const SnackBar(
+            content: Text('Falha ao salvar vaga'), backgroundColor: Colors.red),
       );
     }
   }
@@ -184,12 +197,12 @@ class _VagasTelaState extends State<VagasTela> {
           ),
           ElevatedButton(
             onPressed: () async {
+              final nav = Navigator.of(context);
+              final messenger = ScaffoldMessenger.of(context);
               try {
                 await widget.api.deletarVaga(id);
                 await _carregarVagas();
                 if (!mounted) return;
-                final nav = Navigator.of(context);
-                final messenger = ScaffoldMessenger.of(context);
                 nav.pop();
                 messenger.showSnackBar(
                   const SnackBar(
@@ -199,8 +212,6 @@ class _VagasTelaState extends State<VagasTela> {
                 );
               } catch (e) {
                 if (!mounted) return;
-                final nav = Navigator.of(context);
-                final messenger = ScaffoldMessenger.of(context);
                 nav.pop();
                 messenger.showSnackBar(
                   const SnackBar(
@@ -270,12 +281,24 @@ class _VagasTelaState extends State<VagasTela> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   OutlinedButton(
-                    onPressed: _page > 1 ? () { setState(() { _page -= 1; }); _carregarVagas(); } : null,
+                    onPressed: _page > 1
+                        ? () {
+                            setState(() {
+                              _page -= 1;
+                            });
+                            _carregarVagas();
+                          }
+                        : null,
                     child: const Text('Anterior'),
                   ),
                   const SizedBox(width: 8),
                   ElevatedButton(
-                    onPressed: () { setState(() { _page += 1; }); _carregarVagas(); },
+                    onPressed: () {
+                      setState(() {
+                        _page += 1;
+                      });
+                      _carregarVagas();
+                    },
                     child: const Text('Próxima'),
                   ),
                 ],
@@ -333,7 +356,8 @@ class _VagasTelaState extends State<VagasTela> {
           ),
           const SizedBox(height: 16),
           if (widget.isAdmin)
-            TMButton('Nova Vaga', icon: Icons.add, onPressed: () => _openDialog()),
+            TMButton('Nova Vaga',
+                icon: Icons.add, onPressed: () => _openDialog()),
         ],
       );
     }
@@ -388,7 +412,8 @@ class _VagasTelaState extends State<VagasTela> {
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
       onChanged: (value) => setState(() => _searchTerm = value),
     );
@@ -407,7 +432,8 @@ class _VagasTelaState extends State<VagasTela> {
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
       items: const [
         DropdownMenuItem(value: 'all', child: Text('Todos os Status')),
@@ -435,158 +461,172 @@ class _VagasTelaState extends State<VagasTela> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-              // Header
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          vaga.titulo,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: TMTokens.text,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            const Icon(Icons.work_outline, size: 16, color: Color(0xFF6B7280)),
-                            const SizedBox(width: 4),
-                            Text(
-                              vaga.senioridade ?? 'Não especificado',
-                              style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
-                            ),
-                            const SizedBox(width: 8),
-                            const Text('•', style: TextStyle(color: Color(0xFF6B7280))),
-                            const SizedBox(width: 8),
-                            const Icon(Icons.location_on_outlined, size: 16, color: Color(0xFF6B7280)),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                vaga.local ?? 'Remoto',
-                                style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  TMChip.jobStatus(vaga.status),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              // Description
-              Text(
-                vaga.descricao,
-                style: const TextStyle(fontSize: 14, color: TMTokens.textMuted),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 12),
-
-              // Salary
-              if (vaga.salario != null && vaga.salario!.isNotEmpty) ...[
+                // Header
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.attach_money, size: 16, color: TMTokens.text),
-                    const SizedBox(width: 4),
-                    Text(
-                      vaga.salario!,
-                      style: const TextStyle(fontSize: 14, color: TMTokens.text),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            vaga.titulo,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: TMTokens.text,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              const Icon(Icons.work_outline,
+                                  size: 16, color: Color(0xFF6B7280)),
+                              const SizedBox(width: 4),
+                              Text(
+                                vaga.senioridade ?? 'Não especificado',
+                                style: const TextStyle(
+                                    fontSize: 14, color: Color(0xFF6B7280)),
+                              ),
+                              const SizedBox(width: 8),
+                              const Text('•',
+                                  style: TextStyle(color: Color(0xFF6B7280))),
+                              const SizedBox(width: 8),
+                              const Icon(Icons.location_on_outlined,
+                                  size: 16, color: Color(0xFF6B7280)),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  vaga.local ?? 'Remoto',
+                                  style: const TextStyle(
+                                      fontSize: 14, color: Color(0xFF6B7280)),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 8),
+                    TMChip.jobStatus(vaga.status),
                   ],
                 ),
                 const SizedBox(height: 12),
-              ],
 
-              // Tags
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  ...((vaga.tags ?? []).take(4).map((tag) => Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                // Description
+                Text(
+                  vaga.descricao,
+                  style:
+                      const TextStyle(fontSize: 14, color: TMTokens.textMuted),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 12),
+
+                // Salary
+                if (vaga.salario != null && vaga.salario!.isNotEmpty) ...[
+                  Row(
+                    children: [
+                      const Icon(Icons.attach_money,
+                          size: 16, color: TMTokens.text),
+                      const SizedBox(width: 4),
+                      Text(
+                        vaga.salario!,
+                        style:
+                            const TextStyle(fontSize: 14, color: TMTokens.text),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                ],
+
+                // Tags
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    ...((vaga.tags ?? []).take(4).map((tag) => Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: const Color(0xFFD1D5DB)),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            tag,
+                            style: const TextStyle(
+                                fontSize: 12, color: TMTokens.text),
+                          ),
+                        ))),
+                    if ((vaga.tags ?? []).length > 4)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
                           border: Border.all(color: const Color(0xFFD1D5DB)),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
-                          tag,
-                          style: const TextStyle(fontSize: 12, color: TMTokens.text),
+                          '+${(vaga.tags ?? []).length - 4}',
+                          style: const TextStyle(
+                              fontSize: 12, color: TMTokens.text),
                         ),
-                      ))),
-                  if ((vaga.tags ?? []).length > 4)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: const Color(0xFFD1D5DB)),
-                        borderRadius: BorderRadius.circular(6),
                       ),
-                      child: Text(
-                        '+${(vaga.tags ?? []).length - 4}',
-                        style: const TextStyle(fontSize: 12, color: TMTokens.text),
-                      ),
-                    ),
-                ],
-              ),
-              const Spacer(),
-
-              // Footer
-              Container(
-                padding: const EdgeInsets.only(top: 12),
-                decoration: const BoxDecoration(
-                  border: Border(top: BorderSide(color: Color(0xFFE5E7EB))),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.people_outline, size: 16, color: TMTokens.textMuted),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${vaga.candidatos ?? 0} candidatos',
-                          style: const TextStyle(fontSize: 14, color: TMTokens.textMuted),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit_outlined, size: 18),
-                          onPressed: () => _openDialog(vaga),
-                          color: const Color(0xFF6B7280),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline, size: 18),
-                          onPressed: () => _handleDelete(vaga.id),
-                          color: const Color(0xFF6B7280),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
-              ),
-            ],
+                const Spacer(),
+
+                // Footer
+                Container(
+                  padding: const EdgeInsets.only(top: 12),
+                  decoration: const BoxDecoration(
+                    border: Border(top: BorderSide(color: Color(0xFFE5E7EB))),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.people_outline,
+                              size: 16, color: TMTokens.textMuted),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${vaga.candidatos ?? 0} candidatos',
+                            style: const TextStyle(
+                                fontSize: 14, color: TMTokens.textMuted),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined, size: 18),
+                            onPressed: () => _openDialog(vaga),
+                            color: const Color(0xFF6B7280),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, size: 18),
+                            onPressed: () => _handleDelete(vaga.id),
+                            color: const Color(0xFF6B7280),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-      ),
       ),
     );
   }
@@ -617,9 +657,12 @@ class _VagasTelaState extends State<VagasTela> {
                         : 'Nenhuma vaga cadastrada ainda'),
                 style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
               ),
-              if (_searchTerm.isEmpty && _filterStatus == 'all' && widget.isAdmin) ...[
+              if (_searchTerm.isEmpty &&
+                  _filterStatus == 'all' &&
+                  widget.isAdmin) ...[
                 const SizedBox(height: 16),
-                TMButton('Nova Vaga', icon: Icons.add, onPressed: () => _openDialog()),
+                TMButton('Nova Vaga',
+                    icon: Icons.add, onPressed: () => _openDialog()),
               ],
             ],
           ),
@@ -672,43 +715,54 @@ class _VagasTelaState extends State<VagasTela> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Título
-                      const Text('Título da Vaga *', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const Text('Título da Vaga *',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: _tituloController,
                         decoration: InputDecoration(
                           hintText: 'Ex: Desenvolvedor Full Stack Senior',
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
                         ),
-                        validator: (value) => value?.isEmpty ?? true ? 'Campo obrigatório' : null,
+                        validator: (value) =>
+                            value?.isEmpty ?? true ? 'Campo obrigatório' : null,
                       ),
                       const SizedBox(height: 16),
 
                       // Descrição
-                      const Text('Descrição *', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const Text('Descrição *',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: _descricaoController,
                         decoration: InputDecoration(
-                          hintText: 'Descreva a vaga, responsabilidades e o que você procura...',
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          hintText:
+                              'Descreva a vaga, responsabilidades e o que você procura...',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
                         ),
                         maxLines: 4,
-                        validator: (value) => value?.isEmpty ?? true ? 'Campo obrigatório' : null,
+                        validator: (value) =>
+                            value?.isEmpty ?? true ? 'Campo obrigatório' : null,
                       ),
                       const SizedBox(height: 16),
 
                       // Requisitos
-                      const Text('Requisitos (um por linha) *', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const Text('Requisitos (um por linha) *',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: _requisitosController,
                         decoration: InputDecoration(
-                          hintText: 'React e TypeScript avançado\nNode.js e Express\nPostgreSQL',
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          hintText:
+                              'React e TypeScript avançado\nNode.js e Express\nPostgreSQL',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
                         ),
                         maxLines: 5,
-                        validator: (value) => value?.isEmpty ?? true ? 'Campo obrigatório' : null,
+                        validator: (value) =>
+                            value?.isEmpty ?? true ? 'Campo obrigatório' : null,
                       ),
                       const SizedBox(height: 16),
 
@@ -719,20 +773,29 @@ class _VagasTelaState extends State<VagasTela> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('Senioridade *', style: TextStyle(fontWeight: FontWeight.w600)),
+                                const Text('Senioridade *',
+                                    style:
+                                        TextStyle(fontWeight: FontWeight.w600)),
                                 const SizedBox(height: 8),
                                 DropdownButtonFormField<String>(
                                   initialValue: _senioridade,
                                   decoration: InputDecoration(
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                    border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8)),
                                   ),
                                   items: const [
-                                    DropdownMenuItem(value: 'Junior', child: Text('Junior')),
-                                    DropdownMenuItem(value: 'Pleno', child: Text('Pleno')),
-                                    DropdownMenuItem(value: 'Senior', child: Text('Senior')),
-                                    DropdownMenuItem(value: 'Especialista', child: Text('Especialista')),
+                                    DropdownMenuItem(
+                                        value: 'Junior', child: Text('Junior')),
+                                    DropdownMenuItem(
+                                        value: 'Pleno', child: Text('Pleno')),
+                                    DropdownMenuItem(
+                                        value: 'Senior', child: Text('Senior')),
+                                    DropdownMenuItem(
+                                        value: 'Especialista',
+                                        child: Text('Especialista')),
                                   ],
-                                  onChanged: (value) => setState(() => _senioridade = value!),
+                                  onChanged: (value) =>
+                                      setState(() => _senioridade = value!),
                                 ),
                               ],
                             ),
@@ -742,20 +805,30 @@ class _VagasTelaState extends State<VagasTela> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('Regime *', style: TextStyle(fontWeight: FontWeight.w600)),
+                                const Text('Regime *',
+                                    style:
+                                        TextStyle(fontWeight: FontWeight.w600)),
                                 const SizedBox(height: 8),
                                 DropdownButtonFormField<String>(
                                   initialValue: _regime,
                                   decoration: InputDecoration(
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                    border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8)),
                                   ),
                                   items: const [
-                                    DropdownMenuItem(value: 'CLT', child: Text('CLT')),
-                                    DropdownMenuItem(value: 'PJ', child: Text('PJ')),
-                                    DropdownMenuItem(value: 'Estágio', child: Text('Estágio')),
-                                    DropdownMenuItem(value: 'Temporário', child: Text('Temporário')),
+                                    DropdownMenuItem(
+                                        value: 'CLT', child: Text('CLT')),
+                                    DropdownMenuItem(
+                                        value: 'PJ', child: Text('PJ')),
+                                    DropdownMenuItem(
+                                        value: 'Estágio',
+                                        child: Text('Estágio')),
+                                    DropdownMenuItem(
+                                        value: 'Temporário',
+                                        child: Text('Temporário')),
                                   ],
-                                  onChanged: (value) => setState(() => _regime = value!),
+                                  onChanged: (value) =>
+                                      setState(() => _regime = value!),
                                 ),
                               ],
                             ),
@@ -765,38 +838,45 @@ class _VagasTelaState extends State<VagasTela> {
                       const SizedBox(height: 16),
 
                       // Localização
-                      const Text('Localização *', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const Text('Localização *',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: _localController,
                         decoration: InputDecoration(
                           hintText: 'Ex: São Paulo - Híbrido',
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
                         ),
-                        validator: (value) => value?.isEmpty ?? true ? 'Campo obrigatório' : null,
+                        validator: (value) =>
+                            value?.isEmpty ?? true ? 'Campo obrigatório' : null,
                       ),
                       const SizedBox(height: 16),
 
                       // Salário
-                      const Text('Faixa Salarial (opcional)', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const Text('Faixa Salarial (opcional)',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: _salarioController,
                         decoration: InputDecoration(
                           hintText: 'Ex: R\$ 8.000 - R\$ 12.000',
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
                         ),
                       ),
                       const SizedBox(height: 16),
 
                       // Tags
-                      const Text('Tags (separadas por vírgula)', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const Text('Tags (separadas por vírgula)',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: _tagsController,
                         decoration: InputDecoration(
                           hintText: 'Ex: React, Node.js, TypeScript',
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
                         ),
                       ),
                     ],
@@ -814,9 +894,13 @@ class _VagasTelaState extends State<VagasTela> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  TMButton('Cancelar', variant: TMButtonVariant.secondary, onPressed: () => Navigator.of(context).pop()),
+                  TMButton('Cancelar',
+                      variant: TMButtonVariant.secondary,
+                      onPressed: () => Navigator.of(context).pop()),
                   const SizedBox(width: 12),
-                  TMButton(_editingVaga != null ? 'Salvar Alterações' : 'Criar Vaga', onPressed: _handleSave),
+                  TMButton(
+                      _editingVaga != null ? 'Salvar Alterações' : 'Criar Vaga',
+                      onPressed: _handleSave),
                 ],
               ),
             ),

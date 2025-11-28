@@ -15,31 +15,31 @@ router.get('/', async (req, res) => {
       `SELECT
          -- Vagas abertas (jobs.status = 'open' e não deletadas)
          (SELECT COUNT(*)::int
-            FROM jobs j
+            FROM vagas j
            WHERE j.company_id = $1
              AND j.status = 'open'
              AND j.deleted_at IS NULL)                             AS vagas,
 
          -- Currículos/resumes cadastrados
          (SELECT COUNT(*)::int
-            FROM resumes r
+            FROM curriculos r
            WHERE r.company_id = $1
              AND r.deleted_at IS NULL)                             AS curriculos,
 
          -- Entrevistas criadas nos últimos 30 dias
          (SELECT COUNT(*)::int
-            FROM interviews i
+            FROM entrevistas i
            WHERE i.company_id = $1
              AND i.created_at >= now() - interval '30 days')       AS entrevistas,
 
          -- Relatórios de entrevistas gerados
          (SELECT COUNT(*)::int
-            FROM interview_reports ir
+            FROM relatorios_entrevista ir
            WHERE ir.company_id = $1)                               AS relatorios,
 
          -- Candidatos ativos (não deletados)
          (SELECT COUNT(*)::int
-            FROM candidates c
+            FROM candidatos c
            WHERE c.company_id = $1
              AND c.deleted_at IS NULL)                             AS candidatos
       `,
@@ -72,7 +72,7 @@ router.get('/resumes/metrics', async (req, res) => {
 
     // Buscar estatísticas de processamento
     const processingStats = await db.query(
-      `SELECT * FROM resume_processing_stats WHERE company_id = $1`,
+      `SELECT * FROM estatisticas_processamento_curriculo WHERE company_id = $1`,
       [companyId]
     );
 
@@ -121,9 +121,9 @@ router.get('/resumes/metrics', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Erro ao buscar métricas de currículos:', error);
-    res.status(500).json({ 
-      erro: 'Erro ao buscar métricas de currículos', 
-      detalhes: error.message 
+    res.status(500).json({
+      erro: 'Erro ao buscar métricas de currículos',
+      detalhes: error.message
     });
   }
 });
@@ -138,14 +138,15 @@ router.get('/resumes/timeline', async (req, res) => {
 
     const timeline = await db.query(
       `SELECT 
+
          DATE(created_at) as date,
-         COUNT(*) as count,
-         COUNT(*) FILTER (WHERE status = 'pending') as pending,
-         COUNT(*) FILTER (WHERE status = 'reviewed') as reviewed,
-         COUNT(*) FILTER (WHERE status = 'accepted') as accepted,
-         COUNT(*) FILTER (WHERE status = 'rejected') as rejected
-       FROM resumes
-       WHERE company_id = $1 
+      COUNT(*) as count,
+      COUNT(*) FILTER(WHERE status = 'pending') as pending,
+      COUNT(*) FILTER(WHERE status = 'reviewed') as reviewed,
+      COUNT(*) FILTER(WHERE status = 'accepted') as accepted,
+      COUNT(*) FILTER(WHERE status = 'rejected') as rejected
+       FROM curriculos
+       WHERE company_id = $1
          AND deleted_at IS NULL
          AND created_at >= CURRENT_DATE - INTERVAL '${parseInt(days)} days'
        GROUP BY DATE(created_at)
@@ -156,9 +157,9 @@ router.get('/resumes/timeline', async (req, res) => {
     res.json(timeline.rows);
   } catch (error) {
     console.error('❌ Erro ao buscar timeline de currículos:', error);
-    res.status(500).json({ 
-      erro: 'Erro ao buscar timeline', 
-      detalhes: error.message 
+    res.status(500).json({
+      erro: 'Erro ao buscar timeline',
+      detalhes: error.message
     });
   }
 });
@@ -180,15 +181,15 @@ router.get('/jobs/metrics', async (req, res) => {
     const statusStats = await db.query(
       `SELECT 
         status,
-        COUNT(*)::int as count,
-        AVG(
-          CASE 
+      COUNT(*):: int as count,
+      AVG(
+        CASE 
             WHEN published_at IS NOT NULL AND created_at IS NOT NULL
-            THEN EXTRACT(epoch FROM (published_at - created_at)) / 86400.0
+            THEN EXTRACT(epoch FROM(published_at - created_at)) / 86400.0
             ELSE NULL
           END
-        )::numeric(10,2) as avg_days_to_publish
-      FROM jobs
+      ):: numeric(10, 2) as avg_days_to_publish
+      FROM vagas
       WHERE company_id = $1 AND deleted_at IS NULL
       GROUP BY status
       ORDER BY count DESC`,
@@ -199,11 +200,11 @@ router.get('/jobs/metrics', async (req, res) => {
     const departmentStats = await db.query(
       `SELECT 
         COALESCE(department, 'Sem departamento') as department,
-        COUNT(*)::int as total_jobs,
-        COUNT(*) FILTER (WHERE status = 'open')::int as open_jobs,
-        AVG(salary_min)::numeric(10,2) as avg_salary_min,
-        AVG(salary_max)::numeric(10,2) as avg_salary_max
-      FROM jobs
+      COUNT(*):: int as total_jobs,
+      COUNT(*) FILTER(WHERE status = 'open'):: int as open_jobs,
+      AVG(salary_min):: numeric(10, 2) as avg_salary_min,
+      AVG(salary_max):: numeric(10, 2) as avg_salary_max
+      FROM vagas
       WHERE company_id = $1 AND deleted_at IS NULL
       GROUP BY department
       ORDER BY total_jobs DESC
@@ -215,10 +216,10 @@ router.get('/jobs/metrics', async (req, res) => {
     const performanceStats = await db.query(
       `SELECT 
         DATE_TRUNC('month', created_at) as month,
-        COUNT(*)::int as jobs_created,
-        COUNT(*) FILTER (WHERE published_at IS NOT NULL)::int as jobs_published,
-        COUNT(*) FILTER (WHERE closed_at IS NOT NULL)::int as jobs_closed
-      FROM jobs
+      COUNT(*):: int as jobs_created,
+      COUNT(*) FILTER(WHERE published_at IS NOT NULL):: int as jobs_published,
+      COUNT(*) FILTER(WHERE closed_at IS NOT NULL):: int as jobs_closed
+      FROM vagas
       WHERE company_id = $1 
         AND created_at >= now() - interval '6 months'
       GROUP BY DATE_TRUNC('month', created_at)
@@ -249,11 +250,11 @@ router.get('/jobs/timeline', async (req, res) => {
     const result = await db.query(
       `SELECT 
         DATE(created_at) as date,
-        COUNT(*)::int as jobs_created,
-        COUNT(*) FILTER (WHERE status = 'draft')::int as draft_count,
-        COUNT(*) FILTER (WHERE status = 'open')::int as open_count,
-        COUNT(*) FILTER (WHERE published_at IS NOT NULL)::int as published_count
-      FROM jobs
+      COUNT(*):: int as jobs_created,
+      COUNT(*) FILTER(WHERE status = 'draft'):: int as draft_count,
+      COUNT(*) FILTER(WHERE status = 'open'):: int as open_count,
+      COUNT(*) FILTER(WHERE published_at IS NOT NULL):: int as published_count
+      FROM vagas
       WHERE company_id = $1
         AND created_at >= now() - interval '1 day' * $2
       GROUP BY DATE(created_at)
@@ -553,8 +554,8 @@ router.get('/reports/timeline', async (req, res) => {
     const { days = 30 } = req.query;
 
     const result = await db.query(
-      `SELECT * 
-       FROM report_generation_timeline 
+      `SELECT *
+    FROM report_generation_timeline 
        WHERE company_id = $1 
          AND generation_date >= CURRENT_DATE - INTERVAL '${parseInt(days)} days'
        ORDER BY generation_date DESC`,
@@ -674,14 +675,14 @@ router.get('/interviews/timeline', async (req, res) => {
     const result = await db.query(
       `SELECT 
          interview_date,
-         interviews_created,
-         scheduled,
-         completed,
-         cancelled,
-         approved,
-         rejected,
-         avg_score,
-         avg_duration
+      interviews_created,
+      scheduled,
+      completed,
+      cancelled,
+      approved,
+      rejected,
+      avg_score,
+      avg_duration
        FROM interview_timeline
        WHERE company_id = $1
          AND interview_date >= current_date - interval '${parseInt(days)} days'
@@ -716,13 +717,13 @@ router.get('/interviews/by-job', async (req, res) => {
     const result = await db.query(
       `SELECT 
          job_id,
-         job_title,
-         total_interviews,
-         completed_interviews,
-         approved_count,
-         rejected_count,
-         avg_score,
-         last_interview_date
+      job_title,
+      total_interviews,
+      completed_interviews,
+      approved_count,
+      rejected_count,
+      avg_score,
+      last_interview_date
        FROM interviews_by_job
        WHERE company_id = $1
        ORDER BY total_interviews DESC
@@ -757,12 +758,12 @@ router.get('/interviews/by-interviewer', async (req, res) => {
     const result = await db.query(
       `SELECT 
          interviewer_id,
-         interviewer_name,
-         total_interviews,
-         completed_count,
-         approved_count,
-         avg_score,
-         avg_duration
+      interviewer_name,
+      total_interviews,
+      completed_count,
+      approved_count,
+      avg_score,
+      avg_duration
        FROM interviews_by_interviewer
        WHERE company_id = $1
        ORDER BY total_interviews DESC
@@ -797,12 +798,12 @@ router.get('/interviews/completion-rate', async (req, res) => {
     const result = await db.query(
       `SELECT 
          scheduled_date,
-         total_scheduled,
-         completed,
-         cancelled,
-         no_show,
-         completion_rate,
-         no_show_rate
+      total_scheduled,
+      completed,
+      cancelled,
+      no_show,
+      completion_rate,
+      no_show_rate
        FROM interview_completion_rate
        WHERE company_id = $1
          AND scheduled_date >= current_date - interval '${parseInt(days)} days'
@@ -869,10 +870,10 @@ router.get('/users/by-role', async (req, res) => {
     const result = await db.query(
       `SELECT
          role,
-         user_count,
-         active_count,
-         verified_count,
-         most_recent_login
+      user_count,
+      active_count,
+      verified_count,
+      most_recent_login
        FROM users_by_role
        WHERE company_id = $1
        ORDER BY 
@@ -912,8 +913,8 @@ router.get('/users/by-department', async (req, res) => {
     const result = await db.query(
       `SELECT
          department,
-         user_count,
-         active_count
+      user_count,
+      active_count
        FROM users_by_department
        WHERE company_id = $1
        ORDER BY user_count DESC`,
@@ -947,8 +948,8 @@ router.get('/users/login-timeline', async (req, res) => {
     const result = await db.query(
       `SELECT
          login_date,
-         unique_users_logged,
-         total_logins
+      unique_users_logged,
+      total_logins
        FROM user_login_timeline
        WHERE company_id = $1
          AND login_date >= current_date - interval '${parseInt(days)} days'
@@ -983,9 +984,9 @@ router.get('/users/registration-timeline', async (req, res) => {
     const result = await db.query(
       `SELECT
          registration_date,
-         users_registered,
-         active_registered,
-         verified_registered
+      users_registered,
+      active_registered,
+      verified_registered
        FROM user_registration_timeline
        WHERE company_id = $1
          AND registration_date >= current_date - interval '${parseInt(days)} days'
@@ -1019,12 +1020,12 @@ router.get('/users/security-stats', async (req, res) => {
     const result = await db.query(
       `SELECT
          total_users,
-         users_with_failed_attempts,
-         currently_locked,
-         avg_failed_attempts,
-         max_failed_attempts,
-         unverified_emails,
-         unverified_percentage
+      users_with_failed_attempts,
+      currently_locked,
+      avg_failed_attempts,
+      max_failed_attempts,
+      unverified_emails,
+      unverified_percentage
        FROM user_security_stats
        WHERE company_id = $1`,
       [companyId]
@@ -1064,9 +1065,9 @@ router.get('/users/invitation-stats', async (req, res) => {
     const result = await db.query(
       `SELECT
          total_invitations,
-         pending_invitations,
-         expired_invitations,
-         accepted_invitations
+      pending_invitations,
+      expired_invitations,
+      accepted_invitations
        FROM user_invitation_stats
        WHERE company_id = $1`,
       [companyId]
@@ -1132,12 +1133,12 @@ router.get('/activity-timeline', async (req, res) => {
     const result = await db.query(
       `SELECT 
         activity_date,
-        jobs_created,
-        resumes_uploaded,
-        interviews_scheduled,
-        reports_generated,
-        users_registered,
-        total_activities
+      jobs_created,
+      resumes_uploaded,
+      interviews_scheduled,
+      reports_generated,
+      users_registered,
+      total_activities
        FROM dashboard_activity_timeline
        WHERE company_id = $1
          AND activity_date >= CURRENT_DATE - INTERVAL '1 day' * $2
@@ -1169,7 +1170,7 @@ router.get('/activity-timeline', async (req, res) => {
 router.get('/conversion-funnel', async (req, res) => {
   try {
     const companyId = req.usuario.company_id;
-    const { 
+    const {
       status,
       limit = 20,
       sort = 'resume_to_interview_rate',
@@ -1202,15 +1203,15 @@ router.get('/conversion-funnel', async (req, res) => {
     const result = await db.query(
       `SELECT 
         job_id,
-        job_title,
-        job_status,
-        job_created_at,
-        total_resumes,
-        total_interviews,
-        completed_interviews,
-        approved_candidates,
-        resume_to_interview_rate,
-        interview_to_approval_rate
+      job_title,
+      job_status,
+      job_created_at,
+      total_resumes,
+      total_interviews,
+      completed_interviews,
+      approved_candidates,
+      resume_to_interview_rate,
+      interview_to_approval_rate
        FROM dashboard_conversion_funnel
        WHERE ${whereClause}
        ORDER BY ${sortColumn} ${sortOrder}
@@ -1221,12 +1222,12 @@ router.get('/conversion-funnel', async (req, res) => {
     // Calcular agregados gerais
     const statsResult = await db.query(
       `SELECT 
-        COUNT(*)::int as total_jobs,
-        SUM(total_resumes)::int as total_resumes,
-        SUM(total_interviews)::int as total_interviews,
-        SUM(approved_candidates)::int as total_approved,
-        ROUND(AVG(resume_to_interview_rate), 2) as avg_resume_to_interview_rate,
-        ROUND(AVG(interview_to_approval_rate), 2) as avg_interview_to_approval_rate
+        COUNT(*):: int as total_jobs,
+      SUM(total_resumes):: int as total_resumes,
+      SUM(total_interviews):: int as total_interviews,
+      SUM(approved_candidates):: int as total_approved,
+      ROUND(AVG(resume_to_interview_rate), 2) as avg_resume_to_interview_rate,
+      ROUND(AVG(interview_to_approval_rate), 2) as avg_interview_to_approval_rate
        FROM dashboard_conversion_funnel
        WHERE ${whereClause}`,
       params
@@ -1287,12 +1288,12 @@ router.post('/presets', async (req, res) => {
     }
 
     const result = await db.query(
-      `INSERT INTO dashboard_presets (
-        user_id, company_id, name, description, 
-        filters, layout, preferences, 
+      `INSERT INTO dashboard_presets(
+        user_id, company_id, name, description,
+        filters, layout, preferences,
         is_default, is_shared, shared_with_roles
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-      RETURNING *`,
+      ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING * `,
       [
         userId,
         companyId,
@@ -1329,7 +1330,7 @@ router.get('/presets', async (req, res) => {
     const companyId = req.usuario.company_id;
     const userId = req.usuario.id;
     const userRole = req.usuario.role;
-    
+
     const {
       search,
       is_shared,
@@ -1349,24 +1350,24 @@ router.get('/presets', async (req, res) => {
     let paramIndex = 2;
 
     // Filtro: presets próprios OU compartilhados com seu role
-    whereClauses.push(`(dp.user_id = $${paramIndex} OR (dp.is_shared = TRUE AND $${paramIndex + 1} = ANY(dp.shared_with_roles)))`);
+    whereClauses.push(`(dp.user_id = $${paramIndex} OR(dp.is_shared = TRUE AND $${paramIndex + 1} = ANY(dp.shared_with_roles)))`);
     params.push(userId, userRole);
     paramIndex += 2;
 
     if (search) {
       whereClauses.push(`(dp.name ILIKE $${paramIndex} OR dp.description ILIKE $${paramIndex})`);
-      params.push(`%${search}%`);
+      params.push(`% ${search}% `);
       paramIndex++;
     }
 
     if (is_shared !== undefined) {
-      whereClauses.push(`dp.is_shared = $${paramIndex}`);
+      whereClauses.push(`dp.is_shared = $${paramIndex} `);
       params.push(is_shared === 'true');
       paramIndex++;
     }
 
     if (is_default !== undefined) {
-      whereClauses.push(`dp.is_default = $${paramIndex}`);
+      whereClauses.push(`dp.is_default = $${paramIndex} `);
       params.push(is_default === 'true');
       paramIndex++;
     }
@@ -1380,38 +1381,38 @@ router.get('/presets', async (req, res) => {
 
     // Query principal
     const result = await db.query(
-      `SELECT 
-        dp.id,
-        dp.user_id,
-        dp.company_id,
-        dp.name,
-        dp.description,
-        dp.filters,
-        dp.layout,
-        dp.preferences,
-        dp.is_default,
-        dp.is_shared,
-        dp.shared_with_roles,
-        dp.usage_count,
-        dp.last_used_at,
-        dp.created_at,
-        dp.updated_at,
-        u.nome as user_name,
-        c.name as company_name
+      `SELECT
+dp.id,
+  dp.user_id,
+  dp.company_id,
+  dp.name,
+  dp.description,
+  dp.filters,
+  dp.layout,
+  dp.preferences,
+  dp.is_default,
+  dp.is_shared,
+  dp.shared_with_roles,
+  dp.usage_count,
+  dp.last_used_at,
+  dp.created_at,
+  dp.updated_at,
+  u.nome as user_name,
+  c.name as company_name
        FROM dashboard_presets dp
        LEFT JOIN users u ON u.id = dp.user_id
        LEFT JOIN companies c ON c.id = dp.company_id
        WHERE ${whereClause}
        ORDER BY dp.${sortColumn} ${sortOrder}
-       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+       LIMIT $${paramIndex} OFFSET $${paramIndex + 1} `,
       [...params, maxLimit, offset]
     );
 
     // Contar total
     const countResult = await db.query(
-      `SELECT COUNT(*)::int as total
+      `SELECT COUNT(*):: int as total
        FROM dashboard_presets dp
-       WHERE ${whereClause}`,
+       WHERE ${whereClause} `,
       params
     );
 
@@ -1447,17 +1448,17 @@ router.get('/presets/:id', async (req, res) => {
     const { id } = req.params;
 
     const result = await db.query(
-      `SELECT 
-        dp.*,
-        u.nome as user_name,
-        c.name as company_name
+      `SELECT
+dp.*,
+  u.nome as user_name,
+  c.name as company_name
        FROM dashboard_presets dp
        LEFT JOIN users u ON u.id = dp.user_id
        LEFT JOIN companies c ON c.id = dp.company_id
        WHERE dp.id = $1 
          AND dp.company_id = $2
          AND dp.deleted_at IS NULL
-         AND (dp.user_id = $3 OR (dp.is_shared = TRUE AND $4 = ANY(dp.shared_with_roles)))`,
+AND(dp.user_id = $3 OR(dp.is_shared = TRUE AND $4 = ANY(dp.shared_with_roles)))`,
       [id, companyId, userId, userRole]
     );
 
@@ -1472,7 +1473,7 @@ router.get('/presets/:id', async (req, res) => {
     await db.query(
       `UPDATE dashboard_presets 
        SET usage_count = usage_count + 1,
-           last_used_at = NOW()
+  last_used_at = NOW()
        WHERE id = $1`,
       [id]
     );
@@ -1543,42 +1544,42 @@ router.put('/presets/:id', async (req, res) => {
     let paramIndex = 1;
 
     if (name !== undefined) {
-      updates.push(`name = $${paramIndex}`);
+      updates.push(`name = $${paramIndex} `);
       values.push(name.trim());
       paramIndex++;
     }
     if (description !== undefined) {
-      updates.push(`description = $${paramIndex}`);
+      updates.push(`description = $${paramIndex} `);
       values.push(description);
       paramIndex++;
     }
     if (filters !== undefined) {
-      updates.push(`filters = $${paramIndex}`);
+      updates.push(`filters = $${paramIndex} `);
       values.push(filters);
       paramIndex++;
     }
     if (layout !== undefined) {
-      updates.push(`layout = $${paramIndex}`);
+      updates.push(`layout = $${paramIndex} `);
       values.push(layout);
       paramIndex++;
     }
     if (preferences !== undefined) {
-      updates.push(`preferences = $${paramIndex}`);
+      updates.push(`preferences = $${paramIndex} `);
       values.push(preferences);
       paramIndex++;
     }
     if (is_default !== undefined) {
-      updates.push(`is_default = $${paramIndex}`);
+      updates.push(`is_default = $${paramIndex} `);
       values.push(is_default);
       paramIndex++;
     }
     if (is_shared !== undefined) {
-      updates.push(`is_shared = $${paramIndex}`);
+      updates.push(`is_shared = $${paramIndex} `);
       values.push(is_shared);
       paramIndex++;
     }
     if (shared_with_roles !== undefined) {
-      updates.push(`shared_with_roles = $${paramIndex}`);
+      updates.push(`shared_with_roles = $${paramIndex} `);
       values.push(shared_with_roles);
       paramIndex++;
     }
@@ -1595,7 +1596,7 @@ router.put('/presets/:id', async (req, res) => {
       `UPDATE dashboard_presets 
        SET ${updates.join(', ')}
        WHERE id = $${paramIndex}
-       RETURNING *`,
+RETURNING * `,
       values
     );
 

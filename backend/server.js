@@ -13,8 +13,23 @@ const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
 app.use(express.json());
 
 // Rotas da API
+// Rotas da API
 const cors = require('cors');
 const morgan = require('morgan');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+
+// Security Middleware
+app.use(helmet());
+
+// Rate Limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Muitas requisições deste IP, tente novamente mais tarde.'
+});
+app.use('/api', limiter);
+
 app.use(cors({
   origin: (origin, callback) => {
     // Sem origin (ex.: Postman, curl) → permitir
@@ -37,7 +52,7 @@ app.use(cors({
 }));
 app.use(morgan('dev'));
 // Arquivos estáticos para download
-try { fs.mkdirSync(UPLOAD_DIR, { recursive: true }); } catch {}
+try { fs.mkdirSync(UPLOAD_DIR, { recursive: true }); } catch { }
 app.use('/uploads', express.static(UPLOAD_DIR));
 
 app.use('/api', apiRoutes);

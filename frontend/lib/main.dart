@@ -1,4 +1,5 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'telas/landing_tela.dart';
 import 'telas/login_tela.dart';
 import 'telas/registro_tela.dart';
@@ -13,7 +14,8 @@ import 'telas/relatorio_final_tela.dart';
 import 'telas/relatorios_tela.dart';
 import 'telas/usuarios_admin_tela.dart';
 import 'telas/historico_tela.dart';
-import 'telas/configuracoes_nova_tela.dart'; // Importa nova tela de configurações
+import 'telas/aplicacoes_tela.dart';
+import 'telas/configuracoes_nova_tela.dart';
 import 'servicos/api_cliente.dart';
 import 'design_system/tm_theme.dart';
 import 'componentes/tm_app_shell.dart';
@@ -38,14 +40,10 @@ enum RouteKey {
   historico,
   config,
   usuarios,
+  aplicacoes,
 }
 
 /// TalentMatchIA – Fluxo Completo
-/// Simula o protótipo navegável de ponta a ponta:
-/// 1) Landing/Home (marketing) → 2) Login → 3) Dashboard pós-login
-/// 4) Vagas (lista + nova vaga) → 5) Candidatos (lista) → 6) Upload de Currículo
-/// 7) Analisador de Currículo (IA) → 8) Entrevista Assistida (chat) → 9) Relatório Final
-/// 10) Histórico → 11) Configurações
 class TalentMatchIA extends StatefulWidget {
   const TalentMatchIA({super.key});
 
@@ -54,10 +52,12 @@ class TalentMatchIA extends StatefulWidget {
 }
 
 class _TalentMatchIAState extends State<TalentMatchIA> {
-  static const String apiBase = String.fromEnvironment('API_BASE_URL', defaultValue: 'http://localhost:4000');
+  static const String apiBase = String.fromEnvironment('API_BASE_URL',
+      defaultValue: 'http://localhost:4000');
   RouteKey route = RouteKey.landing;
   Map<String, dynamic> auth = {'logged': false, 'name': null};
-  Map<String, dynamic>? userData; // Dados completos do usuário (incluindo empresa)
+  Map<String, dynamic>?
+      userData; // Dados completos do usuário (incluindo empresa)
   Map<String, String> vagaForm = {
     'titulo': '',
     'descricao': '',
@@ -69,26 +69,50 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
     'vagaSelecionada': 'Vaga',
     'candidato': 'Candidato',
   };
+  bool _carregandoUsuario = false;
   String? entrevistaId;
   Map<String, dynamic>? ultimoUpload;
   String? perfil;
   Map<String, dynamic>? relatorioFinal;
 
-  // ApiCliente simples para satisfazer os requisitos das telas
+  final _storage = const FlutterSecureStorage();
   late final ApiCliente api;
 
   @override
   void initState() {
     super.initState();
     api = ApiCliente(baseUrl: apiBase);
+    _checkAuth();
+  }
+
+  Future<void> _checkAuth() async {
+    final token = await _storage.read(key: 'token');
+    if (token != null) {
+      api.token = token;
+      await _carregarDadosUsuario();
+      if (userData != null) {
+        setState(() {
+          auth = {
+            'logged': true,
+            'name': userData!['user']?['full_name'] ?? 'Usuário',
+          };
+          perfil = userData!['user']?['role'];
+          route = RouteKey.dashboard;
+        });
+      }
+    }
   }
 
   /// Busca dados do usuário logado (com ou sem empresa)
   Future<void> _carregarDadosUsuario() async {
+    setState(() {
+      _carregandoUsuario = true;
+    });
     try {
       final dados = await api.obterUsuario();
       // Compatibilidade com respostas antigas ({ usuario: { company } })
-      final rawUser = (dados['user'] ?? dados['usuario']) as Map<String, dynamic>?;
+      final rawUser =
+          (dados['user'] ?? dados['usuario']) as Map<String, dynamic>?;
       final rawCompany =
           (dados['company'] ?? rawUser?['company']) as Map<String, dynamic>?;
       setState(() {
@@ -96,8 +120,10 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
           'user': rawUser,
           'company': rawCompany,
         };
-        auth['name'] =
-            rawUser?['full_name'] ?? rawUser?['nome'] ?? auth['name'] ?? 'Usuário';
+        auth['name'] = rawUser?['full_name'] ??
+            rawUser?['nome'] ??
+            auth['name'] ??
+            'Usuário';
         perfil = rawUser?['role'] ?? rawUser?['perfil'];
         // Onboarding bloqueante: sem empresa, força rota de configurações
         if (auth['logged'] == true && rawCompany == null) {
@@ -106,11 +132,18 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
       });
     } catch (e) {
       debugPrint('Erro ao carregar dados do usuário: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _carregandoUsuario = false;
+        });
+      }
     }
   }
 
   /// Realiza logout e limpa o estado
-  void _logout() {
+  Future<void> _logout() async {
+    await _storage.deleteAll();
     setState(() {
       auth = {'logged': false, 'name': null};
       userData = null;
@@ -122,20 +155,16 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
   }
 
   /// Formata o cargo do usuário para exibição na sidebar
-  /// Prioriza o campo 'cargo' (Admin/Recrutador(a)/Gestor(a))
-  /// Se não houver cargo, usa o role (ADMIN/USER/SUPER_ADMIN)
   String _formatarCargo() {
     final cargo = userData?['user']?['cargo'];
-    
-    // Se tem cargo definido, retorna direto
+
     if (cargo != null && cargo.toString().isNotEmpty) {
       return cargo.toString();
     }
-    
-    // Fallback: formata o role se não houver cargo
+
     final role = userData?['user']?['role'];
     if (role == null) return 'Usuário';
-    
+
     switch (role.toString().toUpperCase()) {
       case 'ADMIN':
         return 'Administrador';
@@ -149,9 +178,8 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
 
   void go(RouteKey to) {
     setState(() {
-      // Se usuário está logado mas ainda não possui empresa,
-      // bloqueia navegação para outras telas além de Configurações
-      final semEmpresa = auth['logged'] == true && (userData != null && userData!['company'] == null);
+      final semEmpresa = auth['logged'] == true &&
+          (userData != null && userData!['company'] == null);
       if (semEmpresa && to != RouteKey.config) {
         route = RouteKey.config;
       } else {
@@ -178,6 +206,8 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
         return 'configuracoes';
       case RouteKey.usuarios:
         return 'configuracoes';
+      case RouteKey.aplicacoes:
+        return 'aplicacoes';
       case RouteKey.entrevista:
         return 'entrevistas';
       case RouteKey.relatorios:
@@ -212,6 +242,8 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
         return RouteKey.historico;
       case 'configuracoes':
         return RouteKey.config;
+      case 'aplicacoes':
+        return RouteKey.aplicacoes;
       default:
         return RouteKey.dashboard;
     }
@@ -226,15 +258,23 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
       themeMode: ThemeMode.light,
       debugShowCheckedModeBanner: false,
       home: auth['logged'] == true
-          ? TMAppShell(
-              activeSection: _sectionFromRoute(route),
-              onSectionChange: (s) => go(_routeFromSection(s)),
-              userName: userData?['user']?['full_name'] ?? auth['name'] ?? 'Usuário',
-              userRole: _formatarCargo(),
-              userPhotoUrl: userData?['user']?['foto_url'],
-              onLogout: _logout,
-              child: _buildContent(),
-            )
+          ? (_carregandoUsuario
+              ? const Scaffold(
+                  body: Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                )
+              : TMAppShell(
+                  activeSection: _sectionFromRoute(route),
+                  onSectionChange: (s) => go(_routeFromSection(s)),
+                  userName: userData?['user']?['full_name'] ??
+                      auth['name'] ??
+                      'Usuário',
+                  userRole: _formatarCargo(),
+                  userPhotoUrl: userData?['user']?['foto_url'],
+                  onLogout: _logout,
+                  child: _buildContent(),
+                ))
           : () {
               if (route == RouteKey.landing) {
                 return LandingTela(
@@ -250,12 +290,13 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
                     setState(() {
                       auth = {
                         'logged': true,
-                        'name': resp['usuario']?['nome'] ?? resp['user']?['full_name'] ?? 'Usuário',
+                        'name': resp['usuario']?['nome'] ??
+                            resp['user']?['full_name'] ??
+                            'Usuário',
                       };
                       perfil = resp['usuario']?['perfil'];
                       route = RouteKey.dashboard;
                     });
-                    // Carrega dados completos do usuário após registro
                     await _carregarDadosUsuario();
                   },
                 );
@@ -266,16 +307,17 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
                 onSubmit: (email, senha) async {
                   try {
                     final r = await api.entrar(email: email, senha: senha);
+                    if (r['token'] != null) {
+                      await _storage.write(key: 'token', value: r['token']);
+                    }
                     setState(() {
                       auth = {
                         'logged': true,
                         'name': r['usuario']?['nome'] ?? email.split('@')[0],
                       };
                       perfil = r['usuario']?['perfil'];
-                      // rota temporária; após carregar dados o onboarding pode redirecionar
                       route = RouteKey.dashboard;
                     });
-                    // Carrega dados completos do usuário após login
                     await _carregarDadosUsuario();
                   } catch (e) {
                     if (!context.mounted) return;
@@ -330,7 +372,8 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
               curriculoNome = cur['nome_arquivo'] ?? 'curriculo.pdf';
               ctx['candidato'] = cand['nome'] ?? ctx['candidato']!;
               if (vaga is Map) {
-                ctx['vagaSelecionada'] = vaga['titulo']?.toString() ?? ctx['vagaSelecionada']!;
+                ctx['vagaSelecionada'] =
+                    vaga['titulo']?.toString() ?? ctx['vagaSelecionada']!;
               }
               entrevistaId = ent != null ? ent['id'] : null;
               ultimoUpload = resultado;
@@ -375,9 +418,15 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
         return AnaliseCurriculoTela(
           vaga: ctx['vagaSelecionada']!,
           candidato: ctx['candidato']!,
-          arquivo: curriculoNome.isEmpty ? 'Arquivo não informado' : curriculoNome,
-          fileUrl: (ultimoUpload != null) ? (ultimoUpload!['file']?['url'] as String?) : null,
-          analise: (ultimoUpload != null) ? (ultimoUpload!['curriculo']?['analise_json'] as Map<String, dynamic>?) : null,
+          arquivo:
+              curriculoNome.isEmpty ? 'Arquivo não informado' : curriculoNome,
+          fileUrl: (ultimoUpload != null)
+              ? (ultimoUpload!['file']?['url'] as String?)
+              : null,
+          analise: (ultimoUpload != null)
+              ? (ultimoUpload!['curriculo']?['analise_json']
+                  as Map<String, dynamic>?)
+              : null,
           onVoltar: () => go(RouteKey.upload),
           onEntrevistar: () => go(RouteKey.entrevista),
         );
@@ -411,6 +460,8 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
         );
       case RouteKey.usuarios:
         return UsuariosAdminTela(api: api, isAdmin: (perfil == 'ADMIN'));
+      case RouteKey.aplicacoes:
+        return AplicacoesTela(api: api);
       default:
         return const SizedBox.shrink();
     }
@@ -456,7 +507,8 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
                   children: [
                     const Text(
                       'Título',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                      style:
+                          TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                     ),
                     const SizedBox(height: 6),
                     TextField(
@@ -470,7 +522,8 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
                     const SizedBox(height: 16),
                     const Text(
                       'Descrição',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                      style:
+                          TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                     ),
                     const SizedBox(height: 6),
                     TextField(
@@ -491,7 +544,8 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
                             children: [
                               const Text(
                                 'Requisitos',
-                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                                style: TextStyle(
+                                    fontSize: 14, fontWeight: FontWeight.w500),
                               ),
                               const SizedBox(height: 6),
                               TextField(
@@ -501,7 +555,8 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
                                   hintText: 'Habilidades, experiências',
                                   border: OutlineInputBorder(),
                                 ),
-                                onChanged: (value) => vagaForm['requisitos'] = value,
+                                onChanged: (value) =>
+                                    vagaForm['requisitos'] = value,
                               ),
                             ],
                           ),
@@ -513,7 +568,8 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
                             children: [
                               const Text(
                                 'Tecnologias',
-                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                                style: TextStyle(
+                                    fontSize: 14, fontWeight: FontWeight.w500),
                               ),
                               const SizedBox(height: 6),
                               TextField(
@@ -523,7 +579,8 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
                                   hintText: 'Ex.: React, Node.js, SQL',
                                   border: OutlineInputBorder(),
                                 ),
-                                onChanged: (value) => vagaForm['tecnologias'] = value,
+                                onChanged: (value) =>
+                                    vagaForm['tecnologias'] = value,
                               ),
                             ],
                           ),
@@ -582,236 +639,62 @@ class AppShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = [
-      {'key': RouteKey.dashboard, 'label': 'Dashboard', 'icon': Icons.home},
-      {'key': RouteKey.vagas, 'label': 'Vagas', 'icon': Icons.work},
-      {'key': RouteKey.candidatos, 'label': 'Candidatos', 'icon': Icons.people},
-      {'key': RouteKey.upload, 'label': 'Upload', 'icon': Icons.upload},
-      {'key': RouteKey.historico, 'label': 'Histórico', 'icon': Icons.assignment},
-      {'key': RouteKey.config, 'label': 'Configurações', 'icon': Icons.settings},
-      {'key': RouteKey.usuarios, 'label': 'Usuários', 'icon': Icons.admin_panel_settings},
-    ];
-
-    return Scaffold(
-      body: Row(
-        children: [
-          // Sidebar
-          LayoutBuilder(
-            builder: (context, constraints) {
-              if (MediaQuery.of(context).size.width < 768) {
-                return const SizedBox.shrink();
-              }
-              return Container(
-                width: 256,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border(
-                    right: BorderSide(color: Colors.grey.shade200),
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    // Logo header
-                    Container(
-                      height: 64,
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      decoration: BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(color: Colors.grey.shade200),
-                        ),
-                      ),
-                      child: const Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'TalentMatchIA',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF4338CA),
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                      ),
-                    ),
-                    // Navigation
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          children: items.map((item) {
-                            final isSelected = route == item['key'];
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 4),
-                              child: InkWell(
-                                onTap: () => onNavigate(item['key'] as RouteKey),
-                                borderRadius: BorderRadius.circular(8),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 10,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    gradient: isSelected
-                                        ? const LinearGradient(
-                                            colors: [
-                                              Color(0xFF4F46E5),
-                                              Color(0xFF6366F1),
-                                            ],
-                                          )
-                                        : null,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        item['icon'] as IconData,
-                                        size: 20,
-                                        color: isSelected
-                                            ? Colors.white
-                                            : Colors.grey[700],
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Text(
-                                        item['label'] as String,
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w500,
-                                          color: isSelected
-                                              ? Colors.white
-                                              : Colors.grey[700],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-          // Main content area
-          Expanded(
-            child: Column(
-              children: [
-                // Header
-                Container(
-                  height: 64,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border(
-                      bottom: BorderSide(color: Colors.grey.shade200),
-                    ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Row(
-                      children: [
-                        // Search bar
-                        Expanded(
-                          child: Container(
-                            constraints: const BoxConstraints(maxWidth: 256),
-                            child: TextField(
-                              decoration: InputDecoration(
-                                hintText: 'Buscar candidato, vaga ou relatório',
-                                prefixIcon: Icon(
-                                  Icons.search,
-                                  size: 16,
-                                  color: Colors.grey[400],
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide(
-                                    color: Colors.grey.shade300,
-                                  ),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide(
-                                    color: Colors.grey.shade300,
-                                  ),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 8,
-                                ),
-                                isDense: true,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        // User info and logout
-                        Row(
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  name,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                Text(
-                                  'Recrutadora',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey[500],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(width: 12),
-                            Container(
-                              width: 32,
-                              height: 32,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: LinearGradient(
-                                  colors: [
-                                    Color(0xFF6366F1),
-                                    Color(0xFFD946EF),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            OutlinedButton(
-                              onPressed: onLogout,
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 8,
-                                ),
-                              ),
-                              child: const Text(
-                                'Sair',
-                                style: TextStyle(fontSize: 14),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                // Main content
-                Expanded(
-                  child: child,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+    return TMAppShell(
+      activeSection: _sectionFromRoute(route),
+      onSectionChange: (s) => onNavigate(_routeFromSection(s)),
+      userName: name,
+      userRole: 'Recrutador', // Simplificado, idealmente viria de props
+      userPhotoUrl: null,
+      onLogout: onLogout,
+      child: child,
     );
+  }
+
+  String _sectionFromRoute(RouteKey r) {
+    switch (r) {
+      case RouteKey.dashboard:
+        return 'dashboard';
+      case RouteKey.vagas:
+        return 'vagas';
+      case RouteKey.candidatos:
+        return 'candidatos';
+      case RouteKey.upload:
+        return 'upload';
+      case RouteKey.entrevistas:
+        return 'entrevistas';
+      case RouteKey.historico:
+        return 'historico';
+      case RouteKey.config:
+        return 'configuracoes';
+      case RouteKey.usuarios:
+        return 'configuracoes';
+      case RouteKey.aplicacoes:
+        return 'aplicacoes';
+      default:
+        return 'dashboard';
+    }
+  }
+
+  RouteKey _routeFromSection(String s) {
+    switch (s) {
+      case 'dashboard':
+        return RouteKey.dashboard;
+      case 'vagas':
+        return RouteKey.vagas;
+      case 'candidatos':
+        return RouteKey.candidatos;
+      case 'upload':
+        return RouteKey.upload;
+      case 'entrevistas':
+        return RouteKey.entrevistas;
+      case 'historico':
+        return RouteKey.historico;
+      case 'configuracoes':
+        return RouteKey.config;
+      case 'aplicacoes':
+        return RouteKey.aplicacoes;
+      default:
+        return RouteKey.dashboard;
+    }
   }
 }

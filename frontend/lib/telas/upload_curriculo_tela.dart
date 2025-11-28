@@ -43,6 +43,7 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
   String? _iaModel;
   DateTime? _inicioUpload;
   double? _duracaoSegundos;
+  String? _resumeId;
 
   void _setDragActive(bool value) {
     if (_uploadStatus != UploadStatus.idle) {
@@ -85,7 +86,8 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
         // Não seleciona vaga automaticamente; usuário deve escolher
         // Mantém seleção atual se ainda existir na lista
         if (_vagaSelecionadaId != null &&
-            !_vagas.any((vaga) => vaga['id']?.toString() == _vagaSelecionadaId)) {
+            !_vagas
+                .any((vaga) => vaga['id']?.toString() == _vagaSelecionadaId)) {
           _vagaSelecionadaId = null;
         }
       });
@@ -102,14 +104,14 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
       withData: true,
       allowedExtensions: const ['pdf', 'txt', 'docx'],
     );
-    
+
     if (res != null && res.files.isNotEmpty) {
       final file = res.files.first;
       // Validar tipo de arquivo
       final validTypes = ['pdf', 'txt', 'docx'];
       final extension = file.extension?.toLowerCase();
       const maxSizeBytes = 5 * 1024 * 1024; // 5MB
-      
+
       if (extension == null || !validTypes.contains(extension)) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -162,21 +164,23 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
       final resp = await widget.api.uploadCurriculoBytes(
         bytes: _arquivo!.bytes!,
         filename: _arquivo!.name,
-        candidato: {'nome': 'Candidato'},
+        candidato: {
+          'full_name': 'Candidato ${DateTime.now().millisecondsSinceEpoch}',
+          'email':
+              'candidato_${DateTime.now().millisecondsSinceEpoch}@exemplo.com',
+        },
         vagaId: _vagaSelecionadaId,
       );
 
-      // Cast correto para evitar erros de tipo LinkedHashMap
-      final cur = Map<String, dynamic>.from(resp['curriculo'] ?? {});
+      // A resposta já é o objeto do currículo (data)
+      final cur = resp;
       final analiseRaw = cur['analise_json'] ?? cur['parsed_json'];
-      
+
       // Parse do JSON se vier como string
       Map<String, dynamic> analiseMap;
       if (analiseRaw is String) {
         try {
-          analiseMap = Map<String, dynamic>.from(
-            jsonDecode(analiseRaw) as Map
-          );
+          analiseMap = Map<String, dynamic>.from(jsonDecode(analiseRaw) as Map);
         } catch (e) {
           debugPrint('❌ Erro ao parsear análise JSON: $e');
           analiseMap = <String, dynamic>{};
@@ -186,11 +190,33 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
       } else {
         analiseMap = <String, dynamic>{};
       }
-      
+
       final job = Map<String, dynamic>.from(resp['ingestion_job'] ?? {});
-      final cand = Map<String, dynamic>.from(resp['candidato'] ?? {});
-      final vaga = Map<String, dynamic>.from(resp['vaga'] ?? {});
-      final iaProvider = resp['ia_provider'] ?? resp['provider'] ?? analiseMap['provider'];
+      // O candidato vem DENTRO da análise da IA, mas o ID vem na raiz da resposta (candidate_id)
+      final candidateId = resp['candidate_id'];
+      final candidatoAnalise =
+          Map<String, dynamic>.from(analiseMap['candidato'] ?? {});
+
+      final cand = {
+        ...(_candidato ?? {}),
+        ...candidatoAnalise,
+        if (candidateId != null) 'id': candidateId,
+      };
+
+      // Tenta pegar a vaga da resposta, ou busca na lista local
+      var vaga = Map<String, dynamic>.from(resp['vaga'] ?? {});
+      if (vaga.isEmpty && _vagaSelecionadaId != null) {
+        final localVaga = _vagas.firstWhere(
+          (v) => v['id'].toString() == _vagaSelecionadaId,
+          orElse: () => {},
+        );
+        if (localVaga.isNotEmpty) {
+          vaga = localVaga;
+        }
+      }
+
+      final iaProvider =
+          resp['ia_provider'] ?? resp['provider'] ?? analiseMap['provider'];
       final iaModel = resp['ia_model'] ?? analiseMap['model'];
 
       if (job['id'] != null) {
@@ -204,8 +230,7 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
         for (int i = 0; i < 10; i++) {
           await Future.delayed(const Duration(milliseconds: 400));
           try {
-            final j =
-                await widget.api.getIngestionJob(job['id'].toString());
+            final j = await widget.api.getIngestionJob(job['id'].toString());
             final prog = _parseProgress(j['progress']) ?? _uploadProgress;
             setState(() {
               _uploadProgress = prog;
@@ -236,6 +261,7 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
           _duracaoSegundos =
               fim.difference(_inicioUpload!).inMilliseconds / 1000.0;
         }
+        _resumeId = cur['id']?.toString();
       });
 
       widget.onUploaded(resp);
@@ -267,6 +293,7 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
       _iaModel = null;
       _inicioUpload = null;
       _duracaoSegundos = null;
+      _resumeId = null;
     });
   }
 
@@ -356,8 +383,8 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: const [
+                const Row(
+                  children: [
                     Icon(Icons.upload_file, color: TMTokens.primary),
                     SizedBox(width: 8),
                     Text(
@@ -411,7 +438,9 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
                 onExit: (_) => _setDragActive(false),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(TMTokens.r12),
-                  onTap: _uploadStatus == UploadStatus.idle ? _selecionarArquivo : null,
+                  onTap: _uploadStatus == UploadStatus.idle
+                      ? _selecionarArquivo
+                      : null,
                   child: Padding(
                     padding: const EdgeInsets.all(4),
                     child: _arquivo != null
@@ -475,7 +504,9 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
                       Expanded(
                         child: _infoTile(
                           'Último score',
-                          _analise != null ? '${_analise!.matchingScore}%' : '--',
+                          _analise != null
+                              ? '${_analise!.matchingScore}%'
+                              : '--',
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -534,17 +565,99 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
       analiseBruta: _analiseBruta,
       candidato: _candidato,
       vaga: _vaga,
-      onAprovar: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Candidato marcado como aprovado.')),
-        );
-      },
+      onAprovar: _handleAprovar,
+      onReprovar: _handleReprovar,
+      onAgendar: _handleAgendar,
       onGerarPerguntas: () {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Use a aba Entrevistas para gerar perguntas com IA.')),
+          const SnackBar(
+              content:
+                  Text('Use a aba Entrevistas para gerar perguntas com IA.')),
         );
       },
     );
+  }
+
+  Future<void> _handleAprovar() async {
+    if (_resumeId == null) return;
+    try {
+      await widget.api.registrarDecisaoCurriculo(
+        _resumeId!,
+        decision: 'APROVADO',
+        jobId: _vagaSelecionadaId,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Candidato aprovado com sucesso!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Erro ao aprovar: $e'),
+              backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleReprovar() async {
+    if (_resumeId == null) return;
+    try {
+      await widget.api.registrarDecisaoCurriculo(
+        _resumeId!,
+        decision: 'REPROVADO',
+        jobId: _vagaSelecionadaId,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Candidato reprovado.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Erro ao reprovar: $e'),
+              backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleAgendar(DateTime data) async {
+    if (_resumeId == null) return;
+    if (_vagaSelecionadaId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Erro: Vaga não selecionada.')),
+      );
+      return;
+    }
+
+    try {
+      await widget.api.registrarDecisaoCurriculo(
+        _resumeId!,
+        decision: 'ENTREVISTA_AGENDADA',
+        jobId: _vagaSelecionadaId,
+        scheduledAt: data,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Entrevista agendada e salva com sucesso!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Erro ao agendar entrevista: $e'),
+              backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   Widget _buildWaitingCard() {
@@ -556,9 +669,9 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
           style: BorderStyle.solid,
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
-        child: const Column(
+      child: const Padding(
+        padding: EdgeInsets.symmetric(vertical: 40, horizontal: 24),
+        child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.auto_awesome, size: 48, color: TMTokens.secondary),
@@ -767,8 +880,9 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
     if (raw.isNotEmpty) {
       final lower = raw.toLowerCase();
       if (lower.contains('openai')) return 'gpt-4o-mini';
-      if (lower.contains('openrouter')) return 'openrouter-model';
-      if (lower.contains('groq')) return 'groq-model';
+      // Se for OpenRouter mas sem modelo específico, tenta mostrar algo genérico
+      if (lower.contains('openrouter')) return 'OpenRouter (Auto)';
+      if (lower.contains('groq')) return 'Groq (Auto)';
       return raw;
     }
 

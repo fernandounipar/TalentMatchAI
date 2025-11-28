@@ -1,24 +1,14 @@
-/*
-  Aplica uma única migração SQL informada por nome de arquivo (em scripts/sql)
-  Uso: node scripts/apply_single_migration.js 007_users_multitenant.sql
-*/
-require('dotenv').config({ path: __dirname + '/../.env' });
-const fs = require('fs');
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+const fs = require('fs');
 const { Client } = require('pg');
 
 async function main() {
-  const file = process.argv[2];
-  if (!file) {
-    console.error('Informe o nome do arquivo SQL em scripts/sql');
+  const fileToRun = process.argv[2];
+  if (!fileToRun) {
+    console.error('Please provide the migration filename (e.g. 034_resume_flow_updates.sql)');
     process.exit(1);
   }
-  const sqlPath = path.join(__dirname, 'sql', file);
-  if (!fs.existsSync(sqlPath)) {
-    console.error('Arquivo não encontrado:', sqlPath);
-    process.exit(1);
-  }
-  const sql = fs.readFileSync(sqlPath, 'utf8');
 
   const client = new Client({
     user: process.env.DB_USER,
@@ -28,16 +18,27 @@ async function main() {
     port: Number(process.env.DB_PORT) || 5432,
   });
 
-  console.log('Conectando ao Postgres...', client.connectionParameters);
+  console.log('Connecting to Postgres...');
   await client.connect();
+
   try {
-    console.log(`Executando ${file}...`);
+    const sqlDir = path.join(__dirname, 'sql');
+    const fullPath = path.join(sqlDir, fileToRun);
+
+    if (!fs.existsSync(fullPath)) {
+      throw new Error(`File not found: ${fullPath}`);
+    }
+
+    const sql = fs.readFileSync(fullPath, 'utf8');
+    console.log(`\n--- Executing ${fileToRun} ---`);
     await client.query(sql);
-    console.log('OK');
+    console.log(`OK: ${fileToRun}`);
+  } catch (e) {
+    console.error(`Error executing ${fileToRun}:`, e.message);
+    process.exit(1);
   } finally {
     await client.end();
   }
 }
 
-main().catch((e) => { console.error('Falha:', e.message); process.exit(1); });
-
+main().catch(console.error);
