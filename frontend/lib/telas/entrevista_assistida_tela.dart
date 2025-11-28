@@ -21,7 +21,8 @@ class EntrevistaAssistidaTela extends StatefulWidget {
   });
 
   @override
-  State<EntrevistaAssistidaTela> createState() => _EntrevistaAssistidaTelaState();
+  State<EntrevistaAssistidaTela> createState() =>
+      _EntrevistaAssistidaTelaState();
 }
 
 class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
@@ -58,8 +59,10 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
       });
       // carrega perguntas e respostas persistidas
       try {
-        final qs = await widget.api.listarPerguntasEntrevista(widget.entrevistaId);
-        final asw = await widget.api.listarRespostasEntrevista(widget.entrevistaId);
+        final qs =
+            await widget.api.listarPerguntasEntrevista(widget.entrevistaId);
+        final asw =
+            await widget.api.listarRespostasEntrevista(widget.entrevistaId);
         setState(() {
           _perguntas = qs.cast<Map<String, dynamic>>();
           _respostas = asw.cast<Map<String, dynamic>>();
@@ -74,14 +77,19 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
     return {
       'remetente': remetente,
       'texto': m['conteudo'] ?? '',
-      'timestamp': DateTime.tryParse(m['criado_em']?.toString() ?? '') ?? DateTime.now(),
+      'timestamp':
+          DateTime.tryParse(m['criado_em']?.toString() ?? '') ?? DateTime.now(),
     };
   }
 
   Future<void> _enviarMensagem(String texto) async {
     if (texto.trim().isEmpty || _enviando) return;
     setState(() {
-      _mensagens.add({'remetente': 'Recrutador', 'texto': texto, 'timestamp': DateTime.now()});
+      _mensagens.add({
+        'remetente': 'Recrutador',
+        'texto': texto,
+        'timestamp': DateTime.now()
+      });
       _enviando = true;
     });
     _controlador.clear();
@@ -92,7 +100,8 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
       // Se uma pergunta estiver selecionada, persiste como resposta
       if (_perguntaSelecionadaId != null) {
         try {
-          final saved = await widget.api.responderPergunta(widget.entrevistaId, questionId: _perguntaSelecionadaId!, texto: texto);
+          final saved = await widget.api.responderPergunta(widget.entrevistaId,
+              questionId: _perguntaSelecionadaId!, texto: texto);
           setState(() {
             _respostas = List.from(_respostas)..add(saved);
           });
@@ -100,11 +109,12 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Falha ao enviar: $e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Falha ao enviar: $e')));
     } finally {
       if (mounted) setState(() => _enviando = false);
     }
-      await Future.delayed(const Duration(milliseconds: 100));
+    await Future.delayed(const Duration(milliseconds: 100));
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
         _scrollController.position.maxScrollExtent,
@@ -122,11 +132,16 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.question_answer, size: 64, color: Colors.grey.shade400),
+                  Icon(Icons.question_answer,
+                      size: 64, color: Colors.grey.shade400),
                   const SizedBox(height: 16),
-                  const Text('Nenhuma pergunta gerada', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const Text('Nenhuma pergunta gerada',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
-                  const Text('Use a aba "Assistente" para gerar perguntas com IA', style: TextStyle(color: Colors.grey)),
+                  const Text(
+                      'Use a aba "Assistente" para gerar perguntas com IA',
+                      style: TextStyle(color: Colors.grey)),
                 ],
               ),
             )
@@ -140,7 +155,7 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                   (r) => r['question_id'] == perguntaId,
                   orElse: () => <String, dynamic>{},
                 );
-                
+
                 return Card(
                   margin: const EdgeInsets.only(bottom: 16),
                   elevation: 2,
@@ -152,7 +167,8 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                         Row(
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
                                 color: const Color(0xFF4F46E5).withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(4),
@@ -169,8 +185,10 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                pergunta['kind']?.toString().toUpperCase() ?? 'TÉCNICA',
-                                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                pergunta['kind']?.toString().toUpperCase() ??
+                                    'TÉCNICA',
+                                style: TextStyle(
+                                    fontSize: 11, color: Colors.grey.shade600),
                               ),
                             ),
                           ],
@@ -178,7 +196,8 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                         const SizedBox(height: 12),
                         Text(
                           pergunta['prompt']?.toString() ?? '',
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w500),
                         ),
                         if (resposta.isNotEmpty) ...[
                           const SizedBox(height: 12),
@@ -208,7 +227,10 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                           const SizedBox(height: 12),
                           Text(
                             'Aguardando resposta...',
-                            style: TextStyle(fontSize: 13, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+                            style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey.shade500,
+                                fontStyle: FontStyle.italic),
                           ),
                         ],
                       ],
@@ -233,18 +255,24 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey.shade400),
+                          Icon(Icons.chat_bubble_outline,
+                              size: 64, color: Colors.grey.shade400),
                           const SizedBox(height: 16),
-                          const Text('Inicie a conversa', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          const Text('Inicie a conversa',
+                              style: TextStyle(
+                                  fontSize: 18, fontWeight: FontWeight.bold)),
                           const SizedBox(height: 8),
-                          const Text('A IA está pronta para auxiliar na entrevista', style: TextStyle(color: Colors.grey)),
+                          const Text(
+                              'A IA está pronta para auxiliar na entrevista',
+                              style: TextStyle(color: Colors.grey)),
                         ],
                       ),
                     )
                   : ListView.builder(
                       controller: _scrollController,
                       itemCount: _mensagens.length,
-                      itemBuilder: (context, index) => _BolhaMensagem(mensagem: _mensagens[index]),
+                      itemBuilder: (context, index) =>
+                          _BolhaMensagem(mensagem: _mensagens[index]),
                     ),
             ),
           ),
@@ -263,7 +291,8 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                     maxLines: 4,
                     decoration: InputDecoration(
                       hintText: 'Digite sua mensagem para a IA...',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8)),
                       filled: true,
                       fillColor: Colors.white,
                     ),
@@ -271,13 +300,16 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                 ),
                 const SizedBox(width: 8),
                 ElevatedButton.icon(
-                  onPressed: _enviando ? null : () => _enviarMensagem(_controlador.text),
+                  onPressed: _enviando
+                      ? null
+                      : () => _enviarMensagem(_controlador.text),
                   icon: const Icon(Icons.send, size: 18),
                   label: Text(_enviando ? 'Enviando...' : 'Enviar'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4F46E5),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 16),
                   ),
                 ),
               ],
@@ -311,18 +343,22 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                           color: const Color(0xFF4F46E5).withOpacity(0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(Icons.psychology, color: Color(0xFF4F46E5), size: 24),
+                        child: const Icon(Icons.psychology,
+                            color: Color(0xFF4F46E5), size: 24),
                       ),
                       const SizedBox(width: 12),
                       const Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Gerar Perguntas com IA', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                            Text('Gerar Perguntas com IA',
+                                style: TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.bold)),
                             SizedBox(height: 4),
                             Text(
                               'A IA pode sugerir perguntas baseadas no perfil do candidato e requisitos da vaga',
-                              style: TextStyle(color: Colors.grey, fontSize: 13),
+                              style:
+                                  TextStyle(color: Colors.grey, fontSize: 13),
                             ),
                           ],
                         ),
@@ -336,35 +372,48 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                         : () async {
                             setState(() => _gerandoPerguntas = true);
                             try {
-                              await widget.api.gerarPerguntasAIParaEntrevista(widget.entrevistaId);
-                              final qs = await widget.api.listarPerguntasEntrevista(widget.entrevistaId);
+                              await widget.api.gerarPerguntasAIParaEntrevista(
+                                  widget.entrevistaId);
+                              final qs = await widget.api
+                                  .listarPerguntasEntrevista(
+                                      widget.entrevistaId);
                               setState(() {
                                 _perguntas = qs.cast<Map<String, dynamic>>();
-                                if (_perguntaSelecionadaId == null && _perguntas.isNotEmpty) {
-                                  _perguntaSelecionadaId = _perguntas.first['id'].toString();
+                                if (_perguntaSelecionadaId == null &&
+                                    _perguntas.isNotEmpty) {
+                                  _perguntaSelecionadaId =
+                                      _perguntas.first['id'].toString();
                                 }
                               });
                               if (!mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('✨ ${_perguntas.length} perguntas geradas com sucesso!')),
+                                SnackBar(
+                                    content: Text(
+                                        '✨ ${_perguntas.length} perguntas geradas com sucesso!')),
                               );
                             } catch (e) {
                               if (!mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Falha ao gerar perguntas: $e')),
+                                SnackBar(
+                                    content:
+                                        Text('Falha ao gerar perguntas: $e')),
                               );
                             } finally {
-                              if (mounted) setState(() => _gerandoPerguntas = false);
+                              if (mounted)
+                                setState(() => _gerandoPerguntas = false);
                             }
                           },
                     icon: _gerandoPerguntas
                         ? const SizedBox(
                             width: 16,
                             height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
                           )
                         : const Icon(Icons.auto_awesome),
-                    label: Text(_gerandoPerguntas ? 'Gerando Perguntas...' : 'Gerar Perguntas Personalizadas'),
+                    label: Text(_gerandoPerguntas
+                        ? 'Gerando Perguntas...'
+                        : 'Gerar Perguntas Personalizadas'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF4F46E5),
                       foregroundColor: Colors.white,
@@ -390,7 +439,9 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                     children: [
                       Icon(Icons.add_circle_outline, color: Color(0xFF4F46E5)),
                       SizedBox(width: 8),
-                      Text('Adicionar Pergunta Manual', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text('Adicionar Pergunta Manual',
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold)),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -413,24 +464,35 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                             ),
                           ),
                           actions: [
-                            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
+                            TextButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                child: const Text('Cancelar')),
                             ElevatedButton(
                               onPressed: () async {
                                 try {
-                                  await widget.api.criarPerguntaManual(widget.entrevistaId, prompt: ctrl.text.trim());
+                                  await widget.api.criarPerguntaManual(
+                                      widget.entrevistaId,
+                                      prompt: ctrl.text.trim());
                                   Navigator.of(context).pop();
-                                  final qs = await widget.api.listarPerguntasEntrevista(widget.entrevistaId);
+                                  final qs = await widget.api
+                                      .listarPerguntasEntrevista(
+                                          widget.entrevistaId);
                                   if (!mounted) return;
                                   setState(() {
-                                    _perguntas = qs.cast<Map<String, dynamic>>();
+                                    _perguntas =
+                                        qs.cast<Map<String, dynamic>>();
                                   });
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Pergunta adicionada com sucesso!')),
+                                    const SnackBar(
+                                        content: Text(
+                                            'Pergunta adicionada com sucesso!')),
                                   );
                                 } catch (_) {
                                   if (!mounted) return;
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Falha ao adicionar pergunta')),
+                                    const SnackBar(
+                                        content: Text(
+                                            'Falha ao adicionar pergunta')),
                                   );
                                 }
                               },
@@ -467,16 +529,21 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Perguntas Atuais', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        const Text('Perguntas Atuais',
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold)),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
                             color: const Color(0xFF4F46E5),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
                             '${_perguntas.length}',
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold),
                           ),
                         ),
                       ],
@@ -499,7 +566,8 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                                 width: 32,
                                 height: 32,
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF4F46E5).withOpacity(0.2),
+                                  color:
+                                      const Color(0xFF4F46E5).withOpacity(0.2),
                                   borderRadius: BorderRadius.circular(16),
                                 ),
                                 child: Center(
@@ -513,7 +581,9 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                                 ),
                               ),
                               const SizedBox(width: 12),
-                              Expanded(child: Text(q['prompt']?.toString() ?? '', style: const TextStyle(fontSize: 14))),
+                              Expanded(
+                                  child: Text(q['prompt']?.toString() ?? '',
+                                      style: const TextStyle(fontSize: 14))),
                             ],
                           ),
                         ),
@@ -526,7 +596,9 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
         ],
       ),
     );
-  }  @override
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -547,11 +619,18 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                         children: [
                           Icon(Icons.mic, color: Colors.white),
                           SizedBox(width: 8),
-                          Text('Entrevista em Andamento', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white)),
+                          Text('Entrevista em Andamento',
+                              style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white)),
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text('Candidato: ${widget.candidato} • Vaga: ${widget.vaga}', style: const TextStyle(color: Colors.white70, fontSize: 14)),
+                      Text(
+                          'Candidato: ${widget.candidato} • Vaga: ${widget.vaga}',
+                          style: const TextStyle(
+                              color: Colors.white70, fontSize: 14)),
                     ],
                   ),
                 ),
@@ -561,7 +640,9 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                       onPressed: widget.onCancelar,
                       icon: const Icon(Icons.close),
                       label: const Text('Cancelar'),
-                      style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: const BorderSide(color: Colors.white)),
+                      style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: Colors.white)),
                     ),
                     const SizedBox(width: 12),
                     ElevatedButton.icon(
@@ -570,19 +651,27 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                           : () async {
                               setState(() => _finalizando = true);
                               try {
-                                final relatorio = await widget.api.gerarRelatorio(widget.entrevistaId);
+                                final relatorio = await widget.api
+                                    .gerarRelatorio(widget.entrevistaId);
                                 widget.onFinalizar(relatorio);
                               } catch (e) {
-                                if (!mounted) return;
-                                ScaffoldMessenger.of(context)
-                                    .showSnackBar(SnackBar(content: Text('Falha ao gerar relatório: $e')));
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                        content: Text(
+                                            'Falha ao gerar relatório: $e')));
                               } finally {
-                                if (mounted) setState(() => _finalizando = false);
+                                if (mounted)
+                                  setState(() => _finalizando = false);
                               }
                             },
                       icon: const Icon(Icons.check),
-                      label: Text(_finalizando ? 'Gerando...' : 'Finalizar & Gerar Relatório'),
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: const Color(0xFF4F46E5)),
+                      label: Text(_finalizando
+                          ? 'Gerando...'
+                          : 'Finalizar & Gerar Relatório'),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: const Color(0xFF4F46E5)),
                     ),
                   ],
                 ),
@@ -607,7 +696,9 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                     indicatorColor: const Color(0xFF4F46E5),
                     tabs: const [
                       Tab(icon: Icon(Icons.question_answer), text: 'Perguntas'),
-                      Tab(icon: Icon(Icons.chat_bubble_outline), text: 'Chat IA'),
+                      Tab(
+                          icon: Icon(Icons.chat_bubble_outline),
+                          text: 'Chat IA'),
                       Tab(icon: Icon(Icons.psychology), text: 'Assistente'),
                     ],
                   ),
@@ -618,10 +709,10 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                     children: [
                       // Tab 1: Perguntas e Respostas
                       _buildPerguntasTab(),
-                      
+
                       // Tab 2: Chat com IA
                       _buildChatTab(),
-                      
+
                       // Tab 3: Assistente IA
                       _buildAssistenteTab(),
                     ],

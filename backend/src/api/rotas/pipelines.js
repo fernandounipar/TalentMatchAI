@@ -18,7 +18,7 @@ async function ensureDefaultPipeline(companyId, jobId) {
   let pos = 1;
   for (const name of stages) {
     await db.query(
-      'INSERT INTO pipeline_stages (company_id, pipeline_id, name, position) VALUES ($1,$2,$3,$4)',
+      'INSERT INTO etapas_pipeline (company_id, pipeline_id, name, position) VALUES ($1,$2,$3,$4)',
       [companyId, pipeline.id, name, pos++]
     );
   }
@@ -32,7 +32,7 @@ router.get('/jobs/:jobId/pipeline', async (req, res) => {
   try {
     const pipeline = await ensureDefaultPipeline(companyId, jobId);
     const stages = await db.query(
-      'SELECT id, name, position FROM pipeline_stages WHERE pipeline_id=$1 AND company_id=$2 ORDER BY position',
+      'SELECT id, name, position FROM etapas_pipeline WHERE pipeline_id=$1 AND company_id=$2 ORDER BY position',
       [pipeline.id, companyId]
     );
     res.json({ pipeline, stages: stages.rows });

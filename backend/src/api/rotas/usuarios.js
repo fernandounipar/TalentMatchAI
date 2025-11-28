@@ -60,7 +60,7 @@ router.post('/', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
         return res.status(400).json({ error: { code: 'INVALID_DOCUMENT', message: 'Invalid company type/document' } });
       }
       const companyResult = await db.query(
-        `INSERT INTO companies (type, document, name)
+        `INSERT INTO empresas (type, document, name)
          VALUES ($1, $2, $3)
          ON CONFLICT (document) DO UPDATE SET type = EXCLUDED.type, name = EXCLUDED.name
          RETURNING id`,
@@ -77,7 +77,7 @@ router.post('/', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
 
     // Inserir usuário
     const result = await db.query(
-      `INSERT INTO users (
+      `INSERT INTO usuarios (
         company_id, full_name, email, password_hash, role,
         phone, department, job_title, bio,
         is_active, email_verified
@@ -132,7 +132,7 @@ router.post('/invite', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
 
     // Verificar se email já existe
     const existingUser = await db.query(
-      'SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND deleted_at IS NULL',
+      'SELECT id FROM usuarios WHERE LOWER(email) = LOWER($1) AND deleted_at IS NULL',
       [email]
     );
 
@@ -147,7 +147,7 @@ router.post('/invite', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
 
     // Criar usuário com convite pendente
     const result = await db.query(
-      `INSERT INTO users (
+      `INSERT INTO usuarios (
         company_id, full_name, email, role,
         phone, department, job_title,
         invitation_token, invitation_expires_at, invited_by,
@@ -223,7 +223,7 @@ router.post('/accept-invite', async (req, res) => {
 
     // Atualizar usuário: definir senha, limpar token, marcar como verificado
     await db.query(
-      `UPDATE users
+      `UPDATE usuarios
        SET password_hash = $1,
            invitation_token = NULL,
            invitation_expires_at = NULL,
@@ -328,8 +328,8 @@ router.get('/', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
          u.invited_by,
          u.created_at, u.updated_at,
          inv.full_name as invited_by_name
-       FROM users u
-       LEFT JOIN users inv ON u.invited_by = inv.id
+       FROM usuarios u
+       LEFT JOIN usuarios inv ON u.invited_by = inv.id
        WHERE ${whereClause}
        ORDER BY ${sortColumn} ${sortOrder}
        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
@@ -338,7 +338,7 @@ router.get('/', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
 
     // Contar total
     const countResult = await db.query(
-      `SELECT COUNT(*) as total FROM users WHERE ${whereClause}`,
+      `SELECT COUNT(*) as total FROM usuarios WHERE ${whereClause}`,
       params
     );
 
@@ -382,9 +382,9 @@ router.get('/:id', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
          c.name as company_name,
          inv.full_name as invited_by_name,
          inv.email as invited_by_email
-       FROM users u
-       LEFT JOIN companies c ON u.company_id = c.id
-       LEFT JOIN users inv ON u.invited_by = inv.id
+       FROM usuarios u
+       LEFT JOIN empresas c ON u.company_id = c.id
+       LEFT JOIN usuarios inv ON u.invited_by = inv.id
        WHERE u.id = $1
          AND u.company_id = $2
          AND u.deleted_at IS NULL`,
@@ -420,7 +420,7 @@ router.put('/:id', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
 
     // Verificar se usuário existe e pertence à company
     const existingUser = await db.query(
-      'SELECT id, role FROM users WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL',
+      'SELECT id, role FROM usuarios WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL',
       [id, req.usuario.company_id]
     );
 
@@ -520,7 +520,7 @@ router.put('/:id', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
     // Executar update
     params.push(id, req.usuario.company_id);
     const result = await db.query(
-      `UPDATE users
+      `UPDATE usuarios
        SET ${updates.join(', ')}
        WHERE id = $${paramIndex} AND company_id = $${paramIndex + 1} AND deleted_at IS NULL
        RETURNING
@@ -554,7 +554,7 @@ router.delete('/:id', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
 
     // Verificar se usuário existe e pertence à company
     const existingUser = await db.query(
-      'SELECT id, email FROM users WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL',
+      'SELECT id, email FROM usuarios WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL',
       [id, req.usuario.company_id]
     );
 
@@ -569,7 +569,7 @@ router.delete('/:id', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
 
     // Soft delete
     await db.query(
-      'UPDATE users SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1',
+      'UPDATE usuarios SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1',
       [id]
     );
 

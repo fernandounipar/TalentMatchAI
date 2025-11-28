@@ -3,7 +3,7 @@ class Usuario {
   final String nome;
   final String email;
   final String role; // 'admin', 'recrutador', 'gestor'
-  final String companyId;
+  final String? companyId;
   final String? avatar;
 
   Usuario({
@@ -11,7 +11,7 @@ class Usuario {
     required this.nome,
     required this.email,
     required this.role,
-    required this.companyId,
+    this.companyId,
     this.avatar,
   });
 
@@ -21,7 +21,7 @@ class Usuario {
       nome: json['nome']?.toString() ?? '',
       email: json['email']?.toString() ?? '',
       role: json['role']?.toString() ?? 'recrutador',
-      companyId: json['companyId']?.toString() ?? '',
+      companyId: json['companyId']?.toString(),
       avatar: json['avatar']?.toString(),
     );
   }

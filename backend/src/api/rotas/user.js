@@ -45,8 +45,8 @@ router.get('/me', exigirAutenticacao, async (req, res) => {
          c.type AS company_type,
          c.document AS company_document,
          c.name AS company_name
-       FROM users u
-       LEFT JOIN companies c ON c.id = u.company_id
+       FROM usuarios u
+       LEFT JOIN empresas c ON c.id = u.company_id
        WHERE u.id = $1 AND u.deleted_at IS NULL`,
       [userId]
     );
@@ -60,11 +60,11 @@ router.get('/me', exigirAutenticacao, async (req, res) => {
     const company =
       row.company_id_db && row.company_type && row.company_document
         ? {
-            id: row.company_id_db,
-            type: row.company_type,
-            document: row.company_document,
-            name: row.company_name
-          }
+          id: row.company_id_db,
+          type: row.company_type,
+          document: row.company_document,
+          name: row.company_name
+        }
         : null;
 
     const user = {
@@ -143,7 +143,7 @@ router.put('/profile', exigirAutenticacao, async (req, res) => {
     values.push(userId);
 
     const query = `
-      UPDATE users 
+      UPDATE usuarios 
       SET ${updates.join(', ')}
       WHERE id = $${paramCount} AND deleted_at IS NULL
       RETURNING id, full_name, email, role, cargo, foto_url
@@ -186,7 +186,7 @@ router.post('/avatar', exigirAutenticacao, async (req, res) => {
     }
 
     const result = await db.query(
-      `UPDATE users 
+      `UPDATE usuarios 
        SET foto_url = $1, updated_at = NOW()
        WHERE id = $2 AND deleted_at IS NULL
        RETURNING id, full_name, foto_url`,
