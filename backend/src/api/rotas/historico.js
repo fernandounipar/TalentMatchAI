@@ -11,18 +11,18 @@ router.get('/', async (req, res) => {
   try {
     const companyId = req.usuario.company_id;
 
-    // Uploads de currículo (ingestion_jobs + resumes/candidates)
+    // Uploads de currículo (processos_ingestao + curriculos/candidatos)
     const uploads = await db.query(
       `SELECT j.id,
               j.created_at,
               j.metadata->>'filename' AS filename,
               cand.full_name AS candidato,
               r.id AS resume_id
-         FROM ingestion_jobs j
-         LEFT JOIN resumes r
+         FROM processos_ingestao j
+         LEFT JOIN curriculos r
            ON r.id = j.entity_id
           AND r.company_id = j.company_id
-         LEFT JOIN candidates cand
+         LEFT JOIN candidatos cand
            ON cand.id = r.candidate_id
           AND cand.company_id = j.company_id
         WHERE j.company_id = $1
@@ -32,17 +32,26 @@ router.get('/', async (req, res) => {
       [companyId]
     );
 
-    // Entrevistas (domínio novo) - unificado
+    // Entrevistas - usando tabelas em português (entrevistas, candidaturas, vagas, candidatos)
     const entrevistas = await db.query(
       `SELECT i.id,
               i.created_at AS criado_em,
+              i.status,
+              i.result,
+              i.overall_score,
+              i.scheduled_at,
+              i.completed_at,
+              i.duration_minutes,
               j.title AS vaga,
               cand.full_name AS candidato,
-              EXISTS(SELECT 1 FROM interview_reports ir WHERE ir.interview_id = i.id AND ir.company_id = i.company_id) AS tem_relatorio
-         FROM interviews i
-         JOIN applications a ON a.id = i.application_id
-         JOIN jobs j ON j.id = a.job_id
-         JOIN candidates cand ON cand.id = a.candidate_id
+              u.full_name AS entrevistador,
+              EXISTS(SELECT 1 FROM relatorios_entrevista re WHERE re.interview_id = i.id AND re.company_id = i.company_id) AS tem_relatorio,
+              (SELECT re.recommendation FROM relatorios_entrevista re WHERE re.interview_id = i.id AND re.company_id = i.company_id ORDER BY re.generated_at DESC LIMIT 1) AS relatorio_recomendacao
+         FROM entrevistas i
+         JOIN candidaturas a ON a.id = i.application_id
+         JOIN vagas j ON j.id = a.job_id
+         JOIN candidatos cand ON cand.id = a.candidate_id
+         LEFT JOIN usuarios u ON u.id = i.interviewer_id
         WHERE i.company_id = $1
           AND i.deleted_at IS NULL
         ORDER BY i.created_at DESC
@@ -70,6 +79,13 @@ router.get('/', async (req, res) => {
     }
 
     // Normaliza entrevistas
+    const statusLabels = {
+      'scheduled': 'Agendada',
+      'in_progress': 'Em andamento',
+      'completed': 'Finalizada',
+      'cancelled': 'Cancelada',
+      'no_show': 'Não compareceu'
+    };
     for (const row of entrevistas.rows) {
       eventos.push({
         id: String(row.id),
@@ -82,6 +98,16 @@ router.get('/', async (req, res) => {
         vaga: row.vaga,
         candidato: row.candidato,
         tem_relatorio: row.tem_relatorio,
+        // Campos RF7/RF8 adicionais
+        status: row.status,
+        status_label: statusLabels[row.status] || row.status,
+        result: row.result,
+        overall_score: row.overall_score,
+        relatorio_recomendacao: row.relatorio_recomendacao,
+        scheduled_at: row.scheduled_at,
+        completed_at: row.completed_at,
+        duration_minutes: row.duration_minutes,
+        entrevistador: row.entrevistador,
       });
     }
 
