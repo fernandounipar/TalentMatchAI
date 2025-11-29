@@ -626,19 +626,19 @@ router.get('/interviews/metrics', async (req, res) => {
 
     const metrics = metricsResult.rows[0]?.metrics || {};
 
-    // Buscar distribuição por status da view interviews_by_status
+    // Buscar distribuição por status da view entrevistas_por_status
     const byStatusResult = await db.query(
       `SELECT status, interview_count, avg_score, avg_duration
-       FROM interviews_by_status
+       FROM entrevistas_por_status
        WHERE company_id = $1
        ORDER BY interview_count DESC`,
       [companyId]
     );
 
-    // Buscar distribuição por resultado da view interviews_by_result
+    // Buscar distribuição por resultado da view entrevistas_por_resultado
     const byResultResult = await db.query(
       `SELECT result, interview_count, avg_score, completed_count
-       FROM interviews_by_result
+       FROM entrevistas_por_resultado
        WHERE company_id = $1
        ORDER BY interview_count DESC`,
       [companyId]
@@ -1280,7 +1280,7 @@ router.post('/presets', async (req, res) => {
     // Se marcar como default, desmarcar outros defaults do usuário
     if (is_default) {
       await db.query(
-        `UPDATE dashboard_presets 
+        `UPDATE presets_dashboard 
          SET is_default = FALSE 
          WHERE user_id = $1 AND company_id = $2 AND deleted_at IS NULL`,
         [userId, companyId]
@@ -1288,7 +1288,7 @@ router.post('/presets', async (req, res) => {
     }
 
     const result = await db.query(
-      `INSERT INTO dashboard_presets(
+      `INSERT INTO presets_dashboard(
         user_id, company_id, name, description,
         filters, layout, preferences,
         is_default, is_shared, shared_with_roles
@@ -1399,9 +1399,9 @@ dp.id,
   dp.updated_at,
   u.nome as user_name,
   c.name as company_name
-       FROM dashboard_presets dp
-       LEFT JOIN users u ON u.id = dp.user_id
-       LEFT JOIN companies c ON c.id = dp.company_id
+       FROM presets_dashboard dp
+       LEFT JOIN usuarios u ON u.id = dp.user_id
+       LEFT JOIN empresas c ON c.id = dp.company_id
        WHERE ${whereClause}
        ORDER BY dp.${sortColumn} ${sortOrder}
        LIMIT $${paramIndex} OFFSET $${paramIndex + 1} `,
@@ -1411,7 +1411,7 @@ dp.id,
     // Contar total
     const countResult = await db.query(
       `SELECT COUNT(*):: int as total
-       FROM dashboard_presets dp
+       FROM presets_dashboard dp
        WHERE ${whereClause} `,
       params
     );
@@ -1452,9 +1452,9 @@ router.get('/presets/:id', async (req, res) => {
 dp.*,
   u.nome as user_name,
   c.name as company_name
-       FROM dashboard_presets dp
-       LEFT JOIN users u ON u.id = dp.user_id
-       LEFT JOIN companies c ON c.id = dp.company_id
+       FROM presets_dashboard dp
+       LEFT JOIN usuarios u ON u.id = dp.user_id
+       LEFT JOIN empresas c ON c.id = dp.company_id
        WHERE dp.id = $1 
          AND dp.company_id = $2
          AND dp.deleted_at IS NULL
@@ -1471,7 +1471,7 @@ AND(dp.user_id = $3 OR(dp.is_shared = TRUE AND $4 = ANY(dp.shared_with_roles)))`
 
     // Incrementar usage_count e atualizar last_used_at
     await db.query(
-      `UPDATE dashboard_presets 
+      `UPDATE presets_dashboard 
        SET usage_count = usage_count + 1,
   last_used_at = NOW()
        WHERE id = $1`,
@@ -1516,7 +1516,7 @@ router.put('/presets/:id', async (req, res) => {
 
     // Verificar se preset existe e pertence ao usuário
     const checkResult = await db.query(
-      `SELECT * FROM dashboard_presets 
+      `SELECT * FROM presets_dashboard 
        WHERE id = $1 AND company_id = $2 AND user_id = $3 AND deleted_at IS NULL`,
       [id, companyId, userId]
     );
@@ -1531,7 +1531,7 @@ router.put('/presets/:id', async (req, res) => {
     // Se marcar como default, desmarcar outros defaults do usuário
     if (is_default) {
       await db.query(
-        `UPDATE dashboard_presets 
+        `UPDATE presets_dashboard 
          SET is_default = FALSE 
          WHERE user_id = $1 AND company_id = $2 AND id != $3 AND deleted_at IS NULL`,
         [userId, companyId, id]
@@ -1593,7 +1593,7 @@ router.put('/presets/:id', async (req, res) => {
 
     values.push(id);
     const result = await db.query(
-      `UPDATE dashboard_presets 
+      `UPDATE presets_dashboard 
        SET ${updates.join(', ')}
        WHERE id = $${paramIndex}
 RETURNING * `,
@@ -1624,7 +1624,7 @@ router.delete('/presets/:id', async (req, res) => {
     const { id } = req.params;
 
     const result = await db.query(
-      `UPDATE dashboard_presets 
+      `UPDATE presets_dashboard 
        SET deleted_at = NOW()
        WHERE id = $1 AND company_id = $2 AND user_id = $3 AND deleted_at IS NULL
        RETURNING id, name`,

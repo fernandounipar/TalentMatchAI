@@ -18,7 +18,7 @@ router.post('/', exigirAutenticacao, async (req, res) => {
       return res.status(400).json({ erro: 'Documento inválido.' });
     }
     const up = await db.query(
-      `INSERT INTO companies (type, document, name)
+      `INSERT INTO empresas (type, document, name)
        VALUES ($1,$2,$3)
        ON CONFLICT (document) DO UPDATE SET type = EXCLUDED.type, name = EXCLUDED.name
        RETURNING id, type, document, name, criado_em`,

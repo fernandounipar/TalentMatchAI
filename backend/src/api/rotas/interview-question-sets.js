@@ -74,7 +74,7 @@ router.get('/', authMiddleware, async (req, res) => {
     // Query de contagem
     const countQuery = `
       SELECT COUNT(*)
-      FROM interview_question_sets qs
+      FROM conjuntos_perguntas_entrevista qs
       WHERE ${whereClause}
     `;
     const countResult = await pool.query(countQuery, params);
@@ -102,14 +102,14 @@ router.get('/', authMiddleware, async (req, res) => {
         -- Contadores
         (
           SELECT COUNT(*) 
-          FROM interview_questions iq 
+          FROM perguntas_entrevista iq 
           WHERE iq.set_id = qs.id 
           AND iq.deleted_at IS NULL
         ) as question_count,
         
         (
           SELECT COUNT(DISTINCT iq.interview_id) 
-          FROM interview_questions iq 
+          FROM perguntas_entrevista iq 
           WHERE iq.set_id = qs.id 
           AND iq.interview_id IS NOT NULL
         ) as usage_count,
@@ -117,9 +117,9 @@ router.get('/', authMiddleware, async (req, res) => {
         -- Criador
         u.full_name as created_by_name
         
-      FROM interview_question_sets qs
-      LEFT JOIN jobs j ON j.id = qs.job_id
-      LEFT JOIN users u ON u.id = qs.created_by
+      FROM conjuntos_perguntas_entrevista qs
+      LEFT JOIN vagas j ON j.id = qs.job_id
+      LEFT JOIN usuarios u ON u.id = qs.created_by
       WHERE ${whereClause}
       ORDER BY qs.${sortField} ${sortOrder}
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
@@ -166,10 +166,10 @@ router.get('/:id', authMiddleware, async (req, res) => {
         j.seniority as job_seniority,
         u_created.full_name as created_by_name,
         u_updated.full_name as updated_by_name
-      FROM interview_question_sets qs
-      LEFT JOIN jobs j ON j.id = qs.job_id
-      LEFT JOIN users u_created ON u_created.id = qs.created_by
-      LEFT JOIN users u_updated ON u_updated.id = qs.updated_by
+      FROM conjuntos_perguntas_entrevista qs
+      LEFT JOIN vagas j ON j.id = qs.job_id
+      LEFT JOIN usuarios u_created ON u_created.id = qs.created_by
+      LEFT JOIN usuarios u_updated ON u_updated.id = qs.updated_by
       WHERE qs.id = $1 
       AND qs.company_id = $2 
       AND qs.deleted_at IS NULL
@@ -191,7 +191,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
       SELECT 
         id,
         set_id,
-        type,
+        kind as type,
         text,
         "order",
         origin,
@@ -199,7 +199,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
         prompt,
         created_at,
         updated_at
-      FROM interview_questions
+      FROM perguntas_entrevista
       WHERE set_id = $1
       AND deleted_at IS NULL
       ORDER BY "order" ASC NULLS LAST, created_at ASC
@@ -273,7 +273,7 @@ router.post('/', authMiddleware, async (req, res) => {
     // Criar o conjunto
     const setId = uuidv4();
     const insertSetQuery = `
-      INSERT INTO interview_question_sets (
+      INSERT INTO conjuntos_perguntas_entrevista (
         id, company_id, job_id, resume_id, title, description,
         is_template, created_by, updated_by
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -300,7 +300,7 @@ router.post('/', authMiddleware, async (req, res) => {
       const openRouterService = require('../../servicos/openRouterService');
       
       // Buscar dados da vaga
-      const jobQuery = `SELECT * FROM jobs WHERE id = $1 AND company_id = $2`;
+      const jobQuery = `SELECT * FROM vagas WHERE id = $1 AND company_id = $2`;
       const jobResult = await client.query(jobQuery, [job_id, company_id]);
 
       if (jobResult.rows.length === 0) {
@@ -312,7 +312,7 @@ router.post('/', authMiddleware, async (req, res) => {
       // Buscar dados do currículo (se fornecido)
       let resume = null;
       if (resume_id) {
-        const resumeQuery = `SELECT * FROM resumes WHERE id = $1 AND company_id = $2`;
+        const resumeQuery = `SELECT * FROM curriculos WHERE id = $1 AND company_id = $2`;
         const resumeResult = await client.query(resumeQuery, [resume_id, company_id]);
         resume = resumeResult.rows[0] || null;
       }
@@ -326,9 +326,9 @@ router.post('/', authMiddleware, async (req, res) => {
         const questionId = uuidv4();
 
         const insertQuestionQuery = `
-          INSERT INTO interview_questions (
-            id, company_id, set_id, type, text, "order", origin, kind, prompt
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          INSERT INTO perguntas_entrevista (
+            id, company_id, set_id, kind, text, "order", origin, prompt
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
           RETURNING *
         `;
 
@@ -340,7 +340,6 @@ router.post('/', authMiddleware, async (req, res) => {
           q.pergunta,
           i + 1,
           'ai_generated',
-          q.tipo || 'general',
           q.pergunta
         ]);
 
@@ -358,9 +357,9 @@ router.post('/', authMiddleware, async (req, res) => {
         }
 
         const insertQuestionQuery = `
-          INSERT INTO interview_questions (
-            id, company_id, set_id, type, text, "order", origin, kind, prompt
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          INSERT INTO perguntas_entrevista (
+            id, company_id, set_id, kind, text, "order", origin, prompt
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
           RETURNING *
         `;
 
@@ -372,7 +371,6 @@ router.post('/', authMiddleware, async (req, res) => {
           q.text.trim(),
           q.order || i + 1,
           'manual',
-          q.type || 'general',
           q.text.trim()
         ]);
 
@@ -432,7 +430,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
 
     // Verificar se o conjunto existe
     const checkQuery = `
-      SELECT * FROM interview_question_sets
+      SELECT * FROM conjuntos_perguntas_entrevista
       WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL
     `;
     const checkResult = await client.query(checkQuery, [id, company_id]);
@@ -472,7 +470,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
     updateParams.push(id, company_id);
 
     const updateSetQuery = `
-      UPDATE interview_question_sets
+      UPDATE conjuntos_perguntas_entrevista
       SET ${updateFields.join(', ')}
       WHERE id = $${paramCount++} AND company_id = $${paramCount++}
       RETURNING *
@@ -487,9 +485,9 @@ router.put('/:id', authMiddleware, async (req, res) => {
         if (q.id) {
           // Atualizar pergunta existente
           const updateQuestionQuery = `
-            UPDATE interview_questions
+            UPDATE perguntas_entrevista
             SET 
-              type = COALESCE($1, type),
+              kind = COALESCE($1, kind),
               text = COALESCE($2, text),
               "order" = COALESCE($3, "order"),
               origin = 'ai_edited'
@@ -511,9 +509,9 @@ router.put('/:id', authMiddleware, async (req, res) => {
           // Adicionar nova pergunta
           const questionId = uuidv4();
           const insertQuestionQuery = `
-            INSERT INTO interview_questions (
-              id, company_id, set_id, type, text, "order", origin, kind, prompt
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            INSERT INTO perguntas_entrevista (
+              id, company_id, set_id, kind, text, "order", origin, prompt
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
           `;
 
           await client.query(insertQuestionQuery, [
@@ -524,7 +522,6 @@ router.put('/:id', authMiddleware, async (req, res) => {
             q.text,
             q.order || 999,
             'manual',
-            q.type || 'general',
             q.text
           ]);
         }
@@ -533,7 +530,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
 
     // Buscar perguntas atualizadas
     const questionsQuery = `
-      SELECT * FROM interview_questions
+      SELECT * FROM perguntas_entrevista
       WHERE set_id = $1 AND deleted_at IS NULL
       ORDER BY "order" ASC NULLS LAST, created_at ASC
     `;
@@ -584,7 +581,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 
     // Verificar se o conjunto existe
     const checkQuery = `
-      SELECT * FROM interview_question_sets
+      SELECT * FROM conjuntos_perguntas_entrevista
       WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL
     `;
     const checkResult = await client.query(checkQuery, [id, company_id]);
@@ -600,7 +597,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 
     // Soft delete do conjunto
     const deleteSetQuery = `
-      UPDATE interview_question_sets
+      UPDATE conjuntos_perguntas_entrevista
       SET deleted_at = now(), updated_by = $1
       WHERE id = $2 AND company_id = $3
     `;
@@ -608,7 +605,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 
     // Soft delete das perguntas (apenas aquelas NÃO usadas em entrevistas)
     const deleteQuestionsQuery = `
-      UPDATE interview_questions
+      UPDATE perguntas_entrevista
       SET deleted_at = now()
       WHERE set_id = $1 
       AND company_id = $2
@@ -656,7 +653,7 @@ router.delete('/:setId/questions/:questionId', authMiddleware, async (req, res) 
 
     // Verificar se a pergunta existe e NÃO está vinculada a entrevista
     const checkQuery = `
-      SELECT * FROM interview_questions
+      SELECT * FROM perguntas_entrevista
       WHERE id = $1 
       AND set_id = $2 
       AND company_id = $3 
@@ -682,7 +679,7 @@ router.delete('/:setId/questions/:questionId', authMiddleware, async (req, res) 
 
     // Soft delete
     const deleteQuery = `
-      UPDATE interview_questions
+      UPDATE perguntas_entrevista
       SET deleted_at = now()
       WHERE id = $1 AND company_id = $2
     `;
