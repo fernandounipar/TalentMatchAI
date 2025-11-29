@@ -208,12 +208,12 @@ const perguntasHandler = async (req, res) => {
     const id = req.params.id;
     const e = await db.query(
       `SELECT i.id, j.description AS vaga_desc, r.parsed_text AS texto_curriculo, ra.summary AS analise_json
-         FROM interviews i
-         JOIN applications a ON a.id = i.application_id
-         LEFT JOIN jobs j ON j.id = a.job_id
+         FROM entrevistas i
+         JOIN candidaturas a ON a.id = i.application_id
+         LEFT JOIN vagas j ON j.id = a.job_id
          LEFT JOIN LATERAL (
            SELECT res.parsed_text, res.id as resume_id
-             FROM resumes res
+             FROM curriculos res
             WHERE res.candidate_id = a.candidate_id
               AND res.company_id = i.company_id
               AND res.deleted_at IS NULL
@@ -222,7 +222,7 @@ const perguntasHandler = async (req, res) => {
          ) r ON TRUE
          LEFT JOIN LATERAL (
            SELECT ra.summary
-             FROM resume_analysis ra
+             FROM analise_curriculos ra
             WHERE ra.resume_id = r.resume_id
             ORDER BY ra.created_at DESC
             LIMIT 1
@@ -240,7 +240,7 @@ const perguntasHandler = async (req, res) => {
       quantidade: Number(req.query.qtd || 8),
       companyId: req.usuario.company_id,
     });
-    // Persistir perguntas em tabela interview_questions se existir
+    // Persistir perguntas na tabela perguntas_entrevista
     const perguntas = [];
     for (const texto of qs) {
       const insert = await db.query(
@@ -289,12 +289,12 @@ router.post('/:id/chat', async (req, res) => {
     // Carregar contexto da entrevista
     const e = await db.query(
       `SELECT i.id, j.description AS vaga_desc, r.parsed_text AS texto, ra.summary AS analise_json
-         FROM interviews i
-         JOIN applications a ON a.id = i.application_id
-         LEFT JOIN jobs j ON j.id = a.job_id
+         FROM entrevistas i
+         JOIN candidaturas a ON a.id = i.application_id
+         LEFT JOIN vagas j ON j.id = a.job_id
          LEFT JOIN LATERAL (
            SELECT res.parsed_text, res.id as resume_id
-             FROM resumes res
+             FROM curriculos res
             WHERE res.candidate_id = a.candidate_id
               AND res.company_id = i.company_id
               AND res.deleted_at IS NULL
@@ -303,7 +303,7 @@ router.post('/:id/chat', async (req, res) => {
          ) r ON TRUE
          LEFT JOIN LATERAL (
            SELECT ra.summary
-             FROM resume_analysis ra
+             FROM analise_curriculos ra
             WHERE ra.resume_id = r.resume_id
             ORDER BY ra.created_at DESC
             LIMIT 1

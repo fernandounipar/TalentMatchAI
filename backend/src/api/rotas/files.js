@@ -34,7 +34,7 @@ router.post('/', upload.single('file'), async (req, res) => {
     const companyId = req.usuario.company_id;
     const relPath = path.posix.join(String(companyId), path.basename(req.file.path));
     const r = await db.query(
-      `INSERT INTO files (company_id, storage_key, filename, mime, size, created_at)
+      `INSERT INTO arquivos (company_id, storage_key, filename, mime, size, created_at)
        VALUES ($1,$2,$3,$4,$5, now()) RETURNING *`,
       [companyId, relPath, req.file.originalname, req.file.mimetype, req.file.size]
     );
@@ -48,7 +48,7 @@ router.post('/', upload.single('file'), async (req, res) => {
 
 // Metadados do arquivo
 router.get('/:id', async (req, res) => {
-  const r = await db.query('SELECT * FROM files WHERE id=$1 AND company_id=$2', [req.params.id, req.usuario.company_id]);
+  const r = await db.query('SELECT * FROM arquivos WHERE id=$1 AND company_id=$2', [req.params.id, req.usuario.company_id]);
   const f = r.rows[0];
   if (!f) return res.status(404).json({ erro: 'Arquivo não encontrado' });
   res.json({ ...f, url: `/uploads/${f.storage_key}` });

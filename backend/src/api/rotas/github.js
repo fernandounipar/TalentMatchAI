@@ -39,7 +39,7 @@ router.post('/:candidateId/github', async (req, res) => {
 
     // Verificar se candidato existe e pertence à company
     const candidate = await db.query(
-      `SELECT id FROM candidates 
+      `SELECT id FROM candidatos 
        WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL`,
       [candidateId, companyId]
     );
@@ -53,7 +53,7 @@ router.post('/:candidateId/github', async (req, res) => {
 
     // Verificar se já existe integração para este candidato
     const existing = await db.query(
-      `SELECT id FROM candidate_github_profiles 
+      `SELECT id FROM perfis_github_candidato 
        WHERE candidate_id = $1 AND company_id = $2 AND deleted_at IS NULL`,
       [candidateId, companyId]
     );
@@ -79,7 +79,7 @@ router.post('/:candidateId/github', async (req, res) => {
 
     // Salvar no banco
     const result = await db.query(
-      `INSERT INTO candidate_github_profiles (
+      `INSERT INTO perfis_github_candidato (
         candidate_id, company_id, username, github_id,
         avatar_url, profile_url, bio, location, blog,
         company, email, hireable, public_repos, public_gists,
@@ -126,7 +126,7 @@ router.get('/:candidateId/github', async (req, res) => {
     const { candidateId } = req.params;
 
     const result = await db.query(
-      `SELECT * FROM candidate_github_profiles_overview
+      `SELECT * FROM visao_perfis_github_candidato
        WHERE candidate_id = $1 AND company_id = $2`,
       [candidateId, companyId]
     );
@@ -164,7 +164,7 @@ router.put('/:candidateId/github', async (req, res) => {
 
     // Buscar integração existente
     const existing = await db.query(
-      `SELECT * FROM candidate_github_profiles
+      `SELECT * FROM perfis_github_candidato
        WHERE candidate_id = $1 AND company_id = $2 AND deleted_at IS NULL`,
       [candidateId, companyId]
     );
@@ -182,7 +182,7 @@ router.put('/:candidateId/github', async (req, res) => {
     let githubData;
     try {
       await db.query(
-        `UPDATE candidate_github_profiles 
+        `UPDATE perfis_github_candidato 
          SET sync_status = 'syncing' 
          WHERE id = $1`,
         [profile.id]
@@ -192,7 +192,7 @@ router.put('/:candidateId/github', async (req, res) => {
 
       // Atualizar no banco
       const result = await db.query(
-        `UPDATE candidate_github_profiles SET
+        `UPDATE perfis_github_candidato SET
           github_id = $1, avatar_url = $2, profile_url = $3,
           bio = $4, location = $5, blog = $6, company = $7,
           email = $8, hireable = $9, public_repos = $10,
@@ -220,7 +220,7 @@ router.put('/:candidateId/github', async (req, res) => {
     } catch (error) {
       // Marcar erro
       await db.query(
-        `UPDATE candidate_github_profiles 
+        `UPDATE perfis_github_candidato 
          SET sync_status = 'error', sync_error = $1, last_synced_at = NOW()
          WHERE id = $2`,
         [error.message, profile.id]
@@ -253,7 +253,7 @@ router.delete('/:candidateId/github', async (req, res) => {
     const { candidateId } = req.params;
 
     const result = await db.query(
-      `UPDATE candidate_github_profiles 
+      `UPDATE perfis_github_candidato 
        SET deleted_at = NOW()
        WHERE candidate_id = $1 AND company_id = $2 AND deleted_at IS NULL
        RETURNING id, username`,
@@ -332,7 +332,7 @@ router.get('/github', async (req, res) => {
 
     // Query principal
     const result = await db.query(
-      `SELECT * FROM candidate_github_profiles_overview
+      `SELECT * FROM visao_perfis_github_candidato
        WHERE ${whereClause}
        ORDER BY ${sortColumn} ${sortOrder}
        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
@@ -342,7 +342,7 @@ router.get('/github', async (req, res) => {
     // Contar total
     const countResult = await db.query(
       `SELECT COUNT(*)::int as total
-       FROM candidate_github_profiles_overview
+       FROM visao_perfis_github_candidato
        WHERE ${whereClause}`,
       params
     );

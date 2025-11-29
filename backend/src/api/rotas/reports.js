@@ -56,12 +56,12 @@ router.post('/', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', '
     // Verificar se entrevista existe e pertence à company
     const interviewCheck = await client.query(`
       SELECT i.id, i.company_id, 
-             c.name as candidate_name,
+             c.full_name as candidate_name,
              j.title as job_title
-      FROM interviews i
-      LEFT JOIN applications app ON i.application_id = app.id
-      LEFT JOIN candidates c ON app.candidate_id = c.id
-      LEFT JOIN jobs j ON app.job_id = j.id
+      FROM entrevistas i
+      LEFT JOIN candidaturas app ON i.application_id = app.id
+      LEFT JOIN candidatos c ON app.candidate_id = c.id
+      LEFT JOIN vagas j ON app.job_id = j.id
       WHERE i.id = $1 AND i.company_id = $2 AND i.deleted_at IS NULL
     `, [interview_id, companyId]);
 
@@ -89,15 +89,15 @@ router.post('/', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', '
       const answersQuery = await client.query(`
         SELECT 
           q.text as question_text,
-          q.type as question_type,
+          q.kind as question_type,
           a.raw_text as answer_text,
           la.score_final,
           la.feedback_auto,
           la.feedback_manual
-        FROM interview_answers a
-        JOIN interview_questions q ON a.question_id = q.id
-        LEFT JOIN live_assessments la ON la.question_id = q.id AND la.interview_id = $1
-        WHERE a.session_id = $1
+        FROM respostas_entrevista a
+        JOIN perguntas_entrevista q ON a.question_id = q.id
+        LEFT JOIN avaliacoes_tempo_real la ON la.question_id = q.id AND la.interview_id = $1
+        WHERE q.interview_id = $1
         ORDER BY a.created_at
       `, [interview_id]);
 
@@ -156,7 +156,7 @@ router.post('/', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', '
     // Incrementar versão se já existir relatório para esta entrevista
     const versionQuery = await client.query(`
       SELECT COALESCE(MAX(version), 0) + 1 as next_version
-      FROM interview_reports
+      FROM relatorios_entrevista
       WHERE interview_id = $1 AND company_id = $2
     `, [interview_id, companyId]);
     
@@ -164,7 +164,7 @@ router.post('/', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', '
 
     // Inserir relatório
     const insertQuery = `
-      INSERT INTO interview_reports (
+      INSERT INTO relatorios_entrevista (
         company_id,
         interview_id,
         title,
@@ -329,7 +329,7 @@ router.get('/', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', 'S
     const sortOrder = order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
     // Contar total
-    const countQuery = `SELECT COUNT(*) as total FROM interview_reports WHERE ${whereClause}`;
+    const countQuery = `SELECT COUNT(*) as total FROM relatorios_entrevista WHERE ${whereClause}`;
     const countResult = await pool.query(countQuery, params);
     const total = parseInt(countResult.rows[0].total);
 
@@ -356,7 +356,7 @@ router.get('/', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', 'S
         generated_at,
         created_at,
         updated_at
-      FROM interview_reports
+      FROM relatorios_entrevista
       WHERE ${whereClause}
       ORDER BY ${sortColumn} ${sortOrder}
       LIMIT $${limitParam} OFFSET $${offsetParam}
@@ -397,11 +397,11 @@ router.get('/:id', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN',
     const query = `
       SELECT 
         r.*,
-        u_gen.name as generated_by_name,
-        u_created.name as created_by_name
-      FROM interview_reports r
-      LEFT JOIN users u_gen ON r.generated_by = u_gen.id
-      LEFT JOIN users u_created ON r.created_by = u_created.id
+        u_gen.full_name as generated_by_name,
+        u_created.full_name as created_by_name
+      FROM relatorios_entrevista r
+      LEFT JOIN usuarios u_gen ON r.generated_by = u_gen.id
+      LEFT JOIN usuarios u_created ON r.created_by = u_created.id
       WHERE r.id = $1 AND r.company_id = $2 AND r.deleted_at IS NULL
     `;
 
@@ -453,7 +453,7 @@ router.put('/:id', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN',
 
     // Verificar se relatório existe
     const reportCheck = await client.query(`
-      SELECT * FROM interview_reports
+      SELECT * FROM relatorios_entrevista
       WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL
     `, [id, companyId]);
 
@@ -554,7 +554,7 @@ router.put('/:id', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN',
     values.push(companyId);
 
     const updateQuery = `
-      UPDATE interview_reports
+      UPDATE relatorios_entrevista
       SET ${updates.join(', ')}
       WHERE id = $${paramCount - 1} AND company_id = $${paramCount}
       RETURNING *
@@ -592,7 +592,7 @@ router.delete('/:id', exigirAutenticacao, verificarPermissao(['ADMIN', 'SUPER_AD
     const { id } = req.params;
 
     const result = await pool.query(`
-      UPDATE interview_reports
+      UPDATE relatorios_entrevista
       SET deleted_at = now()
       WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL
       RETURNING id
@@ -643,7 +643,7 @@ router.get('/interview/:interview_id', exigirAutenticacao, verificarPermissao(['
         format,
         generated_at,
         created_at
-      FROM interview_reports
+      FROM relatorios_entrevista
       WHERE interview_id = $1 AND company_id = $2 AND deleted_at IS NULL
       ORDER BY version DESC, created_at DESC
     `;

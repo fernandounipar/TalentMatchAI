@@ -59,7 +59,7 @@ router.post('/', authMiddleware, async (req, res) => {
 
     // Verificar se entrevista existe
     const interviewCheck = await client.query(
-      `SELECT id FROM interviews WHERE id = $1 AND company_id = $2`,
+      `SELECT id FROM entrevistas WHERE id = $1 AND company_id = $2`,
       [interview_id, company_id]
     );
 
@@ -79,7 +79,7 @@ router.post('/', authMiddleware, async (req, res) => {
       // Buscar textos se IDs fornecidos
       if (question_id && !question_text) {
         const qResult = await client.query(
-          `SELECT text, prompt FROM interview_questions WHERE id = $1`,
+          `SELECT text, prompt FROM perguntas_entrevista WHERE id = $1`,
           [question_id]
         );
         questionForIA = qResult.rows[0]?.text || qResult.rows[0]?.prompt || '';
@@ -87,7 +87,7 @@ router.post('/', authMiddleware, async (req, res) => {
 
       if (answer_id && !answer_text) {
         const aResult = await client.query(
-          `SELECT raw_text FROM interview_answers WHERE id = $1`,
+          `SELECT raw_text FROM respostas_entrevista WHERE id = $1`,
           [answer_id]
         );
         answerForIA = aResult.rows[0]?.raw_text || '';
@@ -114,7 +114,7 @@ router.post('/', authMiddleware, async (req, res) => {
     // Criar assessment
     const assessmentId = uuidv4();
     const insertQuery = `
-      INSERT INTO live_assessments (
+      INSERT INTO avaliacoes_tempo_real (
         id, company_id, interview_id, question_id, answer_id,
         score_auto, feedback_auto, assessment_type, status,
         response_time_seconds, created_by
@@ -210,7 +210,7 @@ router.get('/', authMiddleware, async (req, res) => {
     const sortOrder = order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
     // Query de contagem
-    const countQuery = `SELECT COUNT(*) FROM live_assessments la WHERE ${whereClause}`;
+    const countQuery = `SELECT COUNT(*) FROM avaliacoes_tempo_real la WHERE ${whereClause}`;
     const countResult = await pool.query(countQuery, params);
     const total = parseInt(countResult.rows[0].count);
 
@@ -219,13 +219,13 @@ router.get('/', authMiddleware, async (req, res) => {
       SELECT 
         la.*,
         iq.text as question_text,
-        iq.type as question_type,
+        iq.kind as question_type,
         ia.raw_text as answer_text,
         u.full_name as evaluated_by_name
-      FROM live_assessments la
-      LEFT JOIN interview_questions iq ON iq.id = la.question_id
-      LEFT JOIN interview_answers ia ON ia.id = la.answer_id
-      LEFT JOIN users u ON u.id = la.evaluated_by
+      FROM avaliacoes_tempo_real la
+      LEFT JOIN perguntas_entrevista iq ON iq.id = la.question_id
+      LEFT JOIN respostas_entrevista ia ON ia.id = la.answer_id
+      LEFT JOIN usuarios u ON u.id = la.evaluated_by
       WHERE ${whereClause}
       ORDER BY la.${sortField} ${sortOrder}
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
@@ -268,19 +268,19 @@ router.get('/:id', authMiddleware, async (req, res) => {
       SELECT 
         la.*,
         iq.text as question_text,
-        iq.type as question_type,
+        iq.kind as question_type,
         iq.prompt as question_prompt,
         ia.raw_text as answer_text,
         i.scheduled_at as interview_date,
         i.status as interview_status,
         u_created.full_name as created_by_name,
         u_evaluated.full_name as evaluated_by_name
-      FROM live_assessments la
-      LEFT JOIN interview_questions iq ON iq.id = la.question_id
-      LEFT JOIN interview_answers ia ON ia.id = la.answer_id
-      LEFT JOIN interviews i ON i.id = la.interview_id
-      LEFT JOIN users u_created ON u_created.id = la.created_by
-      LEFT JOIN users u_evaluated ON u_evaluated.id = la.evaluated_by
+      FROM avaliacoes_tempo_real la
+      LEFT JOIN perguntas_entrevista iq ON iq.id = la.question_id
+      LEFT JOIN respostas_entrevista ia ON ia.id = la.answer_id
+      LEFT JOIN entrevistas i ON i.id = la.interview_id
+      LEFT JOIN usuarios u_created ON u_created.id = la.created_by
+      LEFT JOIN usuarios u_evaluated ON u_evaluated.id = la.evaluated_by
       WHERE la.id = $1 
       AND la.company_id = $2 
       AND la.deleted_at IS NULL
@@ -335,7 +335,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
 
     // Verificar se existe
     const checkQuery = `
-      SELECT * FROM live_assessments
+      SELECT * FROM avaliacoes_tempo_real
       WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL
     `;
     const checkResult = await pool.query(checkQuery, [id, company_id]);
@@ -379,7 +379,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
     updateParams.push(id, company_id);
 
     const updateQuery = `
-      UPDATE live_assessments
+      UPDATE avaliacoes_tempo_real
       SET ${updateFields.join(', ')}
       WHERE id = $${paramCount++} AND company_id = $${paramCount++}
       RETURNING *
@@ -422,7 +422,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 
     // Verificar se existe
     const checkQuery = `
-      SELECT * FROM live_assessments
+      SELECT * FROM avaliacoes_tempo_real
       WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL
     `;
     const checkResult = await pool.query(checkQuery, [id, company_id]);
@@ -436,7 +436,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 
     // Soft delete
     const deleteQuery = `
-      UPDATE live_assessments
+      UPDATE avaliacoes_tempo_real
       SET deleted_at = now(), status = 'invalidated'
       WHERE id = $1 AND company_id = $2
       RETURNING *
@@ -472,13 +472,13 @@ router.get('/interview/:interview_id', authMiddleware, async (req, res) => {
       SELECT 
         la.*,
         iq.text as question_text,
-        iq.type as question_type,
+        iq.kind as question_type,
         ia.raw_text as answer_text,
         u.full_name as evaluated_by_name
-      FROM live_assessments la
-      LEFT JOIN interview_questions iq ON iq.id = la.question_id
-      LEFT JOIN interview_answers ia ON ia.id = la.answer_id
-      LEFT JOIN users u ON u.id = la.evaluated_by
+      FROM avaliacoes_tempo_real la
+      LEFT JOIN perguntas_entrevista iq ON iq.id = la.question_id
+      LEFT JOIN respostas_entrevista ia ON ia.id = la.answer_id
+      LEFT JOIN usuarios u ON u.id = la.evaluated_by
       WHERE la.interview_id = $1 
       AND la.company_id = $2 
       AND la.deleted_at IS NULL

@@ -95,7 +95,7 @@ router.post('/', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
     );
 
     const user = result.rows[0];
-    await audit(req, 'create', 'users', user.id, { email: user.email, role: user.role });
+    await audit(req, 'create', 'usuarios', user.id, { email: user.email, role: user.role });
 
     res.status(201).json({ data: user });
   } catch (error) {
@@ -167,7 +167,7 @@ router.post('/invite', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
     );
 
     const user = result.rows[0];
-    await audit(req, 'invite', 'users', user.id, { email: user.email, role: user.role });
+    await audit(req, 'invite', 'usuarios', user.id, { email: user.email, role: user.role });
 
     // TODO: Enviar email com link de convite
     // const inviteLink = `${process.env.FRONTEND_URL}/accept-invite?token=${invitationToken}`;
@@ -201,7 +201,7 @@ router.post('/accept-invite', async (req, res) => {
     // Buscar convite
     const userResult = await db.query(
       `SELECT id, full_name, email, invitation_expires_at
-       FROM users
+       FROM usuarios
        WHERE invitation_token = $1
          AND deleted_at IS NULL`,
       [invitation_token]
@@ -531,7 +531,7 @@ router.put('/:id', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
       params
     );
 
-    await audit(req, 'update', 'users', id, req.body);
+    await audit(req, 'update', 'usuarios', id, req.body);
 
     res.json({ data: result.rows[0] });
   } catch (error) {
@@ -573,7 +573,7 @@ router.delete('/:id', exigirRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
       [id]
     );
 
-    await audit(req, 'delete', 'users', id, { email: existingUser.rows[0].email });
+    await audit(req, 'delete', 'usuarios', id, { email: existingUser.rows[0].email });
 
     res.json({ data: { message: 'User deleted successfully' } });
   } catch (error) {

@@ -9,7 +9,7 @@ router.get('/', async (req, res) => {
   try {
     const r = await db.query(
       `SELECT s.id, s.name
-         FROM skills s
+         FROM habilidades s
         WHERE s.company_id = $1
         ORDER BY lower(s.name)`,
       [req.usuario.company_id]
