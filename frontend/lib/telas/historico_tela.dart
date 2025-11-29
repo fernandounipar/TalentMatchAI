@@ -5,7 +5,14 @@ import '../modelos/historico.dart';
 
 class HistoricoTela extends StatefulWidget {
   final ApiCliente api;
-  const HistoricoTela({super.key, required this.api});
+  final void Function(String entrevistaId, Map<String, dynamic> relatorio)?
+      onAbrirRelatorio;
+  
+  const HistoricoTela({
+    super.key,
+    required this.api,
+    this.onAbrirRelatorio,
+  });
 
   @override
   State<HistoricoTela> createState() => _HistoricoTelaState();

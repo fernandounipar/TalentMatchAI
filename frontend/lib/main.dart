@@ -85,6 +85,88 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
     _checkAuth();
   }
 
+  Widget _buildRelatorioFinalScreen() {
+    final id = entrevistaId;
+    if (relatorioFinal == null && id != null && id.isNotEmpty) {
+      return FutureBuilder<Map<String, dynamic>>(
+        future: api.obterRelatorioEntrevista(id),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Não foi possível carregar o relatório'),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: () => setState(() {}),
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Tentar novamente'),
+                  ),
+                ],
+              ),
+            );
+          }
+          if (!snapshot.hasData) {
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Relatório não encontrado'),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    onPressed: () => go(RouteKey.dashboard),
+                    child: const Text('Voltar'),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          final data = snapshot.data!;
+          if (relatorioFinal == null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              setState(() {
+                relatorioFinal = data;
+                ctx['candidato'] =
+                    data['candidate_name'] ?? data['candidato'] ?? ctx['candidato'] ?? '';
+                ctx['vagaSelecionada'] =
+                    data['job_title'] ?? data['vaga'] ?? ctx['vagaSelecionada'] ?? '';
+              });
+            });
+          }
+          final candidatoNome =
+              data['candidate_name'] ?? data['candidato'] ?? ctx['candidato'] ?? '';
+          final vagaTitulo =
+              data['job_title'] ?? data['vaga'] ?? ctx['vagaSelecionada'] ?? '';
+          return RelatorioFinalTela(
+            candidato: candidatoNome.toString(),
+            vaga: vagaTitulo.toString(),
+            relatorio: data,
+            onVoltar: () => go(RouteKey.dashboard),
+          );
+        },
+      );
+    }
+
+    final candidatoNome = relatorioFinal?['candidate_name'] ??
+        relatorioFinal?['candidato'] ??
+        ctx['candidato'] ??
+        '';
+    final vagaTitulo =
+        relatorioFinal?['job_title'] ?? relatorioFinal?['vaga'] ?? ctx['vagaSelecionada'] ?? '';
+    return RelatorioFinalTela(
+      candidato: candidatoNome.toString(),
+      vaga: vagaTitulo.toString(),
+      relatorio: relatorioFinal,
+      onVoltar: () => go(RouteKey.dashboard),
+    );
+  }
+
   Future<void> _checkAuth() async {
     final token = await _storage.read(key: 'token');
     if (token != null) {
@@ -384,11 +466,14 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
       case RouteKey.relatorios:
         return RelatoriosTela(
           api: api,
-          onAbrirRelatorio: (candidato, vaga) {
+          onAbrirRelatorio: (entrevistaId, relatorio) {
             setState(() {
-              ctx['candidato'] = candidato;
-              ctx['vagaSelecionada'] = vaga;
-              relatorioFinal = null;
+              this.entrevistaId = entrevistaId;
+              relatorioFinal = relatorio;
+              ctx['candidato'] =
+                  relatorio['candidate_name'] ?? relatorio['candidato'] ?? '';
+              ctx['vagaSelecionada'] =
+                  relatorio['job_title'] ?? relatorio['vaga'] ?? '';
               route = RouteKey.relatorio;
             });
           },
@@ -445,14 +530,22 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
           onCancelar: () => go(RouteKey.dashboard),
         );
       case RouteKey.relatorio:
-        return RelatorioFinalTela(
-          candidato: ctx['candidato']!,
-          vaga: ctx['vagaSelecionada']!,
-          relatorio: relatorioFinal,
-          onVoltar: () => go(RouteKey.dashboard),
-        );
+        return _buildRelatorioFinalScreen();
       case RouteKey.historico:
-        return HistoricoTela(api: api);
+        return HistoricoTela(
+          api: api,
+          onAbrirRelatorio: (id, relatorio) {
+            setState(() {
+              entrevistaId = id;
+              relatorioFinal = relatorio;
+              ctx['candidato'] =
+                  relatorio['candidate_name'] ?? relatorio['candidato'] ?? '';
+              ctx['vagaSelecionada'] =
+                  relatorio['job_title'] ?? relatorio['vaga'] ?? '';
+              route = RouteKey.relatorio;
+            });
+          },
+        );
       case RouteKey.config:
         return ConfiguracoesNovaTela(
           api: api,
