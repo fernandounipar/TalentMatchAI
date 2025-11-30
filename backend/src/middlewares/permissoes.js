@@ -29,7 +29,14 @@ function verificarPermissao(rolesPermitidas = []) {
         });
       }
 
-      const { role } = req.usuario;
+      // Normaliza role, aceitando payloads que só tragam `perfil`
+      const rawRole = req.usuario.role || req.usuario.perfil;
+      let role =
+        typeof rawRole === 'string' ? rawRole.toLowerCase() : rawRole;
+
+      // Aliases: super_admin -> admin, user -> recruiter (compatibilidade com front)
+      if (role === 'super_admin') role = 'admin';
+      if (role === 'user') role = 'recruiter';
 
       // Admin tem acesso total
       if (role === 'admin') {

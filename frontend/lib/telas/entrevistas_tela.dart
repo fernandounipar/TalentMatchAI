@@ -26,13 +26,23 @@ class EntrevistasTela extends StatefulWidget {
 class _EntrevistasTelaState extends State<EntrevistasTela> {
   bool _carregando = true;
   final List<_InterviewCardData> _itens = [];
+  final List<_InterviewCardData> _itensFiltrados = [];
   final Set<int> _hovered = <int>{};
   int _page = 1;
+  final TextEditingController _buscaController = TextEditingController();
+  DateTimeRange? _intervaloDatas;
 
   @override
   void initState() {
     super.initState();
     _carregar();
+    _buscaController.addListener(_aplicarFiltros);
+  }
+
+  @override
+  void dispose() {
+    _buscaController.dispose();
+    super.dispose();
   }
 
   Future<void> _carregar() async {
@@ -46,7 +56,8 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
         final tipo = status == 'completed'
             ? _InterviewType.concluded
             : _InterviewType.scheduled;
-        final dt = DateTime.tryParse(m['scheduled_at']?.toString() ?? '');
+        final dt = DateTime.tryParse(m['scheduled_at']?.toString() ?? '')
+            ?.toLocal();
         _itens.add(_InterviewCardData(
           id: m['id']?.toString() ?? '',
           tipo: tipo,
@@ -65,9 +76,53 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
         if (a.tipo != b.tipo) return a.tipo.index.compareTo(b.tipo.index);
         return (b.quando ?? DateTime(0)).compareTo(a.quando ?? DateTime(0));
       });
+      _aplicarFiltros();
     } finally {
       if (mounted) setState(() => _carregando = false);
     }
+  }
+
+  void _aplicarFiltros() {
+    final busca = _buscaController.text.toLowerCase().trim();
+    final inicio = _intervaloDatas?.start;
+    final fim = _intervaloDatas?.end;
+
+    setState(() {
+      _itensFiltrados
+        ..clear()
+        ..addAll(_itens.where((item) {
+          final matchBusca = busca.isEmpty ||
+              item.candidato.toLowerCase().contains(busca) ||
+              item.vaga.toLowerCase().contains(busca);
+
+          final dt = item.quando;
+          final matchData = (inicio == null || fim == null || dt == null)
+              ? true
+              : _isSameOrAfter(dt, inicio) && _isSameOrBefore(dt, fim);
+
+          return matchBusca && matchData;
+        }));
+    });
+  }
+
+  bool _isSameOrAfter(DateTime a, DateTime b) {
+    final aDate = DateTime(a.year, a.month, a.day);
+    final bDate = DateTime(b.year, b.month, b.day);
+    return !aDate.isBefore(bDate);
+  }
+
+  bool _isSameOrBefore(DateTime a, DateTime b) {
+    final aDate = DateTime(a.year, a.month, a.day);
+    final bDate = DateTime(b.year, b.month, b.day);
+    return !aDate.isAfter(bDate);
+  }
+
+  String _formatarIntervalo(DateTimeRange range) {
+    final ini =
+        '${range.start.day.toString().padLeft(2, '0')}/${range.start.month.toString().padLeft(2, '0')}';
+    final fim =
+        '${range.end.day.toString().padLeft(2, '0')}/${range.end.month.toString().padLeft(2, '0')}';
+    return '$ini - $fim';
   }
 
   String _formatarDataPt(DateTime d) {
@@ -111,6 +166,8 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
             children: [
               _buildHeader(isCompact: width < 720),
               const SizedBox(height: 24),
+              if (_itens.isNotEmpty) _buildFilters(),
+              if (_itens.isNotEmpty) const SizedBox(height: 16),
               if (_itens.isEmpty)
                 _buildEmptyState()
               else
@@ -123,9 +180,9 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
                     mainAxisSpacing: 24,
                     childAspectRatio: 2.1,
                   ),
-                  itemCount: _itens.length,
+                  itemCount: _itensFiltrados.length,
                   itemBuilder: (context, index) =>
-                      _buildCard(_itens[index], index),
+                      _buildCard(_itensFiltrados[index], index),
                 ),
             ],
           ),
@@ -186,6 +243,95 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
     );
   }
 
+  Widget _buildFilters() {
+    final temFiltroAtivo =
+        _buscaController.text.isNotEmpty || _intervaloDatas != null;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Stack(
+                    children: [
+                      const Positioned(
+                        left: 12,
+                        top: 12,
+                        child: Icon(Icons.search,
+                            size: 18, color: TMTokens.textMuted),
+                      ),
+                      TextField(
+                        controller: _buscaController,
+                        decoration: InputDecoration(
+                          hintText: 'Buscar por candidato ou vaga...',
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 36, vertical: 10),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide:
+                                const BorderSide(color: TMTokens.border),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide:
+                                const BorderSide(color: TMTokens.border),
+                          ),
+                          filled: true,
+                          fillColor: const Color(0xFFF3F4F6),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.date_range),
+                    label: Text(_intervaloDatas == null
+                        ? 'Intervalo de datas'
+                        : _formatarIntervalo(_intervaloDatas!)),
+                    onPressed: () async {
+                      final hoje = DateTime.now();
+                      final range = await showDateRangePicker(
+                        context: context,
+                        firstDate: hoje.subtract(const Duration(days: 365)),
+                        lastDate: hoje.add(const Duration(days: 365)),
+                        initialDateRange: _intervaloDatas,
+                        locale: const Locale('pt', 'BR'),
+                      );
+                      if (range != null && mounted) {
+                        setState(() => _intervaloDatas = range);
+                        _aplicarFiltros();
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                if (temFiltroAtivo)
+                  TMButton(
+                    'Limpar',
+                    icon: Icons.clear,
+                    variant: TMButtonVariant.secondary,
+                    onPressed: () {
+                      setState(() {
+                        _buscaController.clear();
+                        _intervaloDatas = null;
+                        _aplicarFiltros();
+                      });
+                    },
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildCard(_InterviewCardData item, int index) {
     final isHovered = _hovered.contains(index);
     return MouseRegion(
@@ -209,11 +355,11 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Header
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 48,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 48,
                       height: 48,
                       decoration: BoxDecoration(
                         color: TMTokens.primary,
@@ -238,11 +384,13 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
                         ],
                       ),
                     ),
-                    Row(children: [
-                      TMChip.interviewStatus(_displayStatus(item.status)),
-                      const SizedBox(width: 8),
-                      _statusDropdown(item),
-                    ]),
+                    Row(
+                      children: [
+                        TMChip.interviewStatus(_displayStatus(item.status)),
+                        const SizedBox(width: 4),
+                        _acoesMenu(item),
+                      ],
+                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -341,35 +489,237 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
     );
   }
 
-  Widget _statusDropdown(_InterviewCardData item) {
+  Widget _acoesMenu(_InterviewCardData item) {
     const options = ['scheduled', 'completed', 'cancelled', 'no_show'];
     // Garante que o status atual está na lista de opções
     final currentStatus =
         options.contains(item.status) ? item.status : 'scheduled';
 
-    return DropdownButtonHideUnderline(
-      child: DropdownButton<String>(
-        value: currentStatus,
-        onChanged: (v) async {
-          if (v == null) return;
-          try {
-            await widget.api.atualizarEntrevista(item.id, status: v);
-            await _carregar();
-          } catch (_) {
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Falha ao atualizar status')));
-          }
-        },
-        items: options
-            .map((s) => DropdownMenuItem(
-                  value: s,
-                  child: Text(_displayStatus(s),
-                      style: const TextStyle(fontSize: 12)),
-                ))
-            .toList(),
+    return PopupMenuButton<String>(
+      tooltip: 'Ações',
+      onSelected: (value) async {
+        switch (value) {
+          case 'status':
+            await _alterarStatus(item);
+            break;
+          case 'edit':
+            await _editarEntrevista(item);
+            break;
+          case 'cancel':
+            await _cancelarEntrevista(item);
+            break;
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: 'status',
+          child: Row(
+            children: const [
+              Icon(Icons.checklist, size: 18),
+              SizedBox(width: 8),
+              Text('Atualizar status'),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'edit',
+          child: Row(
+            children: const [
+              Icon(Icons.edit_calendar, size: 18),
+              SizedBox(width: 8),
+              Text('Editar agendamento'),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'cancel',
+          child: Row(
+            children: const [
+              Icon(Icons.delete, size: 18, color: Colors.red),
+              SizedBox(width: 8),
+              Text('Cancelar/Excluir', style: TextStyle(color: Colors.red)),
+            ],
+          ),
+        ),
+      ],
+      child: const Icon(Icons.more_vert),
+    );
+  }
+
+  Future<void> _alterarStatus(_InterviewCardData item) async {
+    const options = ['scheduled', 'completed', 'cancelled', 'no_show'];
+    final currentStatus =
+        options.contains(item.status) ? item.status : 'scheduled';
+    var selecionado = currentStatus;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setSB) {
+        return AlertDialog(
+          title: const Text('Atualizar status'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: options
+                .map((s) => RadioListTile<String>(
+                      value: s,
+                      groupValue: selecionado,
+                      onChanged: (v) {
+                        if (v != null) {
+                          setSB(() => selecionado = v);
+                        }
+                      },
+                      title: Text(_displayStatus(s)),
+                    ))
+                .toList(),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancelar')),
+            ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Salvar')),
+          ],
+        );
+      }),
+    );
+
+    if (ok != true || selecionado == currentStatus) return;
+
+    try {
+      await widget.api.atualizarEntrevista(item.id, status: selecionado);
+      await _carregar();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Status da entrevista atualizado com sucesso')));
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Falha ao atualizar status')));
+    }
+  }
+
+  Future<void> _editarEntrevista(_InterviewCardData item) async {
+    DateTime quando =
+        item.quando ?? DateTime.now().add(const Duration(hours: 1));
+    bool loading = false;
+
+    final confirmou = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setSB) {
+        return AlertDialog(
+          title: const Text('Editar agendamento'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.calendar_month),
+                title: Text(_formatarDataPt(quando)),
+                subtitle: const Text('Toque para alterar'),
+                onTap: () async {
+                  final novo = await _selecionarDataHora(quando);
+                  if (novo != null) {
+                    setSB(() => quando = novo);
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancelar')),
+            ElevatedButton(
+              onPressed: loading
+                  ? null
+                  : () async {
+                      setSB(() => loading = true);
+                      try {
+                        await widget.api
+                            .atualizarEntrevista(item.id, scheduledAt: quando);
+                        Navigator.pop(ctx, true);
+                      } catch (_) {
+                        setSB(() => loading = false);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content:
+                                    Text('Falha ao atualizar agendamento')),
+                          );
+                        }
+                      }
+                    },
+              child: Text(loading ? 'Salvando...' : 'Salvar'),
+            ),
+          ],
+        );
+      }),
+    );
+
+    if (confirmou == true) {
+      await _carregar();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Agendamento atualizado com sucesso')));
+      }
+    }
+  }
+
+  Future<void> _cancelarEntrevista(_InterviewCardData item) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancelar/Excluir entrevista'),
+        content: Text(
+            'Deseja cancelar a entrevista de ${item.candidato} para ${item.vaga}?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Manter')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Cancelar'),
+          ),
+        ],
       ),
     );
+
+    if (ok != true) return;
+
+    try {
+      await widget.api.atualizarEntrevista(item.id, status: 'cancelled');
+      await _carregar();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Entrevista cancelada/excluída com sucesso')));
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Falha ao cancelar/excluir a entrevista')));
+    }
+  }
+
+  Future<DateTime?> _selecionarDataHora(DateTime initial) async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime.now().subtract(const Duration(days: 1)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      locale: const Locale('pt', 'BR'),
+    );
+    if (date == null) return null;
+
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+    );
+    final base = time != null
+        ? DateTime(date.year, date.month, date.day, time.hour, time.minute)
+        : DateTime(date.year, date.month, date.day, initial.hour, initial.minute);
+    return base.toLocal();
   }
 
   Future<void> _agendarEntrevista() async {

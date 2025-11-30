@@ -616,10 +616,6 @@ async function gerarRelatorioEntrevista({ candidato, vaga, respostas = [], feedb
     };
   };
 
-  if (!client) {
-    return fallbackResult();
-  }
-
   const systemPrompt = 'Você é um tech lead avaliando entrevistas. Responda apenas JSON válido.';
   // Usar valores em português
   const prompt = `Com base nas respostas e feedbacks abaixo, gere um relatório de entrevista em JSON com campos: summary_text (string), strengths (array de strings), risks (array de strings), recommendation em ['APROVAR','DÚVIDA','REPROVAR'].\nRespostas: ${JSON.stringify(respostas).slice(0, 6000)}\nFeedbacks: ${JSON.stringify(feedbacks).slice(0, 6000)}`;
@@ -628,22 +624,48 @@ async function gerarRelatorioEntrevista({ candidato, vaga, respostas = [], feedb
     { role: 'user', content: prompt }
   ];
 
-  // Tenta OpenAI primeiro, se falhar usa OpenRouter
+  // Função para tentar OpenRouter
   const tryOpenRouter = async () => {
     if (!openRouterService) return null;
     try {
+      const openRouterModel = process.env.OPENROUTER_MODEL || 'x-ai/grok-4.1-fast';
+      console.log('🔄 Tentando gerar relatório com OpenRouter:', openRouterModel);
       const orResp = await openRouterService.chamarOpenRouter(messages, {
-        model: 'google/gemini-2.0-flash-001',
+        model: openRouterModel,
         temperature: 0.2,
         max_tokens: 2000
       });
-      return orResp?.choices?.[0]?.message?.content || null;
+      const content = orResp?.choices?.[0]?.message?.content || null;
+      if (content) {
+        console.log('✅ OpenRouter gerou relatório com sucesso');
+      }
+      return content;
     } catch (e) {
-      console.error('OpenRouter também falhou para relatório:', e.message);
+      console.error('❌ OpenRouter falhou para relatório:', e.message);
       return null;
     }
   };
 
+  // Se não tem cliente OpenAI, tenta direto com OpenRouter
+  if (!client) {
+    console.log('⚠️ Sem cliente OpenAI, tentando OpenRouter direto para relatório...');
+    const orContent = await tryOpenRouter();
+    if (orContent) {
+      try {
+        return JSON.parse(orContent);
+      } catch {
+        return {
+          summary_text: orContent,
+          strengths: [],
+          risks: [],
+          recommendation: 'DÚVIDA',
+        };
+      }
+    }
+    return fallbackResult();
+  }
+
+  // Tenta OpenAI primeiro
   try {
     const resp = await client.chat.completions.create({
       model: 'gpt-4o-mini',

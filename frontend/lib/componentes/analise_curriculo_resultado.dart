@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../design_system/tm_tokens.dart';
 import '../modelos/analise_curriculo.dart';
@@ -78,6 +79,43 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
       }
     }
     return const [];
+  }
+
+  Future<void> _selecionarData() async {
+    final hoje = DateTime.now();
+    final selecionada = await showDatePicker(
+      context: context,
+      initialDate: hoje,
+      firstDate: hoje,
+      lastDate: DateTime(hoje.year + 2),
+      locale: const Locale('pt', 'BR'),
+    );
+
+    if (!mounted || selecionada == null) return;
+
+    final dataFormatada =
+        '${selecionada.day.toString().padLeft(2, '0')}/${selecionada.month.toString().padLeft(2, '0')}/${selecionada.year}';
+    setState(() {
+      _dataController.text = dataFormatada;
+    });
+  }
+
+  String? _formatarHora(String raw) {
+    var digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.length > 4) {
+      digits = digits.substring(0, 4);
+    }
+    if (digits.length < 3) return null;
+
+    final separatorIndex = digits.length - 2;
+    final hoursStr = digits.substring(0, separatorIndex);
+    final minutesStr = digits.substring(separatorIndex);
+
+    final hour = int.tryParse(hoursStr);
+    final minute = int.tryParse(minutesStr);
+    if (hour == null || minute == null) return null;
+
+    return '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
   }
 
   List<Map<String, String>> _experienciasDetalhadas() {
@@ -847,9 +885,12 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
                 Expanded(
                   child: TextField(
                     controller: _dataController,
+                    readOnly: true,
+                    onTap: _selecionarData,
                     decoration: const InputDecoration(
                       labelText: 'Data',
                       hintText: 'dd/mm/aaaa',
+                      suffixIcon: Icon(Icons.calendar_today_outlined),
                     ),
                   ),
                 ),
@@ -857,9 +898,16 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
                 Expanded(
                   child: TextField(
                     controller: _horaController,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(4),
+                      const _HoraInputFormatter(),
+                    ],
                     decoration: const InputDecoration(
                       labelText: 'Horário',
                       hintText: '14:00',
+                      suffixIcon: Icon(Icons.schedule),
                     ),
                   ),
                 ),
@@ -870,8 +918,9 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
               alignment: Alignment.centerRight,
               child: FilledButton(
                 onPressed: () {
-                  if (_dataController.text.isEmpty ||
-                      _horaController.text.isEmpty) {
+                  final horaFormatada = _formatarHora(_horaController.text);
+
+                  if (_dataController.text.isEmpty || horaFormatada == null) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                           content: Text('Preencha data e hora para agendar.')),
@@ -880,21 +929,27 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
                   }
 
                   try {
-                    // Formato esperado: dd/mm/aaaa e HH:mm
                     final dateParts = _dataController.text.split('/');
-                    final timeParts = _horaController.text.split(':');
 
-                    if (dateParts.length != 3 || timeParts.length != 2) {
+                    if (dateParts.length != 3) {
                       throw const FormatException('Formato inválido');
                     }
 
                     final day = int.parse(dateParts[0]);
                     final month = int.parse(dateParts[1]);
                     final year = int.parse(dateParts[2]);
-                    final hour = int.parse(timeParts[0]);
-                    final minute = int.parse(timeParts[1]);
+                    final horaParts = horaFormatada.split(':');
+                    final hour = int.parse(horaParts[0]);
+                    final minute = int.parse(horaParts[1]);
+
+                    if (hour > 23 || minute > 59) {
+                      throw const FormatException('Hora inválida');
+                    }
 
                     final dt = DateTime(year, month, day, hour, minute);
+                    setState(() {
+                      _horaController.text = horaFormatada;
+                    });
                     widget.onAgendar?.call(dt);
                   } catch (e) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -961,6 +1016,36 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _HoraInputFormatter extends TextInputFormatter {
+  const _HoraInputFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    var digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.length > 4) {
+      digits = digits.substring(0, 4);
+    }
+
+    String formatted;
+    if (digits.length <= 2) {
+      formatted = digits;
+    } else {
+      final separatorIndex = digits.length - 2;
+      final hours = digits.substring(0, separatorIndex);
+      final minutes = digits.substring(separatorIndex);
+      formatted = '$hours:$minutes';
+    }
+
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
     );
   }
 }

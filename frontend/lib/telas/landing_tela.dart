@@ -17,7 +17,7 @@ class LandingTela extends StatefulWidget {
 
 enum _LandingSection { recursos, processos, relato, faq }
 
-class _LandingTelaState extends State<LandingTela> {
+class _LandingTelaState extends State<LandingTela> with TickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
   final Map<_LandingSection, GlobalKey> _sectionKeys = {
     _LandingSection.recursos: GlobalKey(),
@@ -25,10 +25,36 @@ class _LandingTelaState extends State<LandingTela> {
     _LandingSection.relato: GlobalKey(),
     _LandingSection.faq: GlobalKey(),
   };
+  
+  late AnimationController _heroAnimController;
+  late Animation<double> _heroFadeAnimation;
+  late Animation<Offset> _heroSlideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _heroAnimController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
+    _heroFadeAnimation = CurvedAnimation(
+      parent: _heroAnimController,
+      curve: Curves.easeOut,
+    );
+    _heroSlideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.1),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _heroAnimController,
+      curve: Curves.easeOutCubic,
+    ));
+    _heroAnimController.forward();
+  }
 
   @override
   void dispose() {
     _scrollController.dispose();
+    _heroAnimController.dispose();
     super.dispose();
   }
 
@@ -90,6 +116,7 @@ class _LandingTelaState extends State<LandingTela> {
                     ),
                   ),
                   SliverToBoxAdapter(child: _buildMetricasSection()),
+                  SliverToBoxAdapter(child: _buildDepoimentosSection()),
                   SliverToBoxAdapter(
                     child: KeyedSubtree(
                       key: _sectionKeys[_LandingSection.faq],
@@ -134,24 +161,30 @@ class _LandingTelaState extends State<LandingTela> {
                 onNavigate: _scrollTo,
               ),
               SizedBox(height: isMobile ? 32 : 72),
-              Flex(
-                direction: isMobile ? Axis.vertical : Axis.horizontal,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: isMobile
-                    ? CrossAxisAlignment.start
-                    : CrossAxisAlignment.center,
-                children: [
-                  Expanded(
-                    flex: isMobile ? 0 : 5,
-                    child: _HeroContent(
-                      onDemo: widget.onDemo,
-                      onLogin: widget.onLogin,
-                      isMobile: isMobile,
-                    ),
+              SlideTransition(
+                position: _heroSlideAnimation,
+                child: FadeTransition(
+                  opacity: _heroFadeAnimation,
+                  child: Flex(
+                    direction: isMobile ? Axis.vertical : Axis.horizontal,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: isMobile
+                        ? CrossAxisAlignment.start
+                        : CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        flex: isMobile ? 0 : 5,
+                        child: _HeroContent(
+                          onDemo: widget.onDemo,
+                          onLogin: widget.onLogin,
+                          isMobile: isMobile,
+                        ),
+                      ),
+                      SizedBox(width: isMobile ? 0 : 56, height: isMobile ? 32 : 0),
+                      const Expanded(flex: 4, child: IlustracaoHero()),
+                    ],
                   ),
-                  SizedBox(width: isMobile ? 0 : 56, height: isMobile ? 32 : 0),
-                  const Expanded(flex: 4, child: IlustracaoHero()),
-                ],
+                ),
               ),
               const SizedBox(height: 48),
               const Wrap(
@@ -432,13 +465,6 @@ class _LandingTelaState extends State<LandingTela> {
   }
 
   Widget _buildMetricasSection() {
-    final metricas = [
-      ('85%', 'Acurácia mínima nas análises de IA'),
-      ('10s', 'Tempo máximo para analisar um currículo'),
-      ('99,5%', 'Disponibilidade garantida em contrato'),
-      ('+120', 'Empresas já utilizando o TalentMatchIA'),
-    ];
-
     return Container(
       color: const Color(0xFFEEF2FF),
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 56),
@@ -449,14 +475,132 @@ class _LandingTelaState extends State<LandingTela> {
             alignment: WrapAlignment.spaceBetween,
             runSpacing: 24,
             spacing: 24,
-            children: metricas
-                .map(
-                  (m) => _MetricaCard(
-                    valor: m.$1,
-                    descricao: m.$2,
-                  ),
-                )
-                .toList(),
+            children: [
+              _AnimatedMetricaCard(
+                valor: 85,
+                sufixo: '%',
+                descricao: 'Acurácia mínima nas análises de IA',
+              ),
+              _AnimatedMetricaCard(
+                valor: 10,
+                sufixo: 's',
+                descricao: 'Tempo máximo para analisar um currículo',
+              ),
+              _AnimatedMetricaCard(
+                valor: 99.5,
+                sufixo: '%',
+                descricao: 'Disponibilidade garantida em contrato',
+              ),
+              _AnimatedMetricaCard(
+                valor: 120,
+                sufixo: '+',
+                prefixo: true,
+                descricao: 'Empresas já utilizando o TalentMatchIA',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDepoimentosSection() {
+    final depoimentos = [
+      (
+        nome: 'Mariana Silva',
+        cargo: 'Head de RH',
+        empresa: 'TechCorp Brasil',
+        foto: 'MS',
+        texto:
+            'O TalentMatchIA revolucionou nosso processo seletivo. Reduzimos o tempo de triagem de currículos em 70% e a qualidade dos candidatos pré-selecionados melhorou significativamente.',
+        avaliacao: 5,
+      ),
+      (
+        nome: 'Carlos Oliveira',
+        cargo: 'Gerente de Recrutamento',
+        empresa: 'Inovação Digital',
+        foto: 'CO',
+        texto:
+            'As perguntas geradas pela IA são incrivelmente relevantes e nos ajudam a avaliar competências técnicas mesmo sem termos conhecimento profundo da área.',
+        avaliacao: 5,
+      ),
+      (
+        nome: 'Ana Paula Costa',
+        cargo: 'Diretora de Pessoas',
+        empresa: 'StartupXYZ',
+        foto: 'AC',
+        texto:
+            'O relatório automático das entrevistas economiza horas do nosso time. Agora conseguimos focar no que realmente importa: conhecer os candidatos.',
+        avaliacao: 5,
+      ),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 64),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Colors.white, Color(0xFFF9FAFB)],
+        ),
+      ),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1200),
+          child: Column(
+            children: [
+              const _SectionHeader(
+                titulo: 'O que nossos clientes dizem',
+                descricao:
+                    'Veja como empresas estão transformando seus processos de recrutamento com o TalentMatchIA.',
+                alinhamentoCentro: true,
+              ),
+              const SizedBox(height: 48),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth > 900) {
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: depoimentos
+                          .map(
+                            (d) => Expanded(
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 12),
+                                child: _DepoimentoCard(
+                                  nome: d.nome,
+                                  cargo: d.cargo,
+                                  empresa: d.empresa,
+                                  iniciais: d.foto,
+                                  texto: d.texto,
+                                  avaliacao: d.avaliacao,
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    );
+                  }
+                  return Column(
+                    children: depoimentos
+                        .map(
+                          (d) => Padding(
+                            padding: const EdgeInsets.only(bottom: 24),
+                            child: _DepoimentoCard(
+                              nome: d.nome,
+                              cargo: d.cargo,
+                              empresa: d.empresa,
+                              iniciais: d.foto,
+                              texto: d.texto,
+                              avaliacao: d.avaliacao,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  );
+                },
+              ),
+            ],
           ),
         ),
       ),
@@ -1045,7 +1189,7 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-class _FeatureCard extends StatelessWidget {
+class _FeatureCard extends StatefulWidget {
   final IconData icone;
   final String titulo;
   final String descricao;
@@ -1057,47 +1201,74 @@ class _FeatureCard extends StatelessWidget {
   });
 
   @override
+  State<_FeatureCard> createState() => _FeatureCardState();
+}
+
+class _FeatureCardState extends State<_FeatureCard> {
+  bool _isHovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 14,
-            offset: const Offset(0, 10),
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.all(24),
+        transform: Matrix4.identity()
+          ..translate(0.0, _isHovered ? -8.0 : 0.0),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: _isHovered
+                ? const Color(0xFF4F46E5).withValues(alpha: 0.3)
+                : Colors.grey.shade200,
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: const Color(0xFFEEF2FF),
-              borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: _isHovered
+                  ? const Color(0xFF4F46E5).withValues(alpha: 0.15)
+                  : Colors.black.withValues(alpha: 0.03),
+              blurRadius: _isHovered ? 24 : 14,
+              offset: Offset(0, _isHovered ? 16 : 10),
             ),
-            child: Icon(icone, color: const Color(0xFF4F46E5)),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            titulo,
-            style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF111827)),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            descricao,
-            style: TextStyle(color: Colors.grey.shade600, height: 1.5),
-          ),
-        ],
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: _isHovered
+                    ? const Color(0xFF4F46E5)
+                    : const Color(0xFFEEF2FF),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                widget.icone,
+                color: _isHovered ? Colors.white : const Color(0xFF4F46E5),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              widget.titulo,
+              style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF111827)),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              widget.descricao,
+              style: TextStyle(color: Colors.grey.shade600, height: 1.5),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1457,11 +1628,63 @@ class _Bullet extends StatelessWidget {
   }
 }
 
-class _MetricaCard extends StatelessWidget {
-  final String valor;
+class _AnimatedMetricaCard extends StatefulWidget {
+  final num valor;
+  final String sufixo;
   final String descricao;
+  final bool prefixo;
 
-  const _MetricaCard({required this.valor, required this.descricao});
+  const _AnimatedMetricaCard({
+    required this.valor,
+    required this.sufixo,
+    required this.descricao,
+    this.prefixo = false,
+  });
+
+  @override
+  State<_AnimatedMetricaCard> createState() => _AnimatedMetricaCardState();
+}
+
+class _AnimatedMetricaCardState extends State<_AnimatedMetricaCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+    _animation = Tween<double>(
+      begin: 0,
+      end: widget.valor.toDouble(),
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    ));
+    
+    // Inicia a animação com pequeno delay para efeito visual
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        _controller.forward();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  String _formatValue(double value) {
+    if (widget.valor is int || widget.valor == widget.valor.toInt()) {
+      return value.toInt().toString();
+    }
+    return value.toStringAsFixed(1).replaceAll('.', ',');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1484,20 +1707,193 @@ class _MetricaCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            valor,
-            style: const TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF312E81),
-            ),
+          AnimatedBuilder(
+            animation: _animation,
+            builder: (context, child) {
+              final formattedValue = _formatValue(_animation.value);
+              return Text(
+                widget.prefixo
+                    ? '${widget.sufixo}$formattedValue'
+                    : '$formattedValue${widget.sufixo}',
+                style: const TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF312E81),
+                ),
+              );
+            },
           ),
           const SizedBox(height: 8),
           Text(
-            descricao,
+            widget.descricao,
             style: TextStyle(color: Colors.grey.shade600, height: 1.5),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _DepoimentoCard extends StatefulWidget {
+  final String nome;
+  final String cargo;
+  final String empresa;
+  final String iniciais;
+  final String texto;
+  final int avaliacao;
+
+  const _DepoimentoCard({
+    required this.nome,
+    required this.cargo,
+    required this.empresa,
+    required this.iniciais,
+    required this.texto,
+    required this.avaliacao,
+  });
+
+  @override
+  State<_DepoimentoCard> createState() => _DepoimentoCardState();
+}
+
+class _DepoimentoCardState extends State<_DepoimentoCard> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.all(24),
+        transform: Matrix4.identity()
+          ..translate(0.0, _isHovered ? -6.0 : 0.0),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: _isHovered
+                ? const Color(0xFF4F46E5).withValues(alpha: 0.2)
+                : Colors.grey.shade200,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: _isHovered
+                  ? const Color(0xFF4F46E5).withValues(alpha: 0.12)
+                  : Colors.black.withValues(alpha: 0.05),
+              blurRadius: _isHovered ? 28 : 20,
+              offset: Offset(0, _isHovered ? 14 : 10),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Estrelas de avaliação
+            Row(
+              children: List.generate(
+                5,
+                (index) => TweenAnimationBuilder<double>(
+                  duration: Duration(milliseconds: 300 + index * 100),
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  builder: (context, value, child) {
+                    return Transform.scale(
+                      scale: value,
+                      child: Icon(
+                        index < widget.avaliacao
+                            ? Icons.star_rounded
+                            : Icons.star_border_rounded,
+                        color: const Color(0xFFFBBF24),
+                        size: 20,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Ícone de aspas
+            Icon(
+              Icons.format_quote,
+              color: _isHovered
+                  ? const Color(0xFF4F46E5).withValues(alpha: 0.3)
+                  : Colors.grey.shade200,
+              size: 32,
+            ),
+            const SizedBox(height: 8),
+            // Texto do depoimento
+            Text(
+              widget.texto,
+              style: TextStyle(
+                color: Colors.grey.shade700,
+                height: 1.6,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Divisor
+            Container(
+              height: 1,
+              color: Colors.grey.shade100,
+            ),
+            const SizedBox(height: 16),
+            // Avatar e info
+            Row(
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: _isHovered
+                          ? [const Color(0xFF22C55E), const Color(0xFF16A34A)]
+                          : [const Color(0xFF4F46E5), const Color(0xFF7C3AED)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Center(
+                    child: Text(
+                      widget.iniciais,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.nome,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF111827),
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${widget.cargo} • ${widget.empresa}',
+                        style: TextStyle(
+                          color: Colors.grey.shade500,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
