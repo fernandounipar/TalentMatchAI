@@ -1,4 +1,5 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'telas/landing_tela.dart';
 import 'telas/login_tela.dart';
@@ -345,6 +346,16 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'TalentMatchIA',
+      locale: const Locale('pt', 'BR'),
+      supportedLocales: const [
+        Locale('pt', 'BR'),
+        Locale('en', 'US'),
+      ],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       theme: TMTheme.light(),
       darkTheme: TMTheme.dark(),
       themeMode: ThemeMode.light,
@@ -397,26 +408,19 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
                 onVoltar: () => go(RouteKey.landing),
                 onSolicitarAcesso: () => go(RouteKey.register),
                 onSubmit: (email, senha) async {
-                  try {
-                    final r = await api.entrar(email: email, senha: senha);
-                    if (r['token'] != null) {
-                      await _storage.write(key: 'token', value: r['token']);
-                    }
-                    setState(() {
-                      auth = {
-                        'logged': true,
-                        'name': r['usuario']?['nome'] ?? email.split('@')[0],
-                      };
-                      perfil = r['usuario']?['perfil'];
-                      route = RouteKey.dashboard;
-                    });
-                    await _carregarDadosUsuario();
-                  } catch (e) {
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Falha no login')),
-                    );
+                  final r = await api.entrar(email: email, senha: senha);
+                  if (r['token'] != null) {
+                    await _storage.write(key: 'token', value: r['token']);
                   }
+                  setState(() {
+                    auth = {
+                      'logged': true,
+                      'name': r['usuario']?['nome'] ?? email.split('@')[0],
+                    };
+                    perfil = r['usuario']?['perfil'];
+                    route = RouteKey.dashboard;
+                  });
+                  await _carregarDadosUsuario();
                 },
               );
             }(),
@@ -430,6 +434,9 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
           api: api,
           userData: userData,
           onIrConfiguracoes: () => go(RouteKey.config),
+          onIrVagas: () => go(RouteKey.vagas),
+          onIrEntrevistas: () => go(RouteKey.entrevistas),
+          onIrCurriculos: () => go(RouteKey.upload),
         );
       case RouteKey.register:
         return RegistroTela(

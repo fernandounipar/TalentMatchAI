@@ -9,7 +9,32 @@ router.use(exigirAutenticacao);
 
 function isoOrNull(v) {
   if (!v) return null;
-  try { return new Date(v).toISOString(); } catch { return null; }
+  try {
+    // Preservar o horário como foi enviado (sem conversão de fuso horário)
+    // Se já é uma string ISO válida, apenas validar e retornar
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return null;
+    
+    // Se a string original não tem indicador de timezone (Z ou +/-),
+    // retornar como está para preservar o horário local
+    const str = v.toString();
+    if (!str.includes('Z') && !str.match(/[+-]\d{2}:\d{2}$/)) {
+      // Formato sem timezone - manter o horário como está
+      return str;
+    }
+    return d.toISOString();
+  } catch {
+    return null;
+  }
+}
+
+function normalizeStringList(value) {
+  if (value === null || value === undefined) return [];
+  if (Array.isArray(value)) {
+    return value.map((v) => v === null || v === undefined ? '' : String(v)).filter((v) => v.trim().length > 0);
+  }
+  if (typeof value === 'string') return value.trim().length > 0 ? [value] : [];
+  return [];
 }
 
 async function findOrCreateApplication(companyId, jobId, candidateId) {
@@ -534,6 +559,28 @@ router.post('/:id/report', async (req, res) => {
     );
     const version = versionQuery.rows[0].next_version;
 
+    const strengths = normalizeStringList(aiReport.strengths);
+    const weaknesses = normalizeStringList(aiReport.weaknesses || aiReport.weak_points);
+    const risks = normalizeStringList(aiReport.risks || aiReport.alerts);
+    const overallScore =
+      typeof aiReport.overall_score === 'number'
+        ? aiReport.overall_score
+        : Number.isFinite(Number(aiReport.overall_score))
+            ? Number(aiReport.overall_score)
+            : null;
+    const recommendation =
+      typeof aiReport.recommendation === 'string'
+        ? aiReport.recommendation.toUpperCase()
+        : 'PENDING';
+    const content = {
+      ...aiReport,
+      strengths,
+      weaknesses,
+      risks,
+      overall_score: overallScore,
+      recommendation,
+    };
+
     const insert = await db.query(
       `INSERT INTO relatorios_entrevista (
          company_id, interview_id, title, report_type, content,
@@ -547,15 +594,15 @@ router.post('/:id/report', async (req, res) => {
         id,
         aiReport.title || `Relatório de Entrevista v${version}`,
         aiReport.report_type || 'full',
-        JSON.stringify(aiReport),
+        JSON.stringify(content),
         aiReport.summary_text || aiReport.summary || null,
         interview.rows[0].candidate_name,
         interview.rows[0].job_title,
-        aiReport.overall_score || null,
-        aiReport.recommendation || 'PENDING',
-        aiReport.strengths || [],
-        aiReport.weaknesses || [],
-        aiReport.risks || [],
+        overallScore,
+        recommendation,
+        JSON.stringify(strengths),
+        JSON.stringify(weaknesses),
+        JSON.stringify(risks),
         aiReport.format || 'json',
         req.usuario.id,
         req.body?.is_final ?? false,

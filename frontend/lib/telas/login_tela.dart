@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 class LoginTela extends StatefulWidget {
   final VoidCallback onVoltar;
-  final Function(String email, String senha) onSubmit;
+  final Future<void> Function(String email, String senha) onSubmit;
   final VoidCallback? onSolicitarAcesso;
 
   const LoginTela({
@@ -19,13 +19,60 @@ class LoginTela extends StatefulWidget {
 class _LoginTelaState extends State<LoginTela> {
   final _emailController = TextEditingController();
   final _senhaController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
   bool _obscurePassword = true;
+  bool _isLoading = false;
+  String? _errorMessage;
 
   @override
   void dispose() {
     _emailController.dispose();
     _senhaController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleLogin() async {
+    // Limpa erro anterior
+    setState(() {
+      _errorMessage = null;
+    });
+
+    final email = _emailController.text.trim().isEmpty
+        ? 'admin@talentmatch.local'
+        : _emailController.text.trim();
+    final senha = _senhaController.text.isEmpty
+        ? '123456'
+        : _senhaController.text;
+
+    setState(() => _isLoading = true);
+
+    try {
+      await widget.onSubmit(email, senha);
+    } catch (e) {
+      setState(() {
+        _errorMessage = _parseError(e.toString());
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  String _parseError(String error) {
+    if (error.contains('401') || error.contains('Unauthorized')) {
+      return 'E-mail ou senha incorretos. Verifique suas credenciais.';
+    }
+    if (error.contains('404')) {
+      return 'Usuário não encontrado. Verifique o e-mail informado.';
+    }
+    if (error.contains('Network') || error.contains('connection')) {
+      return 'Erro de conexão. Verifique sua internet.';
+    }
+    if (error.contains('500')) {
+      return 'Erro no servidor. Tente novamente mais tarde.';
+    }
+    return 'Falha no login. Verifique suas credenciais e tente novamente.';
   }
 
   @override
@@ -297,6 +344,45 @@ class _LoginTelaState extends State<LoginTela> {
             ),
             const SizedBox(height: 32),
 
+            // Mensagem de erro
+            if (_errorMessage != null) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEE2E2),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFFCA5A5)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      color: Color(0xFFDC2626),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _errorMessage!,
+                        style: const TextStyle(
+                          color: Color(0xFFDC2626),
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      color: const Color(0xFFDC2626),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      onPressed: () => setState(() => _errorMessage = null),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
             // Campo E-mail
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -313,6 +399,13 @@ class _LoginTelaState extends State<LoginTela> {
                 TextField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  enabled: !_isLoading,
+                  onChanged: (_) {
+                    if (_errorMessage != null) {
+                      setState(() => _errorMessage = null);
+                    }
+                  },
                   decoration: InputDecoration(
                     hintText: 'seu@email.com',
                     hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
@@ -380,6 +473,14 @@ class _LoginTelaState extends State<LoginTela> {
                 TextField(
                   controller: _senhaController,
                   obscureText: _obscurePassword,
+                  textInputAction: TextInputAction.done,
+                  enabled: !_isLoading,
+                  onChanged: (_) {
+                    if (_errorMessage != null) {
+                      setState(() => _errorMessage = null);
+                    }
+                  },
+                  onSubmitted: (_) => _handleLogin(),
                   decoration: InputDecoration(
                     hintText: '••••••••',
                     hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
@@ -424,38 +525,40 @@ class _LoginTelaState extends State<LoginTela> {
 
             // Botão Entrar
             ElevatedButton(
-              onPressed: () {
-                final email = _emailController.text.isEmpty
-                    ? 'admin@talentmatch.local'
-                    : _emailController.text;
-                final senha = _senhaController.text.isEmpty
-                    ? '123456'
-                    : _senhaController.text;
-                widget.onSubmit(email, senha);
-              },
+              onPressed: _isLoading ? null : _handleLogin,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF2563EB),
                 foregroundColor: Colors.white,
+                disabledBackgroundColor: const Color(0xFF93C5FD),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
                 elevation: 0,
               ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.login, size: 20),
-                  SizedBox(width: 8),
-                  Text(
-                    'Entrar',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+              child: _isLoading
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.login, size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Entrar',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
             ),
             const SizedBox(height: 24),
 

@@ -26,7 +26,7 @@ router.post('/', exigirAutenticacao, verificarPermissao(['recruiter', 'admin']),
   const client = await pool.connect();
 
   try {
-    const { companyId, userId } = req.user;
+    const { companyId, userId } = req.usuario || {};
     const {
       interview_id,
       title,
@@ -245,7 +245,7 @@ router.post('/', exigirAutenticacao, verificarPermissao(['recruiter', 'admin']),
  */
 router.get('/', exigirAutenticacao, verificarPermissao(['recruiter', 'admin']), async (req, res) => {
   try {
-    const { companyId } = req.user;
+    const { companyId } = req.usuario || {};
     const {
       interview_id,
       report_type,
@@ -391,7 +391,7 @@ router.get('/', exigirAutenticacao, verificarPermissao(['recruiter', 'admin']), 
  */
 router.get('/:id', exigirAutenticacao, verificarPermissao(['recruiter', 'admin']), async (req, res) => {
   try {
-    const { companyId } = req.user;
+    const { companyId } = req.usuario || {};
     const { id } = req.params;
 
     const query = `
@@ -437,7 +437,7 @@ router.put('/:id', exigirAutenticacao, verificarPermissao(['recruiter', 'admin']
   const client = await pool.connect();
 
   try {
-    const { companyId, userId } = req.user;
+    const { companyId, userId } = req.usuario || {};
     const { id } = req.params;
     const {
       title,
@@ -588,7 +588,7 @@ router.put('/:id', exigirAutenticacao, verificarPermissao(['recruiter', 'admin']
  */
 router.delete('/:id', exigirAutenticacao, verificarPermissao(['recruiter', 'admin']), async (req, res) => {
   try {
-    const { companyId } = req.user;
+    const { companyId } = req.usuario || {};
     const { id } = req.params;
 
     const result = await pool.query(`
@@ -628,7 +628,7 @@ router.delete('/:id', exigirAutenticacao, verificarPermissao(['recruiter', 'admi
  */
 router.get('/interview/:interview_id', exigirAutenticacao, verificarPermissao(['recruiter', 'admin']), async (req, res) => {
   try {
-    const { companyId } = req.user;
+    const { companyId } = req.usuario || {};
     const { interview_id } = req.params;
 
     const query = `

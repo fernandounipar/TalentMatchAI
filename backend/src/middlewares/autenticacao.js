@@ -17,13 +17,25 @@ function exigirAutenticacao(req, res, next) {
     const payload = jwt.verify(token, process.env.JWT_SECRET || 'dev');
     
     // Injeta dados do usuário e empresa no request
+    const rawRole = payload.role || payload.perfil || '';
+    const role = typeof rawRole === 'string' ? rawRole.toLowerCase() : rawRole;
+
+    const userId = payload.sub || payload.id;
+    const companyId = payload.company_id || payload.companyId;
+
     req.usuario = {
-      id: payload.sub || payload.id,
+      id: userId,
       email: payload.email,
       nome: payload.nome,
-      perfil: payload.perfil || payload.role,
-      company_id: payload.company_id
+      // Mantém compatibilidade com código legado que usa `perfil` em caixa alta
+      perfil: (payload.perfil || payload.role || '').toString().toUpperCase(),
+      role, // Normalizado em minúsculas para os middlewares de permissão
+      company_id: companyId,
+      companyId, // Alias para rotas que esperam camelCase
+      userId    // Alias para rotas que esperam camelCase
     };
+    // Alias legado para rotas que ainda leem req.user
+    req.user = req.usuario;
     
     // Injeta tenant para isolamento (RLS se configurado)
     setTenant(req, res, next);
@@ -93,13 +105,22 @@ function autenticacaoOpcional(req, res, next) {
   
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET || 'dev');
+    const rawRole = payload.role || payload.perfil || '';
+    const role = typeof rawRole === 'string' ? rawRole.toLowerCase() : rawRole;
+    const userId = payload.sub || payload.id;
+    const companyId = payload.company_id || payload.companyId;
+
     req.usuario = {
-      id: payload.sub || payload.id,
+      id: userId,
       email: payload.email,
       nome: payload.nome,
-      perfil: payload.perfil || payload.role,
-      company_id: payload.company_id
+      perfil: (payload.perfil || payload.role || '').toString().toUpperCase(),
+      role,
+      company_id: companyId,
+      companyId,
+      userId
     };
+    req.user = req.usuario;
   } catch (e) {
     // Ignora erros em autenticação opcional
   }
