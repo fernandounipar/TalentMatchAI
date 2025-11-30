@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS vagas (
   requirements TEXT,
   seniority TEXT,                    -- Junior, Pleno, Senior
   location_type TEXT,                -- Presencial, Remoto, Híbrido
-  status TEXT DEFAULT 'open',        -- open, closed, draft
+  status TEXT DEFAULT 'open',        -- open, closed, draft, filled (preenchida)
   salary_min NUMERIC,
   salary_max NUMERIC,
   contract_type TEXT,                -- CLT, PJ, Estágio
@@ -94,6 +94,11 @@ CREATE TABLE IF NOT EXISTS vagas (
   is_remote BOOLEAN DEFAULT false,
   published_at TIMESTAMP,
   closed_at TIMESTAMP,
+  -- Campos para candidato aprovado
+  hired_candidate_id UUID REFERENCES candidatos(id),  -- Candidato aprovado/contratado
+  hired_candidate_name TEXT,         -- Nome do candidato (cache para exibição)
+  hired_candidate_email TEXT,        -- Email do candidato (cache para exibição)
+  hired_at TIMESTAMP,                -- Data da aprovação/contratação
   created_by UUID REFERENCES usuarios(id),
   updated_by UUID REFERENCES usuarios(id),
   version INTEGER DEFAULT 1,

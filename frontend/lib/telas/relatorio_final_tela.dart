@@ -27,11 +27,219 @@ class RelatorioFinalTela extends StatefulWidget {
 class _RelatorioFinalTelaState extends State<RelatorioFinalTela> {
   late Map<String, dynamic>? _relatorio;
   bool _carregando = false;
+  bool _processandoDecisao = false;
+  String? _statusDecisao; // 'approved', 'rejected', null
 
   @override
   void initState() {
     super.initState();
     _relatorio = widget.relatorio;
+    // Verificar se já tem uma decisão prévia
+    final result = _relatorio?['result'] ?? _relatorio?['interview_result'];
+    if (result == 'approved') {
+      _statusDecisao = 'approved';
+    } else if (result == 'rejected') {
+      _statusDecisao = 'rejected';
+    }
+  }
+
+  /// Aprovar candidato e finalizar a vaga
+  Future<void> _aprovarCandidato() async {
+    if (widget.api == null || _relatorio == null) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Aprovar Candidato'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Deseja aprovar ${widget.candidato} para a vaga ${widget.vaga}?'),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.green.shade700, size: 20),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'A vaga será finalizada e marcada como preenchida.',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.check_circle),
+            label: const Text('Aprovar'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _processandoDecisao = true);
+    try {
+      final jobId = _relatorio!['job_id']?.toString() ?? '';
+      final interviewId = _relatorio!['interview_id']?.toString() ?? '';
+      final candidateId = _relatorio!['candidate_id']?.toString();
+      final candidateName = _relatorio!['candidate_name']?.toString() ?? widget.candidato;
+      final candidateEmail = _relatorio!['candidate_email']?.toString() ?? '';
+
+      if (jobId.isEmpty) {
+        throw Exception('ID da vaga não encontrado no relatório');
+      }
+
+      await widget.api!.finalizarVaga(
+        jobId,
+        candidateId: candidateId,
+        candidateName: candidateName,
+        candidateEmail: candidateEmail,
+        interviewId: interviewId.isNotEmpty ? interviewId : null,
+      );
+
+      if (mounted) {
+        setState(() => _statusDecisao = 'approved');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 8),
+                Text('$candidateName aprovado! Vaga finalizada.'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao aprovar candidato: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _processandoDecisao = false);
+    }
+  }
+
+  /// Reprovar candidato
+  Future<void> _reprovarCandidato() async {
+    if (widget.api == null || _relatorio == null) return;
+
+    final reasonController = TextEditingController();
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reprovar Candidato'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Deseja reprovar ${widget.candidato} para a vaga ${widget.vaga}?'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: reasonController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Motivo da reprovação (opcional)',
+                border: OutlineInputBorder(),
+                hintText: 'Descreva o motivo...',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.cancel),
+            label: const Text('Reprovar'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _processandoDecisao = true);
+    try {
+      final jobId = _relatorio!['job_id']?.toString() ?? '';
+      final interviewId = _relatorio!['interview_id']?.toString() ?? '';
+      final candidateId = _relatorio!['candidate_id']?.toString();
+
+      if (jobId.isEmpty) {
+        throw Exception('ID da vaga não encontrado no relatório');
+      }
+
+      await widget.api!.reprovarCandidato(
+        jobId,
+        candidateId: candidateId,
+        interviewId: interviewId.isNotEmpty ? interviewId : null,
+        reason: reasonController.text.trim().isNotEmpty ? reasonController.text.trim() : null,
+      );
+
+      if (mounted) {
+        setState(() => _statusDecisao = 'rejected');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.cancel, color: Colors.white),
+                const SizedBox(width: 8),
+                Text('${widget.candidato} foi reprovado.'),
+              ],
+            ),
+            backgroundColor: Colors.red.shade700,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao reprovar candidato: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _processandoDecisao = false);
+    }
   }
 
   Future<void> _deletarRelatorio() async {
@@ -656,7 +864,244 @@ class _RelatorioFinalTelaState extends State<RelatorioFinalTela> {
               ),
             ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 32),
+
+          // Card de Decisão do Recrutador
+          if (widget.api != null) ...[
+            Card(
+              elevation: 3,
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF4F46E5).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.gavel,
+                            color: Color(0xFF4F46E5),
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Decisão do Recrutador',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'Avalie o candidato e tome uma decisão final',
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Badge de status da IA
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _corRecomendacao(recomendacao).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: _corRecomendacao(recomendacao),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.smart_toy,
+                                size: 16,
+                                color: _corRecomendacao(recomendacao),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'IA: $recomendacao',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: _corRecomendacao(recomendacao),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    // Status atual da decisão
+                    if (_statusDecisao != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: _statusDecisao == 'approved'
+                              ? Colors.green.shade50
+                              : Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _statusDecisao == 'approved'
+                                ? Colors.green.shade300
+                                : Colors.red.shade300,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              _statusDecisao == 'approved'
+                                  ? Icons.check_circle
+                                  : Icons.cancel,
+                              color: _statusDecisao == 'approved'
+                                  ? Colors.green.shade700
+                                  : Colors.red.shade700,
+                              size: 28,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _statusDecisao == 'approved'
+                                        ? 'Candidato Aprovado ✓'
+                                        : 'Candidato Reprovado',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: _statusDecisao == 'approved'
+                                          ? Colors.green.shade800
+                                          : Colors.red.shade800,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _statusDecisao == 'approved'
+                                        ? 'A vaga foi finalizada e marcada como preenchida.'
+                                        : 'O candidato foi marcado como reprovado para esta vaga.',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: _statusDecisao == 'approved'
+                                          ? Colors.green.shade700
+                                          : Colors.red.shade700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ] else ...[
+                      // Botões de ação
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _processandoDecisao
+                                  ? null
+                                  : _reprovarCandidato,
+                              icon: _processandoDecisao
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.cancel),
+                              label: const Text('Reprovar'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.red,
+                                side: const BorderSide(color: Colors.red),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            flex: 2,
+                            child: ElevatedButton.icon(
+                              onPressed: _processandoDecisao
+                                  ? null
+                                  : _aprovarCandidato,
+                              icon: _processandoDecisao
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Icon(Icons.check_circle),
+                              label: const Text('Aprovar e Finalizar Vaga'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.amber.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              color: Colors.amber.shade800,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text(
+                                'Ao aprovar, a vaga será finalizada automaticamente e não receberá mais candidaturas.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
 
           // Próximos passos e ações podem ser derivados futuramente a partir do relatório
         ],

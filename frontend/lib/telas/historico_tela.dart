@@ -438,10 +438,60 @@ class _HistoricoTelaState extends State<HistoricoTela> {
     return '${d.day.toString().padLeft(2, '0')} de ${meses[d.month - 1]} de ${d.year}';
   }
 
-  void _verDetalhes(AtividadeHistorico a) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-          content: Text('Abrir detalhes de ${a.entidade} (${a.entidadeId})')),
-    );
+  void _verDetalhes(AtividadeHistorico a) async {
+    // Se for uma entrevista e tiver o callback, busca o relatório e abre
+    if ((a.entidade == 'Entrevista' || a.tipo == 'Entrevista') && 
+        a.entidadeId.isNotEmpty &&
+        widget.onAbrirRelatorio != null) {
+      try {
+        // Mostra indicador de carregamento
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                ),
+                SizedBox(width: 12),
+                Text('Carregando relatório...'),
+              ],
+            ),
+            duration: Duration(seconds: 2),
+          ),
+        );
+
+        // Busca o relatório da entrevista
+        final relatorio = await widget.api.obterRelatorioEntrevista(a.entidadeId);
+        
+        if (!mounted) return;
+        
+        // Fecha o SnackBar de carregamento
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        
+        // Chama o callback para abrir o relatório
+        widget.onAbrirRelatorio!(a.entidadeId, relatorio);
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao carregar relatório: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } else {
+      // Para outros tipos, mostra mensagem informativa
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Detalhes de ${a.entidade}: ${a.descricao}'),
+        ),
+      );
+    }
   }
 }

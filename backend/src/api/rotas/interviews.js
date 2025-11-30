@@ -755,13 +755,32 @@ router.post('/:id/report', async (req, res) => {
 
 router.get('/:id/report', async (req, res) => {
   try {
+    // Busca relatório com dados da entrevista, candidatura, vaga e candidato
     const r = await db.query(
-      `SELECT * FROM relatorios_entrevista WHERE interview_id = $1 AND company_id = $2 ORDER BY created_at DESC LIMIT 1`,
+      `SELECT 
+        re.*,
+        e.id AS interview_id,
+        e.status AS interview_status,
+        e.result AS interview_result,
+        a.job_id,
+        a.candidate_id,
+        c.full_name AS candidate_name,
+        c.email AS candidate_email,
+        v.title AS job_title
+       FROM relatorios_entrevista re
+       JOIN entrevistas e ON e.id = re.interview_id
+       JOIN candidaturas a ON a.id = e.application_id
+       JOIN candidatos c ON c.id = a.candidate_id
+       JOIN vagas v ON v.id = a.job_id
+       WHERE re.interview_id = $1 AND re.company_id = $2 
+       ORDER BY re.created_at DESC 
+       LIMIT 1`,
       [req.params.id, req.usuario.company_id]
     );
     if (!r.rows[0]) return res.status(404).json({ erro: 'Relatório não encontrado' });
     res.json({ data: r.rows[0] });
   } catch (error) {
+    console.error('Erro ao buscar relatório:', error);
     res.status(500).json({ erro: 'Falha ao obter relatório' });
   }
 });

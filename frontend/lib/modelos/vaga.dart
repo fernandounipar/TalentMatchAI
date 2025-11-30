@@ -4,7 +4,7 @@ class Vaga {
   final String titulo;
   final String descricao;
   final String requisitos; // String ou será convertido de List
-  final String status; // 'Aberta', 'Fechada', 'Pausada'
+  final String status; // 'aberta', 'fechada', 'pausada', 'filled' (preenchida)
   final String? tecnologias;
   final String? nivel; // 'Junior', 'Pleno', 'Senior', 'Especialista'
   final DateTime criadoEm;
@@ -18,13 +18,19 @@ class Vaga {
   final List<String>? tags;
   final int? candidatos;
   final DateTime? createdAt; // Alias para criadoEm
+  
+  // Campos do candidato aprovado (quando status = 'filled')
+  final String? hiredCandidateId;
+  final String? hiredCandidateName;
+  final String? hiredCandidateEmail;
+  final DateTime? hiredAt;
 
   Vaga({
     required this.id,
     required this.titulo,
     required this.descricao,
     required this.requisitos,
-    this.status = 'Aberta',
+    this.status = 'aberta',
     this.tecnologias,
     this.nivel,
     required this.criadoEm,
@@ -37,6 +43,11 @@ class Vaga {
     this.tags,
     this.candidatos,
     this.createdAt,
+    // Campos do candidato aprovado
+    this.hiredCandidateId,
+    this.hiredCandidateName,
+    this.hiredCandidateEmail,
+    this.hiredAt,
   });
 
   // Constructor nomeado para criar vagas com campos estendidos

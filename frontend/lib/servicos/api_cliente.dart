@@ -320,6 +320,46 @@ class ApiCliente {
     if (r.statusCode >= 400) throw Exception(r.body);
   }
 
+  /// Finaliza vaga com candidato aprovado
+  Future<Map<String, dynamic>> finalizarVaga(String jobId, {
+    String? candidateId,
+    required String candidateName,
+    required String candidateEmail,
+    String? interviewId,
+  }) async {
+    final payload = {
+      if (candidateId != null) 'candidate_id': candidateId,
+      'candidate_name': candidateName,
+      'candidate_email': candidateEmail,
+      if (interviewId != null) 'interview_id': interviewId,
+    };
+    final r = await _execWithRefresh(() => http.post(
+        Uri.parse('$baseUrl/api/jobs/$jobId/finalize'),
+        headers: _headers(),
+        body: jsonEncode(payload)));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  /// Reprova candidato para uma vaga
+  Future<Map<String, dynamic>> reprovarCandidato(String jobId, {
+    String? candidateId,
+    String? interviewId,
+    String? reason,
+  }) async {
+    final payload = {
+      if (candidateId != null) 'candidate_id': candidateId,
+      if (interviewId != null) 'interview_id': interviewId,
+      if (reason != null) 'reason': reason,
+    };
+    final r = await _execWithRefresh(() => http.post(
+        Uri.parse('$baseUrl/api/jobs/$jobId/reject-candidate'),
+        headers: _headers(),
+        body: jsonEncode(payload)));
+    if (r.statusCode >= 400) throw Exception(r.body);
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
   Future<List<dynamic>> candidatos(
       {int page = 1, int limit = 50, String? q, String? skill}) async {
     final qp = <String, String>{'page': '$page', 'limit': '$limit'};

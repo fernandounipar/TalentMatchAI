@@ -65,15 +65,27 @@ class TMStatusColors {
   // Vagas
   static const Map<String, Color> jobBg = {
     // Vagas: cores seguindo o Figma (green/yellow/gray)
+    'aberta': Color(0xFFDCFCE7), // green-100
     'Aberta': Color(0xFFDCFCE7), // green-100
+    'pausada': Color(0xFFFEF9C3), // yellow-100
     'Pausada': Color(0xFFFEF9C3), // yellow-100
+    'fechada': Color(0xFFF3F4F6), // gray-100
     'Fechada': Color(0xFFF3F4F6), // gray-100
+    'preenchida': Color(0xFFDBEAFE), // blue-100
+    'Preenchida': Color(0xFFDBEAFE), // blue-100
+    'filled': Color(0xFFDBEAFE), // blue-100
     'Concluída': Color(0xFFDCFCE7),
   };
   static const Map<String, Color> jobFg = {
+    'aberta': Color(0xFF166534), // green-800
     'Aberta': Color(0xFF166534), // green-800
+    'pausada': Color(0xFF854D0E), // yellow-800
     'Pausada': Color(0xFF854D0E), // yellow-800
+    'fechada': Color(0xFF1F2937), // gray-800
     'Fechada': Color(0xFF1F2937), // gray-800
+    'preenchida': Color(0xFF1E40AF), // blue-800
+    'Preenchida': Color(0xFF1E40AF), // blue-800
+    'filled': Color(0xFF1E40AF), // blue-800
     'Concluída': Color(0xFF166534),
   };
 

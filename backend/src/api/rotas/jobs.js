@@ -119,6 +119,10 @@ router.get('/', async (req, res) => {
         j.is_remote,
         j.published_at,
         j.closed_at,
+        j.hired_candidate_id,
+        j.hired_candidate_name,
+        j.hired_candidate_email,
+        j.hired_at,
         j.version,
         j.created_at,
         j.updated_at,
@@ -494,6 +498,144 @@ router.get('/search/text', async (req, res) => {
   } catch (e) {
     console.error('Erro na busca textual:', e);
     res.status(500).json({ erro: 'Falha na busca' });
+  }
+});
+
+
+// ============================================================================
+// POST /api/jobs/:id/finalize - Finalizar vaga com candidato aprovado
+// ============================================================================
+router.post('/:id/finalize', exigirRole('ADMIN', 'SUPER_ADMIN', 'USER'), async (req, res) => {
+  try {
+    const { candidate_id, candidate_name, candidate_email, interview_id } = req.body || {};
+
+    if (!candidate_id && !candidate_name) {
+      return res.status(400).json({
+        erro: 'Informe candidate_id ou candidate_name para finalizar a vaga'
+      });
+    }
+
+    // Buscar dados do candidato se apenas o ID foi fornecido
+    let finalName = candidate_name;
+    let finalEmail = candidate_email;
+
+    if (candidate_id && (!finalName || !finalEmail)) {
+      const candResult = await db.query(
+        `SELECT full_name, email FROM candidatos WHERE id = $1 AND company_id = $2`,
+        [candidate_id, req.usuario.company_id]
+      );
+      if (candResult.rows[0]) {
+        finalName = finalName || candResult.rows[0].full_name;
+        finalEmail = finalEmail || candResult.rows[0].email;
+      }
+    }
+
+    // Atualizar a vaga com status 'filled' e dados do candidato aprovado
+    const result = await db.query(
+      `UPDATE vagas 
+       SET status = 'filled',
+           hired_candidate_id = $3,
+           hired_candidate_name = $4,
+           hired_candidate_email = $5,
+           hired_at = now(),
+           closed_at = COALESCE(closed_at, now()),
+           updated_by = $6,
+           updated_at = now()
+       WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL
+       RETURNING *`,
+      [
+        req.params.id,
+        req.usuario.company_id,
+        candidate_id || null,
+        finalName,
+        finalEmail,
+        req.usuario.user_id
+      ]
+    );
+
+    if (!result.rows[0]) {
+      return res.status(404).json({ erro: 'Vaga não encontrada' });
+    }
+
+    // Atualizar a candidatura para 'approved' se tiver interview_id
+    if (interview_id) {
+      await db.query(
+        `UPDATE candidaturas 
+         SET status = 'approved', updated_at = now()
+         WHERE id = (
+           SELECT application_id FROM entrevistas WHERE id = $1 AND company_id = $2
+         )`,
+        [interview_id, req.usuario.company_id]
+      );
+
+      // Atualizar a entrevista para 'completed' com result 'approved'
+      await db.query(
+        `UPDATE entrevistas 
+         SET status = 'completed', result = 'approved', completed_at = now(), updated_at = now()
+         WHERE id = $1 AND company_id = $2`,
+        [interview_id, req.usuario.company_id]
+      );
+    }
+
+    await audit(req, 'finalize', 'job', req.params.id, {
+      title: result.rows[0].title,
+      hired_candidate_name: finalName,
+      hired_candidate_email: finalEmail
+    });
+
+    res.json(result.rows[0]);
+  } catch (e) {
+    console.error('Erro ao finalizar vaga:', e);
+    res.status(500).json({ erro: 'Falha ao finalizar vaga' });
+  }
+});
+
+
+// ============================================================================
+// POST /api/jobs/:id/reject-candidate - Reprovar candidato para a vaga
+// ============================================================================
+router.post('/:id/reject-candidate', exigirRole('ADMIN', 'SUPER_ADMIN', 'USER'), async (req, res) => {
+  try {
+    const { candidate_id, interview_id, reason } = req.body || {};
+
+    if (!interview_id && !candidate_id) {
+      return res.status(400).json({
+        erro: 'Informe interview_id ou candidate_id para reprovar o candidato'
+      });
+    }
+
+    // Atualizar a entrevista para 'completed' com result 'rejected'
+    if (interview_id) {
+      await db.query(
+        `UPDATE entrevistas 
+         SET status = 'completed', result = 'rejected', 
+             notes = COALESCE(notes, '') || $3,
+             completed_at = now(), updated_at = now()
+         WHERE id = $1 AND company_id = $2`,
+        [interview_id, req.usuario.company_id, reason ? `\nMotivo reprovação: ${reason}` : '']
+      );
+
+      // Atualizar a candidatura para 'rejected'
+      await db.query(
+        `UPDATE candidaturas 
+         SET status = 'rejected', updated_at = now()
+         WHERE id = (
+           SELECT application_id FROM entrevistas WHERE id = $1 AND company_id = $2
+         )`,
+        [interview_id, req.usuario.company_id]
+      );
+    }
+
+    await audit(req, 'reject_candidate', 'job', req.params.id, {
+      interview_id,
+      candidate_id,
+      reason
+    });
+
+    res.json({ success: true, message: 'Candidato reprovado com sucesso' });
+  } catch (e) {
+    console.error('Erro ao reprovar candidato:', e);
+    res.status(500).json({ erro: 'Falha ao reprovar candidato' });
   }
 });
 

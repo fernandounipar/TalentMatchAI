@@ -115,8 +115,11 @@ class _VagasTelaState extends State<VagasTela> {
           regime: j['location_type']?.toString(),
           local: j['unit']?.toString(),
           status: (() {
-            final s = (j['status'] ?? '').toString();
-            return s == 'open' ? 'aberta' : s;
+            final s = (j['status'] ?? '').toString().toLowerCase();
+            if (s == 'open') return 'aberta';
+            if (s == 'filled') return 'preenchida';
+            if (s == 'closed') return 'fechada';
+            return s;
           })(),
           salario: salario,
           tags: tags,
@@ -124,6 +127,13 @@ class _VagasTelaState extends State<VagasTela> {
           candidatos: candidatosCount is int
               ? candidatosCount
               : int.tryParse(candidatosCount.toString()) ?? 0,
+          // Campos do candidato aprovado
+          hiredCandidateId: j['hired_candidate_id']?.toString(),
+          hiredCandidateName: j['hired_candidate_name']?.toString(),
+          hiredCandidateEmail: j['hired_candidate_email']?.toString(),
+          hiredAt: j['hired_at'] != null 
+              ? date_utils.DateUtils.parseParaBrasilia(j['hired_at'].toString())
+              : null,
         );
       }).toList();
       if (mounted) {
@@ -316,7 +326,12 @@ class _VagasTelaState extends State<VagasTela> {
                   builder: (context, gridConstraints) {
                     final width = gridConstraints.maxWidth;
                     final crossAxisCount = width >= 1024 ? 2 : 1;
-                    final childAspectRatio = width >= 1024 ? 1.6 : 1.3;
+                    // Verifica se há vagas preenchidas para ajustar altura
+                    final hasFilledVagas = _filteredVagas.any((v) => 
+                        v.status == 'preenchida' && v.hiredCandidateName != null);
+                    final childAspectRatio = width >= 1024 
+                        ? (hasFilledVagas ? 1.25 : 1.6) 
+                        : (hasFilledVagas ? 0.95 : 1.3);
 
                     return GridView.builder(
                       shrinkWrap: true,
@@ -496,9 +511,10 @@ class _VagasTelaState extends State<VagasTela> {
       ),
       items: const [
         DropdownMenuItem(value: 'all', child: Text('Todos os Status')),
-        DropdownMenuItem(value: 'Aberta', child: Text('Aberta')),
-        DropdownMenuItem(value: 'Pausada', child: Text('Pausada')),
-        DropdownMenuItem(value: 'Fechada', child: Text('Fechada')),
+        DropdownMenuItem(value: 'aberta', child: Text('Aberta')),
+        DropdownMenuItem(value: 'preenchida', child: Text('Preenchida')),
+        DropdownMenuItem(value: 'pausada', child: Text('Pausada')),
+        DropdownMenuItem(value: 'fechada', child: Text('Fechada')),
       ],
       onChanged: (value) => setState(() => _filterStatus = value ?? 'all'),
     );
@@ -506,6 +522,8 @@ class _VagasTelaState extends State<VagasTela> {
 
   Widget _buildVagaCard(Vaga vaga, int index) {
     final isHovered = _hoveredCards.contains(index);
+    final temCandidatoAprovado = vaga.status == 'preenchida' && vaga.hiredCandidateName != null;
+    
     return MouseRegion(
       onEnter: (_) => setState(() => _hoveredCards.add(index)),
       onExit: (_) => setState(() => _hoveredCards.remove(index)),
@@ -637,7 +655,63 @@ class _VagasTelaState extends State<VagasTela> {
                       ),
                   ],
                 ),
+
+                // Espaço flexível para empurrar o footer para baixo
                 const Spacer(),
+
+                // Card de candidato aprovado (quando status = 'preenchida')
+                if (temCandidatoAprovado) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.green.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.check_circle,
+                          size: 20,
+                          color: Colors.green.shade700,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Candidato Aprovado',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.green.shade700,
+                                ),
+                              ),
+                              Text(
+                                vaga.hiredCandidateName!,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: TMTokens.text,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          Icons.check_circle,
+                          color: Colors.green.shade600,
+                          size: 18,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
 
                 // Footer
                 Container(
