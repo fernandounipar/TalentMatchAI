@@ -132,21 +132,28 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
               if (!mounted) return;
               setState(() {
                 relatorioFinal = data;
-                ctx['candidato'] =
-                    data['candidate_name'] ?? data['candidato'] ?? ctx['candidato'] ?? '';
-                ctx['vagaSelecionada'] =
-                    data['job_title'] ?? data['vaga'] ?? ctx['vagaSelecionada'] ?? '';
+                ctx['candidato'] = data['candidate_name'] ??
+                    data['candidato'] ??
+                    ctx['candidato'] ??
+                    '';
+                ctx['vagaSelecionada'] = data['job_title'] ??
+                    data['vaga'] ??
+                    ctx['vagaSelecionada'] ??
+                    '';
               });
             });
           }
-          final candidatoNome =
-              data['candidate_name'] ?? data['candidato'] ?? ctx['candidato'] ?? '';
+          final candidatoNome = data['candidate_name'] ??
+              data['candidato'] ??
+              ctx['candidato'] ??
+              '';
           final vagaTitulo =
               data['job_title'] ?? data['vaga'] ?? ctx['vagaSelecionada'] ?? '';
           return RelatorioFinalTela(
             candidato: candidatoNome.toString(),
             vaga: vagaTitulo.toString(),
             relatorio: data,
+            api: api, // Passando API
             onVoltar: () => go(RouteKey.dashboard),
           );
         },
@@ -157,12 +164,15 @@ class _TalentMatchIAState extends State<TalentMatchIA> {
         relatorioFinal?['candidato'] ??
         ctx['candidato'] ??
         '';
-    final vagaTitulo =
-        relatorioFinal?['job_title'] ?? relatorioFinal?['vaga'] ?? ctx['vagaSelecionada'] ?? '';
+    final vagaTitulo = relatorioFinal?['job_title'] ??
+        relatorioFinal?['vaga'] ??
+        ctx['vagaSelecionada'] ??
+        '';
     return RelatorioFinalTela(
       candidato: candidatoNome.toString(),
       vaga: vagaTitulo.toString(),
       relatorio: relatorioFinal,
+      api: api, // Passando API
       onVoltar: () => go(RouteKey.dashboard),
     );
   }

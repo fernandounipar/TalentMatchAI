@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../servicos/api_cliente.dart';
 import '../modelos/vaga.dart';
@@ -71,6 +72,38 @@ class _VagasTelaState extends State<VagasTela> {
       final vagas = itens.map((j) {
         final createdAt = DateTime.tryParse(j['created_at']?.toString() ?? '');
         final candidatosCount = j['candidates_count'] ?? j['candidatos'] ?? 0;
+        // Montar faixa salarial
+        String? salario;
+        final salaryMin = j['salary_min'];
+        final salaryMax = j['salary_max'];
+        if (salaryMin != null || salaryMax != null) {
+          final minStr = salaryMin != null ? 'R\$ ${salaryMin.toString()}' : '';
+          final maxStr = salaryMax != null ? 'R\$ ${salaryMax.toString()}' : '';
+          if (minStr.isNotEmpty && maxStr.isNotEmpty) {
+            salario = '$minStr - $maxStr';
+          } else {
+            salario = minStr.isNotEmpty ? minStr : maxStr;
+          }
+        }
+        // Extrair skills_required (habilidades)
+        List<String> tags = [];
+        final skillsRaw = j['skills_required'];
+        if (skillsRaw is List) {
+          tags = skillsRaw.map((e) => e.toString()).toList();
+        } else if (skillsRaw is String) {
+          try {
+            final decoded = jsonDecode(skillsRaw);
+            if (decoded is List) {
+              tags = decoded.map((e) => e.toString()).toList();
+            }
+          } catch (_) {
+            tags = skillsRaw
+                .split(',')
+                .map((e) => e.trim())
+                .where((e) => e.isNotEmpty)
+                .toList();
+          }
+        }
         return Vaga(
           id: (j['id'] ?? '').toString(),
           titulo: j['title']?.toString() ?? '',
@@ -79,13 +112,13 @@ class _VagasTelaState extends State<VagasTela> {
           requisitosList: (j['requirements']?.toString() ?? '').split('\n'),
           senioridade: j['seniority']?.toString(),
           regime: j['location_type']?.toString(),
-          local: null,
+          local: j['unit']?.toString(),
           status: (() {
             final s = (j['status'] ?? '').toString();
             return s == 'open' ? 'aberta' : s;
           })(),
-          salario: null,
-          tags: const [],
+          salario: salario,
+          tags: tags,
           criadoEm: createdAt ?? DateTime.now(),
           candidatos: candidatosCount is int
               ? candidatosCount
@@ -150,6 +183,26 @@ class _VagasTelaState extends State<VagasTela> {
     final messenger = ScaffoldMessenger.of(context);
 
     try {
+      // Parsear faixa salarial (formato: "R$ 8000 - R$ 12000" ou "8000 - 12000")
+      int? salaryMin;
+      int? salaryMax;
+      final salarioText = _salarioController.text.trim();
+      if (salarioText.isNotEmpty) {
+        final cleanedSalario = salarioText.replaceAll(RegExp(r'[R\$\s\.]'), '');
+        final parts = cleanedSalario.split('-').map((e) => e.trim()).toList();
+        if (parts.isNotEmpty) {
+          salaryMin = int.tryParse(parts[0].replaceAll(RegExp(r'[^0-9]'), ''));
+        }
+        if (parts.length > 1) {
+          salaryMax = int.tryParse(parts[1].replaceAll(RegExp(r'[^0-9]'), ''));
+        }
+      }
+      // Parsear habilidades (skills)
+      final skillsList = _tagsController.text
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
       final payload = {
         'titulo': _tituloController.text,
         'descricao': _descricaoController.text,
@@ -157,6 +210,11 @@ class _VagasTelaState extends State<VagasTela> {
         'status': (_editingVaga?.status ?? 'aberta').toLowerCase(),
         'tecnologias': _tagsController.text,
         'nivel': _senioridade,
+        'regime': _regime,
+        'local': _localController.text,
+        'salary_min': salaryMin,
+        'salary_max': salaryMax,
+        'skills_required': skillsList,
       };
       if (_editingVaga != null) {
         await widget.api.atualizarVaga(_editingVaga!.id, payload);
@@ -257,7 +315,7 @@ class _VagasTelaState extends State<VagasTela> {
                   builder: (context, gridConstraints) {
                     final width = gridConstraints.maxWidth;
                     final crossAxisCount = width >= 1024 ? 2 : 1;
-                    final childAspectRatio = width >= 1024 ? 1.2 : 1.05;
+                    final childAspectRatio = width >= 1024 ? 1.6 : 1.3;
 
                     return GridView.builder(
                       shrinkWrap: true,
@@ -867,8 +925,8 @@ class _VagasTelaState extends State<VagasTela> {
                       ),
                       const SizedBox(height: 16),
 
-                      // Tags
-                      const Text('Tags (separadas por vírgula)',
+                      // Habilidades
+                      const Text('Habilidades (separadas por vírgula)',
                           style: TextStyle(fontWeight: FontWeight.w600)),
                       const SizedBox(height: 8),
                       TextFormField(

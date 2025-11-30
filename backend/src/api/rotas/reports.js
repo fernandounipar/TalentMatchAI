@@ -22,9 +22,9 @@ const pool = new Pool({
  * POST /api/reports
  * Criar novo relatório (gerar via IA ou manual)
  */
-router.post('/', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', 'SUPER_ADMIN']), async (req, res) => {
+router.post('/', exigirAutenticacao, verificarPermissao(['recruiter', 'admin']), async (req, res) => {
   const client = await pool.connect();
-  
+
   try {
     const { companyId, userId } = req.user;
     const {
@@ -84,7 +84,7 @@ router.post('/', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', '
     // Gerar relatório via IA se solicitado
     if (generate_via_ai) {
       console.log(`[RF7] Gerando relatório via IA para entrevista ${interview_id}`);
-      
+
       // Buscar respostas e avaliações da entrevista
       const answersQuery = await client.query(`
         SELECT 
@@ -133,7 +133,7 @@ router.post('/', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', '
         reportSummary = aiReport.summary_text || reportSummary;
         reportStrengths = aiReport.strengths || reportStrengths;
         reportRisks = aiReport.risks || reportRisks;
-        
+
         // Converter recomendação antiga para nova
         const oldToNew = {
           'APROVAR': 'APPROVE',
@@ -141,7 +141,7 @@ router.post('/', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', '
           'REPROVAR': 'REJECT'
         };
         reportRecommendation = oldToNew[aiReport.recommendation] || 'PENDING';
-        
+
         // Calcular score médio se não fornecido
         if (!reportScore && feedbacks.length > 0) {
           reportScore = feedbacks.reduce((acc, f) => acc + f.score, 0) / feedbacks.length;
@@ -159,7 +159,7 @@ router.post('/', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', '
       FROM relatorios_entrevista
       WHERE interview_id = $1 AND company_id = $2
     `, [interview_id, companyId]);
-    
+
     const version = versionQuery.rows[0].next_version;
 
     // Inserir relatório
@@ -243,7 +243,7 @@ router.post('/', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', '
  * GET /api/reports
  * Listar relatórios com filtros
  */
-router.get('/', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', 'SUPER_ADMIN']), async (req, res) => {
+router.get('/', exigirAutenticacao, verificarPermissao(['recruiter', 'admin']), async (req, res) => {
   try {
     const { companyId } = req.user;
     const {
@@ -323,7 +323,7 @@ router.get('/', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', 'S
     }
 
     const whereClause = whereConditions.join(' AND ');
-    
+
     const validSortColumns = ['created_at', 'generated_at', 'overall_score', 'version', 'title'];
     const sortColumn = validSortColumns.includes(sort_by) ? sort_by : 'created_at';
     const sortOrder = order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
@@ -338,7 +338,7 @@ router.get('/', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', 'S
     const limitParam = paramCount;
     paramCount++;
     const offsetParam = paramCount;
-    
+
     const dataQuery = `
       SELECT 
         id,
@@ -361,7 +361,7 @@ router.get('/', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', 'S
       ORDER BY ${sortColumn} ${sortOrder}
       LIMIT $${limitParam} OFFSET $${offsetParam}
     `;
-    
+
     const result = await pool.query(dataQuery, [...params, limitNum, offset]);
 
     res.json({
@@ -389,7 +389,7 @@ router.get('/', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', 'S
  * GET /api/reports/:id
  * Obter detalhes de um relatório
  */
-router.get('/:id', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', 'SUPER_ADMIN']), async (req, res) => {
+router.get('/:id', exigirAutenticacao, verificarPermissao(['recruiter', 'admin']), async (req, res) => {
   try {
     const { companyId } = req.user;
     const { id } = req.params;
@@ -433,9 +433,9 @@ router.get('/:id', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN',
  * PUT /api/reports/:id
  * Atualizar relatório (regenerar ou editar campos)
  */
-router.put('/:id', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', 'SUPER_ADMIN']), async (req, res) => {
+router.put('/:id', exigirAutenticacao, verificarPermissao(['recruiter', 'admin']), async (req, res) => {
   const client = await pool.connect();
-  
+
   try {
     const { companyId, userId } = req.user;
     const { id } = req.params;
@@ -586,7 +586,7 @@ router.put('/:id', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN',
  * DELETE /api/reports/:id
  * Arquivar/excluir relatório (soft delete)
  */
-router.delete('/:id', exigirAutenticacao, verificarPermissao(['ADMIN', 'SUPER_ADMIN']), async (req, res) => {
+router.delete('/:id', exigirAutenticacao, verificarPermissao(['recruiter', 'admin']), async (req, res) => {
   try {
     const { companyId } = req.user;
     const { id } = req.params;
@@ -626,7 +626,7 @@ router.delete('/:id', exigirAutenticacao, verificarPermissao(['ADMIN', 'SUPER_AD
  * GET /api/reports/interview/:interview_id
  * Buscar todos os relatórios de uma entrevista
  */
-router.get('/interview/:interview_id', exigirAutenticacao, verificarPermissao(['RECRUITER', 'ADMIN', 'SUPER_ADMIN']), async (req, res) => {
+router.get('/interview/:interview_id', exigirAutenticacao, verificarPermissao(['recruiter', 'admin']), async (req, res) => {
   try {
     const { companyId } = req.user;
     const { interview_id } = req.params;

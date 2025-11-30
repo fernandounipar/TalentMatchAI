@@ -180,57 +180,27 @@ class _DashboardTelaState extends State<DashboardTela> {
     final nome = usuario?['full_name']?.toString() ?? 'Bem-vindo(a)';
     final companyName = empresa?['name']?.toString();
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '$nome 👋',
-              style: const TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF0F172A),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              companyName != null && companyName.isNotEmpty
-                  ? 'Resumo do seu dia na $companyName'
-                  : 'Resumo do seu dia',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[500],
-              ),
-            ),
-          ],
-        ),
-        if (MediaQuery.of(context).size.width >= 768)
-          Row(
-            children: [
-              ElevatedButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Nova Vaga'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4F46E5),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                ),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.upload, size: 18),
-                label: const Text('Upload Currículo'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                ),
-              ),
-            ],
+        Text(
+          '$nome 👋',
+          style: const TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF0F172A),
           ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          companyName != null && companyName.isNotEmpty
+              ? 'Resumo do seu dia na $companyName'
+              : 'Resumo do seu dia',
+          style: TextStyle(
+            fontSize: 16,
+            color: Colors.grey[500],
+          ),
+        ),
       ],
     );
   }
@@ -313,7 +283,8 @@ class _DashboardTelaState extends State<DashboardTela> {
   }
 
   Widget _buildStatsGrid() {
-    int _int(dynamic v) => v is num ? v.toInt() : int.tryParse(v?.toString() ?? '') ?? 0;
+    int _int(dynamic v) =>
+        v is num ? v.toInt() : int.tryParse(v?.toString() ?? '') ?? 0;
     final vagas = _int(_stats?['vagas']);
     final curriculos = _int(_stats?['curriculos']);
     final entrevistas = _int(_stats?['entrevistas']);
@@ -333,10 +304,29 @@ class _DashboardTelaState extends State<DashboardTela> {
           mainAxisSpacing: 16,
           childAspectRatio: 2.5,
           children: [
-            TMCardKPI(title: 'Vagas abertas', value: '$vagas', delta: 'Atualizado', icon: Icons.work_outline),
-            TMCardKPI(title: 'Currículos recebidos', value: '$curriculos', delta: '24h', icon: Icons.description_outlined, accentColor: TMTokens.info),
-            TMCardKPI(title: 'Entrevistas registradas', value: '$entrevistas', delta: 'No histórico', icon: Icons.calendar_today_outlined, accentColor: TMTokens.secondary),
-            TMCardKPI(title: 'Relatórios gerados', value: '$relatorios', delta: 'Com IA', icon: Icons.assessment_outlined, accentColor: TMTokens.emphasis),
+            TMCardKPI(
+                title: 'Vagas abertas',
+                value: '$vagas',
+                delta: 'Atualizado',
+                icon: Icons.work_outline),
+            TMCardKPI(
+                title: 'Currículos recebidos',
+                value: '$curriculos',
+                delta: '24h',
+                icon: Icons.description_outlined,
+                accentColor: TMTokens.info),
+            TMCardKPI(
+                title: 'Entrevistas registradas',
+                value: '$entrevistas',
+                delta: 'No histórico',
+                icon: Icons.calendar_today_outlined,
+                accentColor: TMTokens.secondary),
+            TMCardKPI(
+                title: 'Relatórios gerados',
+                value: '$relatorios',
+                delta: 'Com IA',
+                icon: Icons.assessment_outlined,
+                accentColor: TMTokens.emphasis),
           ],
         );
       },
@@ -396,11 +386,13 @@ class _DashboardTelaState extends State<DashboardTela> {
           ? '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}'
           : 'Recente';
       return DataRow(cells: [
-        DataCell(Text(titulo, style: const TextStyle(fontWeight: FontWeight.w500))),
+        DataCell(
+            Text(titulo, style: const TextStyle(fontWeight: FontWeight.w500))),
         DataCell(Text(candidatos)),
         DataCell(TMChip.jobStatus(status)),
         DataCell(Text(atualizado, style: TextStyle(color: Colors.grey[500]))),
-        const DataCell(Icon(Icons.chevron_right, size: 18, color: TMTokens.secondary)),
+        const DataCell(
+            Icon(Icons.chevron_right, size: 18, color: TMTokens.secondary)),
       ]);
     }).toList();
 
@@ -446,9 +438,11 @@ class _DashboardTelaState extends State<DashboardTela> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4F46E5),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),
-                  child: const Text('Nova Entrevista', style: TextStyle(fontSize: 13)),
+                  child: const Text('Nova Entrevista',
+                      style: TextStyle(fontSize: 13)),
                 ),
               ],
             ),
@@ -464,9 +458,14 @@ class _DashboardTelaState extends State<DashboardTela> {
               )
             else
               ...entrevistas.map((ent) {
-                final status = ent['tem_relatorio'] == true ? 'Relatório disponível' : 'Em análise';
-                final icone = ent['tem_relatorio'] == true ? Icons.check_circle : Icons.timelapse;
-                final cor = ent['tem_relatorio'] == true ? Colors.green : Colors.amber;
+                final status = ent['tem_relatorio'] == true
+                    ? 'Relatório disponível'
+                    : 'Em análise';
+                final icone = ent['tem_relatorio'] == true
+                    ? Icons.check_circle
+                    : Icons.timelapse;
+                final cor =
+                    ent['tem_relatorio'] == true ? Colors.green : Colors.amber;
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: _buildInterviewItem(
@@ -549,7 +548,8 @@ class _DashboardTelaState extends State<DashboardTela> {
   }
 
   Widget _buildRelatoriosRecentes() {
-    final relatorios = _historico.where((e) => e['tem_relatorio'] == true).take(4).toList();
+    final relatorios =
+        _historico.where((e) => e['tem_relatorio'] == true).take(4).toList();
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -589,9 +589,12 @@ class _DashboardTelaState extends State<DashboardTela> {
               )
             else
               ...relatorios.map((rel) {
-                final titulo = 'Entrevista — ${rel['candidato']} (${rel['vaga']})';
-                final data = DateTime.tryParse(rel['criado_em']?.toString() ?? '');
-                final status = rel['tem_relatorio'] == true ? 'Concluído' : 'Em andamento';
+                final titulo =
+                    'Entrevista — ${rel['candidato']} (${rel['vaga']})';
+                final data =
+                    DateTime.tryParse(rel['criado_em']?.toString() ?? '');
+                final status =
+                    rel['tem_relatorio'] == true ? 'Concluído' : 'Em andamento';
                 final dataFormatada = data != null
                     ? '${data.day.toString().padLeft(2, '0')}/${data.month.toString().padLeft(2, '0')}/${data.year}'
                     : 'Recente';
@@ -670,7 +673,8 @@ class _DashboardTelaState extends State<DashboardTela> {
   }
 
   Widget _buildInsightsIA() {
-    final tendencias = (_stats?['tendencias'] as List?)?.whereType<Map>().toList() ?? [];
+    final tendencias =
+        (_stats?['tendencias'] as List?)?.whereType<Map>().toList() ?? [];
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(

@@ -134,6 +134,7 @@ router.put('/:id', async (req, res) => {
         req.usuario.company_id
       ]
     );
+
     if (st || et) {
       // Atualiza calendar_events vinculado
       await db.query(
@@ -142,6 +143,77 @@ router.put('/:id', async (req, res) => {
         [st, et, req.params.id, req.usuario.company_id]
       );
     }
+
+    // RF7: Se status mudou para 'completed', garantir que existe relatório
+    if (status && String(status).toLowerCase() === 'completed') {
+      const checkReport = await db.query(
+        'SELECT id FROM relatorios_entrevista WHERE interview_id = $1 AND company_id = $2 LIMIT 1',
+        [req.params.id, req.usuario.company_id]
+      );
+
+      if (!checkReport.rows[0]) {
+        // Buscar detalhes para gerar relatório
+        const interviewDetails = await db.query(
+          `SELECT i.id, j.title as job_title, c.full_name as candidate_name
+             FROM entrevistas i
+             JOIN candidaturas a ON a.id = i.application_id
+             JOIN vagas j ON j.id = a.job_id
+             JOIN candidatos c ON c.id = a.candidate_id
+            WHERE i.id = $1 AND i.company_id = $2`,
+          [req.params.id, req.usuario.company_id]
+        );
+
+        if (interviewDetails.rows[0]) {
+          const det = interviewDetails.rows[0];
+          const aiReport = await gerarRelatorioEntrevista({
+            candidato: det.candidate_name,
+            vaga: det.job_title,
+            respostas: [],
+            feedbacks: [],
+            companyId: req.usuario.company_id
+          });
+
+          const versionQuery = await db.query(
+            `SELECT COALESCE(MAX(version), 0) + 1 as next_version
+               FROM relatorios_entrevista
+              WHERE interview_id = $1 AND company_id = $2`,
+            [req.params.id, req.usuario.company_id]
+          );
+          const version = versionQuery.rows[0].next_version;
+
+          await db.query(
+            `INSERT INTO relatorios_entrevista (
+               company_id, interview_id, title, report_type, content,
+               summary_text, candidate_name, job_title, overall_score, recommendation,
+               strengths, weaknesses, risks, format, generated_by, generated_at, is_final, version, created_by
+             ) VALUES (
+               $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15, now(), $16, $17, $18
+             )`,
+            [
+              req.usuario.company_id,
+              req.params.id,
+              aiReport.title || `Relatório de Entrevista v${version}`,
+              aiReport.report_type || 'full',
+              JSON.stringify(aiReport),
+              aiReport.summary_text || aiReport.summary || null,
+              det.candidate_name,
+              det.job_title,
+              aiReport.overall_score || null,
+              aiReport.recommendation || 'PENDING',
+              aiReport.strengths || [],
+              aiReport.weaknesses || [],
+              aiReport.risks || [],
+              aiReport.format || 'json',
+              req.usuario.id,
+              true, // is_final
+              version,
+              req.usuario.id
+            ]
+          );
+        }
+      }
+    }
+
     await audit(req, 'update', 'interview', req.params.id, { scheduled_at: st, mode, status, result, overall_score, notes, duration_minutes, cancellation_reason });
     res.json({ data: up.rows[0] });
   } catch (e) {
@@ -240,14 +312,19 @@ const perguntasHandler = async (req, res) => {
       quantidade: Number(req.query.qtd || 8),
       companyId: req.usuario.company_id,
     });
+
     // Persistir perguntas na tabela perguntas_entrevista
     const perguntas = [];
-    for (const texto of qs) {
+    for (const pergunta of qs) {
+      // Suporta tanto objeto { texto, kind } quanto string (retrocompatibilidade)
+      const textoP = typeof pergunta === 'string' ? pergunta : (pergunta.texto || pergunta);
+      const kindP = typeof pergunta === 'object' && pergunta.kind ? pergunta.kind : 'TECNICA';
+      
       const insert = await db.query(
-        `INSERT INTO perguntas_entrevista (company_id, interview_id, text, created_at)
-           VALUES ($1,$2,$3, now())
-           RETURNING id, text, created_at`,
-        [req.usuario.company_id, id, texto]
+        `INSERT INTO perguntas_entrevista (company_id, interview_id, text, origin, kind, prompt, created_at)
+           VALUES ($1,$2,$3,'AI',$4,$5, now())
+           RETURNING id, text, text AS prompt, kind, created_at`,
+        [req.usuario.company_id, id, textoP, kindP, textoP]
       );
       perguntas.push(insert.rows[0]);
     }
@@ -265,7 +342,7 @@ router.post('/:id/questions', perguntasHandler);
 router.get('/:id/questions', async (req, res) => {
   try {
     const r = await db.query(
-      `SELECT id, text, created_at
+      `SELECT id, text, text AS prompt, kind, created_at
          FROM perguntas_entrevista
         WHERE interview_id = $1 AND company_id = $2
         ORDER BY created_at ASC`,
@@ -274,6 +351,58 @@ router.get('/:id/questions', async (req, res) => {
     res.json({ data: r.rows });
   } catch (error) {
     res.status(500).json({ erro: 'Falha ao listar perguntas' });
+  }
+});
+
+// Listar respostas de uma entrevista
+router.get('/:id/answers', async (req, res) => {
+  try {
+    const r = await db.query(
+      `SELECT ra.id, ra.question_id, ra.raw_text, ra.created_at
+         FROM respostas_entrevista ra
+         JOIN perguntas_entrevista pe ON pe.id = ra.question_id
+        WHERE pe.interview_id = $1 AND ra.company_id = $2
+        ORDER BY ra.created_at ASC`,
+      [req.params.id, req.usuario.company_id]
+    );
+    res.json({ data: r.rows });
+  } catch (error) {
+    console.error('Erro ao listar respostas:', error);
+    res.status(500).json({ erro: 'Falha ao listar respostas' });
+  }
+});
+
+// Criar resposta para uma pergunta
+router.post('/:id/answers', async (req, res) => {
+  try {
+    const { question_id, raw_text } = req.body || {};
+    if (!question_id) {
+      return res.status(400).json({ erro: 'question_id é obrigatório' });
+    }
+    if (!raw_text || String(raw_text).trim() === '') {
+      return res.status(400).json({ erro: 'raw_text é obrigatório' });
+    }
+
+    // Verificar se a pergunta pertence à entrevista
+    const perguntaCheck = await db.query(
+      `SELECT id FROM perguntas_entrevista 
+        WHERE id = $1 AND interview_id = $2 AND company_id = $3`,
+      [question_id, req.params.id, req.usuario.company_id]
+    );
+    if (perguntaCheck.rows.length === 0) {
+      return res.status(404).json({ erro: 'Pergunta não encontrada nesta entrevista' });
+    }
+
+    const insert = await db.query(
+      `INSERT INTO respostas_entrevista (company_id, question_id, raw_text, created_at)
+         VALUES ($1, $2, $3, now())
+         RETURNING id, question_id, raw_text, created_at`,
+      [req.usuario.company_id, question_id, raw_text.trim()]
+    );
+    res.status(201).json({ data: insert.rows[0] });
+  } catch (error) {
+    console.error('Erro ao criar resposta:', error);
+    res.status(500).json({ erro: 'Falha ao criar resposta' });
   }
 });
 

@@ -454,7 +454,17 @@ async function criarOuAtualizarEmpresa(user_id, data) {
         [company.id, user_id]
       );
 
-      return { company };
+      // Busca usuário atualizado para gerar novo token
+      const updatedUserResult = await db.query(
+        `SELECT id, company_id, full_name, email, role FROM usuarios WHERE id = $1`,
+        [user_id]
+      );
+      const updatedUser = updatedUserResult.rows[0];
+      
+      // Gera novo access token com company_id e role atualizados
+      const access_token = gerarAccessToken(updatedUser);
+
+      return { company, access_token, role_updated: true };
     }
   } catch (error) {
     // Chave única de documento já cadastrada

@@ -165,6 +165,32 @@ router.post('/upload', upload.single('file'), async (req, res) => {
       ]
     );
 
+    // Atualizar dados do candidato com informações extraídas pela IA
+    if (analysis.candidato) {
+      const c = analysis.candidato;
+      // Tenta atualizar dados se a IA extraiu algo relevante
+      if (c.nome || c.email) {
+        await db.query(
+          `UPDATE candidatos 
+           SET full_name = COALESCE($1, full_name),
+               email = COALESCE($2, email),
+               phone = COALESCE($3, phone),
+               linkedin = COALESCE($4, linkedin),
+               github_url = COALESCE($5, github_url),
+               updated_at = NOW()
+           WHERE id = $6`,
+          [
+            c.nome || null,
+            c.email ? c.email.toLowerCase() : null,
+            c.telefone || null,
+            c.linkedin || null,
+            c.github || null,
+            candidateId
+          ]
+        );
+      }
+    }
+
     // Atualizar status do currículo
     await db.query(
       `UPDATE curriculos SET status = 'reviewed', updated_at = NOW() WHERE id = $1`,
@@ -642,9 +668,9 @@ router.post('/:id/decision', async (req, res) => {
         const scheduledAt = schedule?.dataHora ? new Date(schedule.dataHora).toISOString() : null;
         const insInterview = await db.query(
           `INSERT INTO entrevistas (
-             company_id, application_id, curriculo_id, status, scheduled_at, created_at
-           ) VALUES ($1, $2, $3, 'scheduled', $4, now()) RETURNING id`,
-          [companyId, applicationId, id, scheduledAt]
+             company_id, application_id, status, scheduled_at, created_at
+           ) VALUES ($1, $2, 'scheduled', $3, now()) RETURNING id`,
+          [companyId, applicationId, scheduledAt]
         );
         interviewId = insInterview.rows[0].id;
       }
