@@ -115,7 +115,7 @@ class _SidebarState extends State<Sidebar> {
   Widget _buildSidebarContent() {
     return Column(
       children: [
-        // Logo
+        // Logo - Mesmo padrão da Landing Page e Login
         Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
@@ -126,8 +126,8 @@ class _SidebarState extends State<Sidebar> {
           child: Row(
             children: [
               Container(
-                width: 40,
-                height: 40,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
@@ -135,16 +135,18 @@ class _SidebarState extends State<Sidebar> {
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Center(
-                  child: Text(
-                    'TM',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF2563EB).withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
                     ),
-                  ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.auto_awesome,
+                  color: Colors.white,
+                  size: 24,
                 ),
               ),
               const SizedBox(width: 12),
@@ -157,13 +159,15 @@ class _SidebarState extends State<Sidebar> {
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: Color(0xFF111827),
+                      letterSpacing: -0.3,
                     ),
                   ),
                   Text(
                     'IA',
                     style: TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF6B7280),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF2563EB),
                     ),
                   ),
                 ],

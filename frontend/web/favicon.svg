@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2563EB"/>
+      <stop offset="100%" style="stop-color:#1D4ED8"/>
+    </linearGradient>
+  </defs>
+  <!-- Background rounded square -->
+  <rect x="2" y="2" width="28" height="28" rx="6" fill="url(#grad)"/>
+  <!-- auto_awesome icon - three sparkles/stars -->
+  <!-- Main large star -->
+  <path d="M16 7l1.5 3.5L21 12l-3.5 1.5L16 17l-1.5-3.5L11 12l3.5-1.5L16 7z" fill="white"/>
+  <!-- Top right small star -->
+  <path d="M22 8l0.8 1.7L24.5 10.5l-1.7 0.8L22 13l-0.8-1.7L19.5 10.5l1.7-0.8L22 8z" fill="white" opacity="0.9"/>
+  <!-- Bottom left small star -->
+  <path d="M11 18l0.8 1.7L13.5 20.5l-1.7 0.8L11 23l-0.8-1.7L8.5 20.5l1.7-0.8L11 18z" fill="white" opacity="0.9"/>
+  <!-- Bottom right tiny star -->
+  <path d="M20 19l0.5 1.2L21.7 20.7l-1.2 0.5L20 22.5l-0.5-1.2L18.3 20.7l1.2-0.5L20 19z" fill="white" opacity="0.7"/>
+</svg>

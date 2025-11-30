@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../../config/database');
 const { exigirAutenticacao } = require('../../middlewares/autenticacao');
+const { paraHorarioBrasilia } = require('../../utils/dateUtils');
 
 router.use(exigirAutenticacao);
 
@@ -111,7 +112,12 @@ router.get('/', async (req, res) => {
       });
     }
 
-    eventos.sort((a, b) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime());
+    // Ordenar por data de criacao (horario de Brasilia)
+    eventos.sort((a, b) => {
+      const dataA = paraHorarioBrasilia(b.criado_em);
+      const dataB = paraHorarioBrasilia(a.criado_em);
+      return (dataA?.getTime() || 0) - (dataB?.getTime() || 0);
+    });
 
     res.json(eventos);
   } catch (error) {

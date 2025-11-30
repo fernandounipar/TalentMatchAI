@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import '../servicos/api_cliente.dart';
 import '../componentes/tm_chip.dart';
 import '../design_system/tm_tokens.dart';
+import '../utils/date_utils.dart' as date_utils;
 
 /// Dashboard - Versão aprimorada com design moderno
 /// Grid responsivo com estatísticas animadas, gráficos e insights
@@ -1095,7 +1096,7 @@ class _AtividadeItem extends StatelessWidget {
   Widget build(BuildContext context) {
     DateTime? dt;
     if (data != null) {
-      dt = DateTime.tryParse(data!);
+      dt = date_utils.DateUtils.parseParaBrasilia(data!);
     }
     final dataFormatada = dt != null
         ? '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}'

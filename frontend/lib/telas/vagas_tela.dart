@@ -5,6 +5,7 @@ import '../modelos/vaga.dart';
 import '../componentes/tm_button.dart';
 import '../componentes/tm_chip.dart';
 import '../design_system/tm_tokens.dart';
+import '../utils/date_utils.dart' as date_utils;
 
 /// Tela de Gerenciamento de Vagas
 class VagasTela extends StatefulWidget {
@@ -70,7 +71,7 @@ class _VagasTelaState extends State<VagasTela> {
       final itens =
           await widget.api.vagas(page: _page, limit: 20, status: status, q: q);
       final vagas = itens.map((j) {
-        final createdAt = DateTime.tryParse(j['created_at']?.toString() ?? '');
+        final createdAt = date_utils.DateUtils.parseParaBrasilia(j['created_at']?.toString() ?? '');
         final candidatosCount = j['candidates_count'] ?? j['candidatos'] ?? 0;
         // Montar faixa salarial
         String? salario;
@@ -119,7 +120,7 @@ class _VagasTelaState extends State<VagasTela> {
           })(),
           salario: salario,
           tags: tags,
-          criadoEm: createdAt ?? DateTime.now(),
+          criadoEm: createdAt ?? date_utils.DateUtils.agora(),
           candidatos: candidatosCount is int
               ? candidatosCount
               : int.tryParse(candidatosCount.toString()) ?? 0,

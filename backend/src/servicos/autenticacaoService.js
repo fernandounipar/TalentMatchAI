@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const db = require('../config/database');
 const { validarDocumento, normalizarDocumento } = require('./validacao');
+const { agora, expiracaoEmDias, expiracaoEmHoras, jaExpirou } = require('../utils/dateUtils');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_change_in_production';
 const ACCESS_TOKEN_EXPIRATION = process.env.JWT_ACCESS_EXPIRATION || '15m';
@@ -34,13 +35,11 @@ function gerarRefreshToken() {
 }
 
 /**
- * Calcula data de expiração do refresh token
+ * Calcula data de expiracao do refresh token (horario de Brasilia)
  */
 function calcularExpiracaoRefresh() {
   const days = parseInt(REFRESH_TOKEN_EXPIRATION) || 7;
-  const expiration = new Date();
-  expiration.setDate(expiration.getDate() + days);
-  return expiration;
+  return expiracaoEmDias(days);
 }
 
 /**
@@ -209,8 +208,8 @@ async function refresh(token) {
     throw new Error('Refresh token revogado.');
   }
 
-  // Verifica expiração
-  if (new Date() > new Date(storedToken.expires_at)) {
+  // Verifica expiracao (horario de Brasilia)
+  if (jaExpirou(storedToken.expires_at)) {
     throw new Error('Refresh token expirado.');
   }
 
@@ -276,8 +275,7 @@ async function solicitarResetSenha(email) {
 
   const user = result.rows[0];
   const reset_token = crypto.randomBytes(32).toString('hex');
-  const expires_at = new Date();
-  expires_at.setHours(expires_at.getHours() + 1); // 1 hora
+  const expires_at = expiracaoEmHoras(1); // 1 hora (horario de Brasilia)
 
   await db.query(
     `INSERT INTO redefinicao_senhas (user_id, token_hash, expires_at)
@@ -320,7 +318,7 @@ async function resetSenha(token, nova_senha) {
     throw new Error('Token de reset já foi utilizado.');
   }
 
-  if (new Date() > new Date(tokenData.expires_at)) {
+  if (jaExpirou(tokenData.expires_at)) {
     throw new Error('Token de reset expirado.');
   }
 

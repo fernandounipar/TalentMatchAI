@@ -28,22 +28,26 @@ async function chamarOpenRouter(mensagens, options = {}) {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json; charset=utf-8',
+        'Accept': 'application/json; charset=utf-8',
         'HTTP-Referer': 'https://talentmatchia.app', // Opcional: para estatísticas
         'X-Title': 'TalentMatchIA', // Opcional: nome da aplicação
-        'Content-Length': Buffer.byteLength(payload)
+        'Content-Length': Buffer.byteLength(payload, 'utf8')
       },
       timeout: 180000 // 180 segundos (alguns modelos podem demorar mais)
     };
 
     const req = https.request(reqOptions, (res) => {
-      let data = '';
+      // Coleta chunks como Buffer para decodificar UTF-8 corretamente
+      const chunks = [];
 
       res.on('data', (chunk) => {
-        data += chunk;
+        chunks.push(chunk);
       });
 
       res.on('end', () => {
+        // Concatena buffers e decodifica como UTF-8
+        const data = Buffer.concat(chunks).toString('utf8');
         if (res.statusCode === 200) {
           try {
             const response = JSON.parse(data);

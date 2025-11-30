@@ -608,17 +608,73 @@ async function gerarRelatorioEntrevista({ candidato, vaga, respostas = [], feedb
     const score = Math.round((feedbacks.reduce((a, b) => a + (Number(b.score) || 60), 0) / Math.max(1, feedbacks.length)));
     // Usar valores em português
     const recommendation = score >= 80 ? 'APROVAR' : (score >= 65 ? 'DÚVIDA' : 'REPROVAR');
+    
+    // Gerar respostas em destaque a partir das respostas com melhor/pior score
+    const respostasDestaque = respostas
+      .filter(r => r.resposta && r.resposta.length > 10)
+      .slice(0, 3)
+      .map((r, i) => ({
+        pergunta: r.pergunta || `Pergunta ${i + 1}`,
+        categoria: r.tipo || 'técnico',
+        nota: r.score || Math.round(score / 10),
+        feedback: `Resposta registrada durante a entrevista.`
+      }));
+    
     return {
       summary_text: `Resumo automático (sem IA): candidato ${candidato} para a vaga ${vaga}.`,
       strengths: strengths.length > 0 ? strengths : ['Disponibilidade para entrevista'],
       risks: risks.length > 0 ? risks : ['Aguardando mais informações'],
       recommendation,
+      overall_score: score || 50,
+      respostas_destaque: respostasDestaque,
     };
   };
 
-  const systemPrompt = 'Você é um tech lead avaliando entrevistas. Responda apenas JSON válido.';
-  // Usar valores em português
-  const prompt = `Com base nas respostas e feedbacks abaixo, gere um relatório de entrevista em JSON com campos: summary_text (string), strengths (array de strings), risks (array de strings), recommendation em ['APROVAR','DÚVIDA','REPROVAR'].\nRespostas: ${JSON.stringify(respostas).slice(0, 6000)}\nFeedbacks: ${JSON.stringify(feedbacks).slice(0, 6000)}`;
+  // Se não há respostas nem feedbacks, usar fallback
+  if (respostas.length === 0 && feedbacks.length === 0) {
+    console.log('⚠️ [RF7] Sem respostas ou feedbacks para gerar relatório, usando fallback');
+    return fallbackResult();
+  }
+
+  console.log(`📊 [RF7] Gerando relatório IA para ${candidato} - Vaga: ${vaga} - ${respostas.length} respostas, ${feedbacks.length} feedbacks`);
+
+  const systemPrompt = `Você é um especialista em RH e tech lead avaliando entrevistas técnicas. 
+Analise as respostas do candidato de forma objetiva e profissional.
+Responda APENAS com JSON válido, sem markdown ou texto adicional.`;
+
+  // Prompt melhorado com mais contexto
+  const prompt = `Avalie a entrevista do candidato "${candidato}" para a vaga "${vaga}".
+
+RESPOSTAS DA ENTREVISTA:
+${respostas.map((r, i) => `${i + 1}. Pergunta: ${r.pergunta}\n   Resposta: ${r.resposta || 'Não respondida'}${r.score ? `\n   Score: ${r.score}/10` : ''}`).join('\n\n')}
+
+${feedbacks.length > 0 ? `AVALIAÇÕES ANTERIORES:\n${feedbacks.map(f => `- ${f.topic}: ${f.verdict} (${f.score}/10) - ${f.comment || 'Sem comentário'}`).join('\n')}` : ''}
+
+Gere um relatório JSON com os seguintes campos:
+{
+  "summary_text": "Resumo executivo de 2-3 parágrafos avaliando o desempenho geral do candidato, pontos de destaque e áreas de atenção",
+  "overall_score": <número de 0 a 100 representando a pontuação geral>,
+  "strengths": ["lista de 3-5 pontos fortes específicos identificados"],
+  "risks": ["lista de 2-4 pontos de atenção ou riscos identificados"],
+  "recommendation": "APROVAR" | "DÚVIDA" | "REPROVAR",
+  "technical_assessment": "Avaliação técnica em 1-2 frases",
+  "cultural_fit": "Avaliação de fit cultural em 1-2 frases",
+  "next_steps": ["sugestões de próximos passos"],
+  "respostas_destaque": [
+    {
+      "pergunta": "A pergunta técnica feita ao candidato",
+      "categoria": "técnico" | "comportamental" | "experiência",
+      "nota": <número de 0 a 10>,
+      "feedback": "Breve análise de por que essa resposta foi destaque (positivo ou negativo)"
+    }
+  ]
+}
+
+IMPORTANTE para respostas_destaque:
+- Selecione 1-3 respostas mais relevantes (boas ou ruins) das PERGUNTAS TÉCNICAS listadas acima
+- NÃO use conversas informais ou mensagens de chat genéricas
+- Cada resposta deve ter uma análise objetiva do porquê foi selecionada`;
+
   const messages = [
     { role: 'system', content: systemPrompt },
     { role: 'user', content: prompt }
@@ -632,12 +688,17 @@ async function gerarRelatorioEntrevista({ candidato, vaga, respostas = [], feedb
       console.log('🔄 Tentando gerar relatório com OpenRouter:', openRouterModel);
       const orResp = await openRouterService.chamarOpenRouter(messages, {
         model: openRouterModel,
-        temperature: 0.2,
-        max_tokens: 2000
+        temperature: 0.3,
+        max_tokens: 2500
       });
-      const content = orResp?.choices?.[0]?.message?.content || null;
+      // chamarOpenRouter retorna { content, reasoning_details }
+      const content = orResp?.content || null;
       if (content) {
         console.log('✅ OpenRouter gerou relatório com sucesso');
+        // Log parcial do conteúdo para debug
+        console.log('📝 Preview do relatório:', content.substring(0, 200) + '...');
+      } else {
+        console.log('⚠️ OpenRouter não retornou conteúdo');
       }
       return content;
     } catch (e) {
@@ -646,21 +707,52 @@ async function gerarRelatorioEntrevista({ candidato, vaga, respostas = [], feedb
     }
   };
 
+  // Função para parsear resposta da IA
+  const parseAIResponse = (content) => {
+    if (!content) return null;
+    
+    // Tentar extrair JSON se vier com markdown
+    let jsonStr = content;
+    const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (jsonMatch) {
+      jsonStr = jsonMatch[1].trim();
+    }
+    
+    try {
+      const parsed = JSON.parse(jsonStr);
+      // Garantir campos obrigatórios
+      return {
+        summary_text: parsed.summary_text || parsed.summary || `Análise do candidato ${candidato} para a vaga ${vaga}.`,
+        overall_score: parsed.overall_score || parsed.score || 70,
+        strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],
+        risks: Array.isArray(parsed.risks) ? parsed.risks : (Array.isArray(parsed.weaknesses) ? parsed.weaknesses : []),
+        recommendation: parsed.recommendation || 'DÚVIDA',
+        technical_assessment: parsed.technical_assessment || null,
+        cultural_fit: parsed.cultural_fit || null,
+        next_steps: Array.isArray(parsed.next_steps) ? parsed.next_steps : [],
+        respostas_destaque: Array.isArray(parsed.respostas_destaque) ? parsed.respostas_destaque : [],
+      };
+    } catch (parseError) {
+      console.error('❌ Erro ao parsear JSON da IA:', parseError.message);
+      // Se falhou o parse, retorna o texto como summary
+      return {
+        summary_text: content.substring(0, 1000),
+        overall_score: 60,
+        strengths: [],
+        risks: [],
+        recommendation: 'DÚVIDA',
+        respostas_destaque: [],
+      };
+    }
+  };
+
   // Se não tem cliente OpenAI, tenta direto com OpenRouter
   if (!client) {
     console.log('⚠️ Sem cliente OpenAI, tentando OpenRouter direto para relatório...');
     const orContent = await tryOpenRouter();
     if (orContent) {
-      try {
-        return JSON.parse(orContent);
-      } catch {
-        return {
-          summary_text: orContent,
-          strengths: [],
-          risks: [],
-          recommendation: 'DÚVIDA',
-        };
-      }
+      const parsed = parseAIResponse(orContent);
+      if (parsed) return parsed;
     }
     return fallbackResult();
   }
@@ -670,33 +762,22 @@ async function gerarRelatorioEntrevista({ candidato, vaga, respostas = [], feedb
     const resp = await client.chat.completions.create({
       model: 'gpt-4o-mini',
       messages,
-      temperature: 0.2,
+      temperature: 0.3,
+      max_tokens: 2500,
     });
     const content = resp.choices?.[0]?.message?.content || '{}';
-    try {
-      return JSON.parse(content);
-    } catch {
-      return {
-        summary_text: content,
-        strengths: [],
-        risks: [],
-        recommendation: 'DÚVIDA',
-      };
+    const parsed = parseAIResponse(content);
+    if (parsed) {
+      console.log('✅ OpenAI gerou relatório com sucesso');
+      return parsed;
     }
+    return fallbackResult();
   } catch (openaiError) {
     console.error('OpenAI falhou para relatório, tentando OpenRouter:', openaiError.message);
     const orContent = await tryOpenRouter();
     if (orContent) {
-      try {
-        return JSON.parse(orContent);
-      } catch {
-        return {
-          summary_text: orContent,
-          strengths: [],
-          risks: [],
-          recommendation: 'DÚVIDA',
-        };
-      }
+      const parsed = parseAIResponse(orContent);
+      if (parsed) return parsed;
     }
     // Fallback sem IA
     return fallbackResult();

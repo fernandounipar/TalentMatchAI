@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../servicos/api_cliente.dart';
+import '../utils/date_utils.dart' as date_utils;
 
 /// Tela de Entrevista Assistida por IA (com chat ao backend)
 class EntrevistaAssistidaTela extends StatefulWidget {
@@ -63,6 +65,23 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
     );
   }
   
+  /// Normaliza texto removendo caracteres inválidos de encoding UTF-8
+  /// e corrigindo possíveis problemas de codificação
+  String _normalizarTexto(String texto) {
+    if (texto.isEmpty) return texto;
+    
+    // Remove replacement character (�) - caractere de encoding inválido
+    String normalizado = texto.replaceAll('\uFFFD', '');
+    
+    // Remove caracteres de controle exceto newline e tab
+    normalizado = normalizado.replaceAll(RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]'), '');
+    
+    // Remove múltiplos espaços consecutivos
+    normalizado = normalizado.replaceAll(RegExp(r' {2,}'), ' ');
+    
+    return normalizado.trim();
+  }
+  
   Future<void> _salvarResposta(String perguntaId) async {
     final controller = _respostaControllers[perguntaId];
     if (controller == null || controller.text.trim().isEmpty) return;
@@ -121,7 +140,7 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
       'remetente': remetente,
       'texto': m['conteudo'] ?? '',
       'timestamp':
-          DateTime.tryParse(m['criado_em']?.toString() ?? '') ?? DateTime.now(),
+          date_utils.DateUtils.parseParaBrasilia(m['criado_em']?.toString() ?? '') ?? date_utils.DateUtils.agora(),
     };
   }
 
@@ -131,7 +150,7 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
       _mensagens.add({
         'remetente': 'Recrutador',
         'texto': texto,
-        'timestamp': DateTime.now()
+        'timestamp': date_utils.DateUtils.agora()
       });
       _enviando = true;
     });
@@ -236,11 +255,28 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                                     fontSize: 11, color: Colors.grey.shade600),
                               ),
                             ),
+                            // Botão de copiar pergunta
+                            IconButton(
+                              icon: const Icon(Icons.copy, size: 18),
+                              tooltip: 'Copiar pergunta',
+                              color: Colors.grey.shade600,
+                              onPressed: () {
+                                final textoPergunta = _normalizarTexto(
+                                    pergunta['prompt']?.toString() ?? '');
+                                Clipboard.setData(ClipboardData(text: textoPergunta));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('📋 Pergunta copiada!'),
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              },
+                            ),
                           ],
                         ),
                         const SizedBox(height: 12),
-                        Text(
-                          pergunta['prompt']?.toString() ?? '',
+                        SelectableText(
+                          _normalizarTexto(pergunta['prompt']?.toString() ?? ''),
                           style: const TextStyle(
                               fontSize: 16, fontWeight: FontWeight.w500),
                         ),

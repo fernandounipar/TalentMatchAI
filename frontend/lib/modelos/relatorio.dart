@@ -5,7 +5,7 @@ class Relatorio {
   final String candidatoNome;
   final String vagaTitulo;
   final double pontuacaoGeral;
-  final String recomendacao; // 'contratar', 'considerar', 'não_recomendado'
+  final String recomendacao; // 'aprovar', 'dúvida', 'reprovar'
   final Map<String, dynamic> analiseDetalhada;
   final List<String> pontosFortes;
   final List<String> pontosMelhoria;

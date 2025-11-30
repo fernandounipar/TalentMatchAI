@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../servicos/api_cliente.dart';
 import '../design_system/tm_tokens.dart';
 import '../modelos/historico.dart';
+import '../utils/date_utils.dart' as date_utils;
 
 class HistoricoTela extends StatefulWidget {
   final ApiCliente api;
@@ -38,9 +39,9 @@ class _HistoricoTelaState extends State<HistoricoTela> {
       final hist = await widget.api.historico();
       _atividades = hist.map<AtividadeHistorico>((e) {
         final m = e as Map<String, dynamic>;
-        final created = DateTime.tryParse(
+        final created = date_utils.DateUtils.parseParaBrasilia(
                 m['criado_em']?.toString() ?? m['data']?.toString() ?? '') ??
-            DateTime.now();
+            date_utils.DateUtils.agora();
         final tipo = m['tipo']?.toString() ??
             (m['vaga'] != null ? 'Entrevista' : 'Edição');
         final entidade = m['entidade']?.toString() ??
@@ -407,7 +408,7 @@ class _HistoricoTelaState extends State<HistoricoTela> {
   }
 
   String _tempoDecorrido(DateTime data) {
-    final a = DateTime.now();
+    final a = date_utils.DateUtils.agora();
     final d = a.difference(data);
     if (d.inMinutes < 1) return 'Agora há pouco';
     if (d.inHours < 1) return 'Há ${d.inMinutes}min';

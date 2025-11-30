@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../componentes/tm_button.dart';
 import '../design_system/tm_tokens.dart';
 import '../servicos/api_cliente.dart';
+import '../utils/date_utils.dart' as date_utils;
 
 class RelatoriosTela extends StatefulWidget {
   final ApiCliente api;
@@ -83,16 +84,26 @@ class _RelatoriosTelaState extends State<RelatoriosTela> {
           debugPrint(
               '  ✅ Relatório recebido: ${report['candidate_name']} - ${report['recommendation']}');
 
-          // Mapear recommendation para português
+          // Mapear recommendation (EN -> PT para exibição)
           final recMap = {
+            // Inglês (padrão)
             'APPROVE': 'Aprovar',
-            'MAYBE': 'Considerar',
-            'REJECT': 'Não Recomendado',
+            'MAYBE': 'Dúvida',
+            'REJECT': 'Reprovar',
             'PENDING': 'Pendente',
+            // Português (legado - compatibilidade)
+            'APROVAR': 'Aprovar',
+            'DÚVIDA': 'Dúvida',
+            'DUVIDA': 'Dúvida',
+            'REPROVAR': 'Reprovar',
           };
 
           final recomendacao = recMap[report['recommendation']] ?? 'Pendente';
-          final overallScore = (report['overall_score'] ?? 0.0).toDouble();
+          // overall_score pode vir como String ou num do backend
+          final rawScore = report['overall_score'];
+          final overallScore = rawScore is num 
+              ? rawScore.toDouble() 
+              : (double.tryParse(rawScore?.toString() ?? '0') ?? 0.0);
           final percent =
               overallScore <= 10 ? (overallScore * 10) : overallScore;
           final rating = (percent / 20.0)
@@ -135,8 +146,8 @@ class _RelatoriosTelaState extends State<RelatoriosTela> {
                 'Candidato',
             vaga: report['job_title'] ?? e['vaga']?.toString() ?? 'Vaga',
             geradoEm:
-                DateTime.tryParse(report['generated_at']?.toString() ?? '') ??
-                    DateTime.now(),
+                date_utils.DateUtils.parseParaBrasilia(report['generated_at']?.toString() ?? '') ??
+                    date_utils.DateUtils.agora(),
             recomendacao: recomendacao,
             rating: rating.clamp(0.0, 5.0),
             criterios: criterios,
@@ -444,11 +455,11 @@ class _RelatoriosTelaState extends State<RelatoriosTela> {
         fg: const Color(0xFF166534),
         bg: const Color(0xFFDCFCE7)
       ), // green-800, green-100
-      'Considerar': (
+      'Dúvida': (
         fg: const Color(0xFF854D0E),
         bg: const Color(0xFFFEF9C3)
       ), // yellow-800, yellow-100
-      'Não Recomendado': (
+      'Reprovar': (
         fg: const Color(0xFF991B1B),
         bg: const Color(0xFFFEE2E2)
       ), // red-800, red-100
@@ -533,7 +544,7 @@ class _RelatoriosTelaState extends State<RelatoriosTela> {
                               Icon(
                                 item.recomendacao == 'Aprovar'
                                     ? Icons.check_circle_outline
-                                    : item.recomendacao == 'Considerar'
+                                    : item.recomendacao == 'Dúvida'
                                         ? Icons.help_outline
                                         : Icons.cancel_outlined,
                                 size: 16,
@@ -746,7 +757,7 @@ class _ReportItem {
   final String candidato;
   final String vaga;
   final DateTime geradoEm;
-  final String recomendacao; // Aprovar / Considerar / Não Recomendado
+  final String recomendacao; // Aprovar / Dúvida / Reprovar
   final double rating; // 0..5
   final List<_Criterion> criterios;
   final String sintese;

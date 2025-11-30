@@ -1,11 +1,11 @@
 {
-    "name": "talentmatchia_frontend",
-    "short_name": "talentmatchia_frontend",
+    "name": "TalentMatchIA",
+    "short_name": "TalentMatchIA",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#2563EB",
+    "theme_color": "#2563EB",
+    "description": "Recrutamento Inteligente com Inteligência Artificial",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

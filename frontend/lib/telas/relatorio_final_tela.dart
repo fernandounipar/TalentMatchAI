@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../componentes/widgets.dart';
 import '../servicos/api_cliente.dart'; // Import necessário
+import '../utils/date_utils.dart' as date_utils;
 
 /// Tela de Relatório Final da Entrevista
 class RelatorioFinalTela extends StatefulWidget {
@@ -94,12 +95,12 @@ class _RelatorioFinalTelaState extends State<RelatorioFinalTela> {
         .toString()
         .toUpperCase();
 
-    // Mapeamento para UI
+    // Mapeamento para UI (EN -> PT)
     final recOptions = ['APPROVE', 'MAYBE', 'REJECT', 'PENDING'];
     final recLabels = {
       'APPROVE': 'Aprovar',
-      'MAYBE': 'Considerar',
-      'REJECT': 'Não Recomendar',
+      'MAYBE': 'Dúvida',
+      'REJECT': 'Reprovar',
       'PENDING': 'Pendente',
     };
 
@@ -265,11 +266,11 @@ class _RelatorioFinalTelaState extends State<RelatorioFinalTela> {
         case 'DÚVIDA':
         case 'DUVIDA':
         case 'MAYBE':
-          return 'Considerar';
+          return 'Dúvida';
         case 'REPROVAR':
         case 'REJECT':
         case 'NÃO RECOMENDADO':
-          return 'Não recomendar';
+          return 'Reprovar';
         default:
           return recomendacaoRaw.isEmpty ? 'Sem recomendação' : recomendacaoRaw;
       }
@@ -303,7 +304,14 @@ class _RelatorioFinalTelaState extends State<RelatorioFinalTela> {
             ? _toStringList(_relatorio?['pontos_melhoria'])
             : _toStringList(_relatorio?['risks']);
 
+    // Buscar respostas em destaque do relatório ou do content (JSON interno)
+    final contentData = _relatorio?['content'] is Map 
+        ? _relatorio!['content'] as Map<String, dynamic>
+        : null;
     final respostasDestaque = (_relatorio?['respostas_destaque'] as List?)
+            ?.whereType<Map<String, dynamic>>()
+            .toList() ??
+        (contentData?['respostas_destaque'] as List?)
             ?.whereType<Map<String, dynamic>>()
             .toList() ??
         const <Map<String, dynamic>>[];
@@ -729,15 +737,15 @@ class _RelatorioFinalTelaState extends State<RelatorioFinalTela> {
 
   String _formatarData(dynamic valor) {
     if (valor == null) {
-      final now = DateTime.now();
+      final now = date_utils.DateUtils.agora();
       return '${now.day}/${now.month}/${now.year}';
     }
     if (valor is DateTime) {
       return '${valor.day}/${valor.month}/${valor.year}';
     }
-    final parsed = DateTime.tryParse(valor.toString());
+    final parsed = date_utils.DateUtils.parseParaBrasilia(valor.toString());
     if (parsed == null) {
-      final now = DateTime.now();
+      final now = date_utils.DateUtils.agora();
       return '${now.day}/${now.month}/${now.year}';
     }
     return '${parsed.day}/${parsed.month}/${parsed.year}';
@@ -748,8 +756,11 @@ class _RelatorioFinalTelaState extends State<RelatorioFinalTela> {
       case 'contratar':
       case 'aprovar':
         return Colors.green;
+      case 'dúvida':
+      case 'duvida':
       case 'considerar':
         return Colors.orange;
+      case 'reprovar':
       case 'não_recomendado':
       case 'não recomendar':
         return Colors.red;

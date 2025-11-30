@@ -4,6 +4,7 @@ import '../componentes/tm_button.dart';
 import '../componentes/tm_chip.dart';
 import '../design_system/tm_tokens.dart';
 import '../servicos/api_cliente.dart';
+import '../utils/date_utils.dart' as date_utils;
 
 class EntrevistasTela extends StatefulWidget {
   final ApiCliente api;
@@ -56,7 +57,7 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
         final tipo = status == 'completed'
             ? _InterviewType.concluded
             : _InterviewType.scheduled;
-        final dt = DateTime.tryParse(m['scheduled_at']?.toString() ?? '')
+        final dt = date_utils.DateUtils.parseParaBrasilia(m['scheduled_at']?.toString() ?? '')
             ?.toLocal();
         _itens.add(_InterviewCardData(
           id: m['id']?.toString() ?? '',

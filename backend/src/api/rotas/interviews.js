@@ -4,23 +4,23 @@ const db = require('../../config/database');
 const { exigirAutenticacao } = require('../../middlewares/autenticacao');
 const { audit } = require('../../middlewares/audit');
 const { gerarPerguntasEntrevista, responderChatEntrevista, gerarRelatorioEntrevista } = require('../../servicos/iaService');
+const { agora, agoraISO, formatarParaISO } = require('../../utils/dateUtils');
 
 router.use(exigirAutenticacao);
 
 function isoOrNull(v) {
   if (!v) return null;
   try {
-    // Preservar o horário como foi enviado (sem conversão de fuso horário)
-    // Se já é uma string ISO válida, apenas validar e retornar
+    // Preservar o horario como foi enviado (interpretando como horario de Brasilia)
     const d = new Date(v);
     if (isNaN(d.getTime())) return null;
     
-    // Se a string original não tem indicador de timezone (Z ou +/-),
-    // retornar como está para preservar o horário local
+    // Se a string original nao tem indicador de timezone (Z ou +/-),
+    // interpretar como horario de Brasilia e formatar com offset -03:00
     const str = v.toString();
     if (!str.includes('Z') && !str.match(/[+-]\d{2}:\d{2}$/)) {
-      // Formato sem timezone - manter o horário como está
-      return str;
+      // Formato sem timezone - interpretar como Brasilia
+      return formatarParaISO(d);
     }
     return d.toISOString();
   } catch {
@@ -190,11 +190,73 @@ router.put('/:id', async (req, res) => {
 
         if (interviewDetails.rows[0]) {
           const det = interviewDetails.rows[0];
+          
+          // ===== MELHORIA: Buscar respostas da entrevista =====
+          const respostasQuery = await db.query(`
+            SELECT 
+              q.text as question_text,
+              q.kind as question_type,
+              a.raw_text as answer_text,
+              la.score_final,
+              la.feedback_auto,
+              la.feedback_manual
+            FROM respostas_entrevista a
+            JOIN perguntas_entrevista q ON a.question_id = q.id
+            LEFT JOIN avaliacoes_tempo_real la ON la.question_id = q.id AND la.interview_id = $1
+            WHERE q.interview_id = $1
+            ORDER BY a.created_at
+          `, [req.params.id]);
+
+          const respostas = respostasQuery.rows.map(r => ({
+            pergunta: r.question_text,
+            tipo: r.question_type,
+            resposta: r.answer_text,
+            score: r.score_final
+          }));
+
+          const feedbacks = respostasQuery.rows
+            .filter(r => r.feedback_auto || r.feedback_manual || r.score_final)
+            .map(r => {
+              const autoFeedback = r.feedback_auto || {};
+              return {
+                topic: r.question_type || 'Pergunta',
+                question: r.question_text,
+                answer: r.answer_text,
+                score: r.score_final || autoFeedback.nota || 0,
+                verdict: r.score_final >= 8 ? 'FORTE' : (r.score_final >= 6 ? 'OK' : 'FRACO'),
+                comment: r.feedback_manual || autoFeedback.feedback || ''
+              };
+            });
+
+          // Buscar mensagens do chat se não houver respostas formais
+          if (respostas.length === 0) {
+            const mensagensQuery = await db.query(`
+              SELECT sender, message, created_at
+              FROM mensagens_entrevista
+              WHERE interview_id = $1 AND company_id = $2
+              ORDER BY created_at ASC
+            `, [req.params.id, req.usuario.company_id]);
+
+            const msgs = mensagensQuery.rows;
+            for (let i = 0; i < msgs.length - 1; i++) {
+              if (msgs[i].sender === 'assistant' && msgs[i + 1]?.sender === 'user') {
+                respostas.push({
+                  pergunta: msgs[i].message,
+                  tipo: 'chat',
+                  resposta: msgs[i + 1].message,
+                  score: null
+                });
+              }
+            }
+          }
+
+          console.log(`[RF7] Auto-gerando relatório para entrevista ${req.params.id} - ${respostas.length} respostas, ${feedbacks.length} feedbacks`);
+
           const aiReport = await gerarRelatorioEntrevista({
             candidato: det.candidate_name,
             vaga: det.job_title,
-            respostas: [],
-            feedbacks: [],
+            respostas,
+            feedbacks,
             companyId: req.usuario.company_id
           });
 
@@ -539,9 +601,69 @@ router.post('/:id/report', async (req, res) => {
     );
     if (!interview.rows[0]) return res.status(404).json({ erro: 'Entrevista não encontrada' });
 
-    // Coletar respostas/feedback simplificados
-    const respostas = []; // placeholder se necessário
-    const feedbacks = [];
+    // ===== MELHORIA: Buscar respostas da entrevista =====
+    const respostasQuery = await db.query(`
+      SELECT 
+        q.text as question_text,
+        q.kind as question_type,
+        a.raw_text as answer_text,
+        la.score_final,
+        la.feedback_auto,
+        la.feedback_manual
+      FROM respostas_entrevista a
+      JOIN perguntas_entrevista q ON a.question_id = q.id
+      LEFT JOIN avaliacoes_tempo_real la ON la.question_id = q.id AND la.interview_id = $1
+      WHERE q.interview_id = $1
+      ORDER BY a.created_at
+    `, [id]);
+
+    const respostas = respostasQuery.rows.map(r => ({
+      pergunta: r.question_text,
+      tipo: r.question_type,
+      resposta: r.answer_text,
+      score: r.score_final
+    }));
+
+    // ===== MELHORIA: Buscar feedbacks das avaliações =====
+    const feedbacks = respostasQuery.rows
+      .filter(r => r.feedback_auto || r.feedback_manual || r.score_final)
+      .map(r => {
+        const autoFeedback = r.feedback_auto || {};
+        return {
+          topic: r.question_type || 'Pergunta',
+          question: r.question_text,
+          answer: r.answer_text,
+          score: r.score_final || autoFeedback.nota || 0,
+          verdict: r.score_final >= 8 ? 'FORTE' : (r.score_final >= 6 ? 'OK' : 'FRACO'),
+          comment: r.feedback_manual || autoFeedback.feedback || ''
+        };
+      });
+
+    // ===== MELHORIA: Buscar mensagens do chat da entrevista =====
+    const mensagensQuery = await db.query(`
+      SELECT sender, message, created_at
+      FROM mensagens_entrevista
+      WHERE interview_id = $1 AND company_id = $2
+      ORDER BY created_at ASC
+    `, [id, req.usuario.company_id]);
+
+    // Adicionar contexto do chat às respostas se não houver respostas formais
+    if (respostas.length === 0 && mensagensQuery.rows.length > 0) {
+      // Extrair perguntas e respostas do chat
+      const msgs = mensagensQuery.rows;
+      for (let i = 0; i < msgs.length - 1; i++) {
+        if (msgs[i].sender === 'assistant' && msgs[i + 1]?.sender === 'user') {
+          respostas.push({
+            pergunta: msgs[i].message,
+            tipo: 'chat',
+            resposta: msgs[i + 1].message,
+            score: null
+          });
+        }
+      }
+    }
+
+    console.log(`[RF7] Gerando relatório para entrevista ${id} - ${respostas.length} respostas, ${feedbacks.length} feedbacks`);
 
     const aiReport = await gerarRelatorioEntrevista({
       candidato: interview.rows[0].candidate_name || 'Candidato',
@@ -568,10 +690,23 @@ router.post('/:id/report', async (req, res) => {
         : Number.isFinite(Number(aiReport.overall_score))
             ? Number(aiReport.overall_score)
             : null;
-    const recommendation =
-      typeof aiReport.recommendation === 'string'
-        ? aiReport.recommendation.toUpperCase()
-        : 'PENDING';
+    
+    // Converter recomendação de PT para EN (padrão do frontend)
+    const ptToEnRecommendation = {
+      'APROVAR': 'APPROVE',
+      'DÚVIDA': 'MAYBE',
+      'DUVIDA': 'MAYBE',
+      'REPROVAR': 'REJECT',
+      // Já em inglês
+      'APPROVE': 'APPROVE',
+      'MAYBE': 'MAYBE',
+      'REJECT': 'REJECT',
+      'PENDING': 'PENDING'
+    };
+    const rawRecommendation = typeof aiReport.recommendation === 'string'
+      ? aiReport.recommendation.toUpperCase()
+      : 'PENDING';
+    const recommendation = ptToEnRecommendation[rawRecommendation] || 'PENDING';
     const content = {
       ...aiReport,
       strengths,

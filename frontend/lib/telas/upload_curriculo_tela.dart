@@ -3,6 +3,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../componentes/analise_curriculo_resultado.dart';
+import '../utils/date_utils.dart' as date_utils;
 import '../design_system/tm_tokens.dart';
 import '../modelos/analise_curriculo.dart';
 import '../servicos/api_cliente.dart';
@@ -157,7 +158,7 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
       setState(() {
         _uploadStatus = UploadStatus.uploading;
         _uploadProgress = 10;
-        _inicioUpload = DateTime.now();
+        _inicioUpload = date_utils.DateUtils.agora();
         _duracaoSegundos = null;
       });
 
@@ -165,9 +166,9 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
         bytes: _arquivo!.bytes!,
         filename: _arquivo!.name,
         candidato: {
-          'full_name': 'Candidato ${DateTime.now().millisecondsSinceEpoch}',
+          'full_name': 'Candidato ${date_utils.DateUtils.agora().millisecondsSinceEpoch}',
           'email':
-              'candidato_${DateTime.now().millisecondsSinceEpoch}@exemplo.com',
+              'candidato_${date_utils.DateUtils.agora().millisecondsSinceEpoch}@exemplo.com',
         },
         vagaId: _vagaSelecionadaId,
       );
@@ -248,7 +249,7 @@ class _UploadCurriculoTelaState extends State<UploadCurriculoTela> {
 
       final a = AnaliseCurriculo.fromJson(analiseMap);
       if (!mounted) return;
-      final fim = DateTime.now();
+      final fim = date_utils.DateUtils.agora();
       setState(() {
         _uploadStatus = UploadStatus.complete;
         _analise = a;

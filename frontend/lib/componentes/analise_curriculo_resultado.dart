@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../design_system/tm_tokens.dart';
 import '../modelos/analise_curriculo.dart';
+import '../utils/date_utils.dart' as date_utils;
 
 /// Bloco reutilizável para exibir o resultado da análise de currículo
 /// usando apenas dados reais vindos do backend.
@@ -82,7 +83,7 @@ class _AnaliseCurriculoResultadoState extends State<AnaliseCurriculoResultado> {
   }
 
   Future<void> _selecionarData() async {
-    final hoje = DateTime.now();
+    final hoje = date_utils.DateUtils.agora();
     final selecionada = await showDatePicker(
       context: context,
       initialDate: hoje,

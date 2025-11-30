@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../../config/database');
 const { exigirAutenticacao } = require('../../middlewares/autenticacao');
+const { agora } = require('../../utils/dateUtils');
 
 router.use(exigirAutenticacao);
 
@@ -1480,7 +1481,7 @@ AND(dp.user_id = $3 OR(dp.is_shared = TRUE AND $4 = ANY(dp.shared_with_roles)))`
 
     const preset = result.rows[0];
     preset.usage_count = (preset.usage_count || 0) + 1;
-    preset.last_used_at = new Date();
+    preset.last_used_at = agora(); // Horario de Brasilia
 
     res.json({
       success: true,
