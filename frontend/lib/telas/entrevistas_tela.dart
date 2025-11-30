@@ -127,33 +127,6 @@ class _EntrevistasTelaState extends State<EntrevistasTela> {
                   itemBuilder: (context, index) =>
                       _buildCard(_itens[index], index),
                 ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  OutlinedButton(
-                    onPressed: _page > 1
-                        ? () {
-                            setState(() {
-                              _page -= 1;
-                            });
-                            _carregar();
-                          }
-                        : null,
-                    child: const Text('Anterior'),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _page += 1;
-                      });
-                      _carregar();
-                    },
-                    child: const Text('Próxima'),
-                  ),
-                ],
-              ),
             ],
           ),
         );

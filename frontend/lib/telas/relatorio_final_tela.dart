@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import '../componentes/widgets.dart';
+import '../servicos/api_cliente.dart'; // Import necessário
 
 /// Tela de Relatório Final da Entrevista
-class RelatorioFinalTela extends StatelessWidget {
+class RelatorioFinalTela extends StatefulWidget {
   final String candidato;
   final String vaga;
   final VoidCallback onVoltar;
   final Map<String, dynamic>? relatorio;
+  final ApiCliente? api; // Opcional, mas necessário para CRUD
 
   const RelatorioFinalTela({
     super.key,
@@ -14,60 +16,294 @@ class RelatorioFinalTela extends StatelessWidget {
     required this.vaga,
     required this.onVoltar,
     this.relatorio,
+    this.api,
   });
 
   @override
+  State<RelatorioFinalTela> createState() => _RelatorioFinalTelaState();
+}
+
+class _RelatorioFinalTelaState extends State<RelatorioFinalTela> {
+  late Map<String, dynamic>? _relatorio;
+  bool _carregando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _relatorio = widget.relatorio;
+  }
+
+  Future<void> _deletarRelatorio() async {
+    if (widget.api == null || _relatorio == null) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Excluir Relatório'),
+        content: const Text(
+            'Tem certeza que deseja excluir este relatório? Esta ação não pode ser desfeita.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _carregando = true);
+    try {
+      final id = _relatorio!['id'] ?? _relatorio!['report_id'];
+      if (id == null) throw Exception('ID do relatório não encontrado');
+
+      await widget.api!.deletarRelatorio(id.toString());
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Relatório excluído com sucesso')),
+        );
+        widget.onVoltar();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Erro ao excluir: $e'),
+              backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _carregando = false);
+    }
+  }
+
+  Future<void> _editarRelatorio() async {
+    if (widget.api == null || _relatorio == null) return;
+
+    final resumoController = TextEditingController(
+        text: _relatorio!['resumo'] ?? _relatorio!['summary_text'] ?? '');
+    String recomendacao = (_relatorio!['recomendacao'] ??
+            _relatorio!['recommendation'] ??
+            'PENDING')
+        .toString()
+        .toUpperCase();
+
+    // Mapeamento para UI
+    final recOptions = ['APPROVE', 'MAYBE', 'REJECT', 'PENDING'];
+    final recLabels = {
+      'APPROVE': 'Aprovar',
+      'MAYBE': 'Considerar',
+      'REJECT': 'Não Recomendar',
+      'PENDING': 'Pendente',
+    };
+
+    // Garante que o valor atual esteja na lista
+    if (!recOptions.contains(recomendacao)) {
+      if (recomendacao == 'APROVAR')
+        recomendacao = 'APPROVE';
+      else if (recomendacao == 'DÚVIDA' || recomendacao == 'DUVIDA')
+        recomendacao = 'MAYBE';
+      else if (recomendacao == 'REPROVAR')
+        recomendacao = 'REJECT';
+      else
+        recomendacao = 'PENDING';
+    }
+
+    final changed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          return AlertDialog(
+            title: const Text('Editar Relatório'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Recomendação',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: recomendacao,
+                    items: recOptions.map((r) {
+                      return DropdownMenuItem(
+                          value: r, child: Text(recLabels[r] ?? r));
+                    }).toList(),
+                    onChanged: (v) {
+                      if (v != null) setStateDialog(() => recomendacao = v);
+                    },
+                    decoration:
+                        const InputDecoration(border: OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Resumo Executivo',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: resumoController,
+                    maxLines: 5,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      hintText: 'Edite o resumo do relatório...',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Salvar'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (changed != true) return;
+
+    setState(() => _carregando = true);
+    try {
+      final id = _relatorio!['id'] ?? _relatorio!['report_id'];
+      if (id == null) throw Exception('ID do relatório não encontrado');
+
+      final payload = {
+        'summary_text': resumoController.text,
+        'recommendation': recomendacao,
+      };
+
+      final atualizado =
+          await widget.api!.atualizarRelatorio(id.toString(), payload);
+
+      if (mounted) {
+        setState(() {
+          // Atualiza o estado local mesclando os dados
+          _relatorio = {...?_relatorio, ...atualizado};
+
+          // Se o backend retornar chaves diferentes, garantimos a atualização local para refletir na UI imediatamente
+          if (atualizado['summary_text'] != null) {
+            _relatorio!['resumo'] = atualizado['summary_text'];
+            _relatorio!['summary_text'] = atualizado['summary_text'];
+          }
+          if (atualizado['recommendation'] != null) {
+            _relatorio!['recomendacao'] = atualizado['recommendation'];
+            _relatorio!['recommendation'] = atualizado['recommendation'];
+          }
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Relatório atualizado com sucesso')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Erro ao atualizar: $e'),
+              backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _carregando = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_carregando) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     // Mapeia estrutura do backend (interview_reports) e mantém compatibilidade com formatos antigos
-    final rawScore = relatorio?['pontuacao_geral'];
+    final rawScore =
+        _relatorio?['pontuacao_geral'] ?? _relatorio?['overall_score'];
     double pontuacaoGeral;
     if (rawScore is num) {
       pontuacaoGeral = rawScore.toDouble();
+      // Se vier 0-10, converte para 0-100 visualmente se necessário, ou mantém se o componente esperar 0-100
+      // O componente BadgePontuacao parece esperar 0-100. Se vier <= 10, multiplicamos.
+      if (pontuacaoGeral <= 10) pontuacaoGeral *= 10;
     } else {
-      final rec = (relatorio?['recomendacao'] ?? relatorio?['recommendation'])?.toString().toUpperCase() ?? '';
-      if (rec == 'APROVAR') {
+      final rec = (_relatorio?['recomendacao'] ?? _relatorio?['recommendation'])
+              ?.toString()
+              .toUpperCase() ??
+          '';
+      if (rec == 'APROVAR' || rec == 'APPROVE') {
         pontuacaoGeral = 90;
-      } else if (rec == 'DÚVIDA' || rec == 'DUVIDA') {
+      } else if (rec == 'DÚVIDA' || rec == 'DUVIDA' || rec == 'MAYBE') {
         pontuacaoGeral = 70;
-      } else if (rec == 'REPROVAR') {
+      } else if (rec == 'REPROVAR' ||
+          rec == 'REJECT' ||
+          rec == 'NÃO RECOMENDADO') {
         pontuacaoGeral = 40;
       } else {
         pontuacaoGeral = 0;
       }
     }
 
-    final recomendacaoRaw = (relatorio?['recomendacao'] ?? relatorio?['recommendation'])?.toString().toUpperCase() ?? '';
+    final recomendacaoRaw =
+        (_relatorio?['recomendacao'] ?? _relatorio?['recommendation'])
+                ?.toString()
+                .toUpperCase() ??
+            '';
     final recomendacao = () {
       switch (recomendacaoRaw) {
         case 'APROVAR':
+        case 'APPROVE':
           return 'Aprovar';
         case 'DÚVIDA':
         case 'DUVIDA':
+        case 'MAYBE':
           return 'Considerar';
         case 'REPROVAR':
+        case 'REJECT':
+        case 'NÃO RECOMENDADO':
           return 'Não recomendar';
         default:
           return recomendacaoRaw.isEmpty ? 'Sem recomendação' : recomendacaoRaw;
       }
     }();
 
-    final resumo = (relatorio?['resumo'] ?? relatorio?['summary_text'])?.toString() ??
-        'Resumo não disponível para esta entrevista.';
+    final resumo =
+        (_relatorio?['resumo'] ?? _relatorio?['summary_text'])?.toString() ??
+            'Resumo não disponível para esta entrevista.';
 
     final analiseDetalhada = <String, num>{
-      if (relatorio?['competencias'] is List)
-        for (final item in relatorio!['competencias'] as List)
+      if (_relatorio?['competencias'] is List)
+        for (final item in _relatorio!['competencias'] as List)
           if (item is Map && item['nome'] != null && item['nota'] != null)
             item['nome'].toString(): (item['nota'] as num),
     };
 
-    final pontosFortes =
-        (relatorio?['pontos_fortes'] as List?)?.cast<String>() ?? (relatorio?['strengths'] as List?)?.map((e) => e.toString()).toList() ?? const <String>[];
+    // Converte strengths/pontos_fortes para List<String> de forma segura
+    List<String> _toStringList(dynamic value) {
+      if (value == null) return const <String>[];
+      if (value is List) return value.map((e) => e.toString()).toList();
+      if (value is String) return [value];
+      return const <String>[];
+    }
+
+    final pontosFortes = _toStringList(_relatorio?['pontos_fortes']).isNotEmpty
+        ? _toStringList(_relatorio?['pontos_fortes'])
+        : _toStringList(_relatorio?['strengths']);
 
     final pontosMelhoria =
-        (relatorio?['pontos_melhoria'] as List?)?.cast<String>() ?? (relatorio?['risks'] as List?)?.map((e) => e.toString()).toList() ?? const <String>[];
+        _toStringList(_relatorio?['pontos_melhoria']).isNotEmpty
+            ? _toStringList(_relatorio?['pontos_melhoria'])
+            : _toStringList(_relatorio?['risks']);
 
-    final respostasDestaque = (relatorio?['respostas_destaque'] as List?)
+    final respostasDestaque = (_relatorio?['respostas_destaque'] as List?)
             ?.whereType<Map<String, dynamic>>()
             .toList() ??
         const <Map<String, dynamic>>[];
@@ -78,7 +314,7 @@ class RelatorioFinalTela extends StatelessWidget {
         children: [
           // Botão Voltar
           TextButton.icon(
-            onPressed: onVoltar,
+            onPressed: widget.onVoltar,
             icon: const Icon(Icons.chevron_left),
             label: const Text('Voltar ao Dashboard'),
           ),
@@ -99,17 +335,22 @@ class RelatorioFinalTela extends StatelessWidget {
                       children: [
                         const Text(
                           'Relatório de Entrevista',
-                          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+                          style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white),
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Candidato: $candidato • Vaga: $vaga',
-                          style: const TextStyle(color: Colors.white70, fontSize: 14),
+                          'Candidato: ${widget.candidato} • Vaga: ${widget.vaga}',
+                          style: const TextStyle(
+                              color: Colors.white70, fontSize: 14),
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Gerado em: ${_formatarData(relatorio?['gerado_em'] ?? relatorio?['created_at'])}',
-                          style: const TextStyle(color: Colors.white60, fontSize: 12),
+                          'Gerado em: ${_formatarData(_relatorio?['gerado_em'] ?? _relatorio?['created_at'])}',
+                          style: const TextStyle(
+                              color: Colors.white60, fontSize: 12),
                         ),
                       ],
                     ),
@@ -119,7 +360,8 @@ class RelatorioFinalTela extends StatelessWidget {
                       OutlinedButton.icon(
                         onPressed: () {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Relatório exportado como PDF')),
+                            const SnackBar(
+                                content: Text('Relatório exportado como PDF')),
                           );
                         },
                         icon: const Icon(Icons.picture_as_pdf),
@@ -133,7 +375,8 @@ class RelatorioFinalTela extends StatelessWidget {
                       ElevatedButton.icon(
                         onPressed: () {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Relatório compartilhado')),
+                            const SnackBar(
+                                content: Text('Relatório compartilhado')),
                           );
                         },
                         icon: const Icon(Icons.share),
@@ -143,6 +386,38 @@ class RelatorioFinalTela extends StatelessWidget {
                           foregroundColor: const Color(0xFF4F46E5),
                         ),
                       ),
+                      // Menu de Opções (CRUD)
+                      if (widget.api != null) ...[
+                        const SizedBox(width: 12),
+                        PopupMenuButton<String>(
+                          icon:
+                              const Icon(Icons.more_vert, color: Colors.white),
+                          onSelected: (value) {
+                            if (value == 'edit') _editarRelatorio();
+                            if (value == 'delete') _deletarRelatorio();
+                          },
+                          itemBuilder: (BuildContext context) =>
+                              <PopupMenuEntry<String>>[
+                            const PopupMenuItem<String>(
+                              value: 'edit',
+                              child: ListTile(
+                                leading: Icon(Icons.edit),
+                                title: Text('Editar'),
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                            const PopupMenuItem<String>(
+                              value: 'delete',
+                              child: ListTile(
+                                leading: Icon(Icons.delete, color: Colors.red),
+                                title: Text('Excluir',
+                                    style: TextStyle(color: Colors.red)),
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ],
@@ -167,11 +442,13 @@ class RelatorioFinalTela extends StatelessWidget {
                         const SizedBox(height: 16),
                         const Text(
                           'Pontuação Geral',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w600),
                         ),
                         const SizedBox(height: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
                           decoration: BoxDecoration(
                             color: _corRecomendacao(recomendacao),
                             borderRadius: BorderRadius.circular(20),
@@ -201,7 +478,8 @@ class RelatorioFinalTela extends StatelessWidget {
                       children: [
                         const Text(
                           'Resumo Executivo',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.w600),
                         ),
                         const SizedBox(height: 16),
                         Text(
@@ -211,7 +489,8 @@ class RelatorioFinalTela extends StatelessWidget {
                         const SizedBox(height: 16),
                         const Text(
                           'Análise por Competência',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.w600),
                         ),
                         const SizedBox(height: 12),
                         ...analiseDetalhada.entries.map((entry) => Padding(
@@ -220,10 +499,14 @@ class RelatorioFinalTela extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
                                     children: [
-                                      Text(entry.key, style: const TextStyle(fontSize: 13)),
-                                      Text('${entry.value}%', style: const TextStyle(fontWeight: FontWeight.w600)),
+                                      Text(entry.key,
+                                          style: const TextStyle(fontSize: 13)),
+                                      Text('${entry.value}%',
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w600)),
                                     ],
                                   ),
                                   const SizedBox(height: 6),
@@ -266,7 +549,8 @@ class RelatorioFinalTela extends StatelessWidget {
                             const SizedBox(width: 8),
                             const Text(
                               'Pontos Fortes',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                              style: TextStyle(
+                                  fontSize: 16, fontWeight: FontWeight.w600),
                             ),
                           ],
                         ),
@@ -276,10 +560,13 @@ class RelatorioFinalTela extends StatelessWidget {
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Icon(Icons.check_circle, size: 20, color: Colors.green.shade700),
+                                  Icon(Icons.check_circle,
+                                      size: 20, color: Colors.green.shade700),
                                   const SizedBox(width: 12),
                                   Expanded(
-                                    child: Text(ponto, style: const TextStyle(fontSize: 14, height: 1.5)),
+                                    child: Text(ponto,
+                                        style: const TextStyle(
+                                            fontSize: 14, height: 1.5)),
                                   ),
                                 ],
                               ),
@@ -299,11 +586,13 @@ class RelatorioFinalTela extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.trending_up, color: Colors.blue.shade700),
+                            Icon(Icons.trending_up,
+                                color: Colors.blue.shade700),
                             const SizedBox(width: 8),
                             const Text(
                               'Pontos de Melhoria',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                              style: TextStyle(
+                                  fontSize: 16, fontWeight: FontWeight.w600),
                             ),
                           ],
                         ),
@@ -313,10 +602,13 @@ class RelatorioFinalTela extends StatelessWidget {
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Icon(Icons.lightbulb_outline, size: 20, color: Colors.blue.shade700),
+                                  Icon(Icons.lightbulb_outline,
+                                      size: 20, color: Colors.blue.shade700),
                                   const SizedBox(width: 12),
                                   Expanded(
-                                    child: Text(ponto, style: const TextStyle(fontSize: 14, height: 1.5)),
+                                    child: Text(ponto,
+                                        style: const TextStyle(
+                                            fontSize: 14, height: 1.5)),
                                   ),
                                 ],
                               ),
@@ -342,7 +634,8 @@ class RelatorioFinalTela extends StatelessWidget {
             (resposta) => _cardResposta(
               pergunta: resposta['pergunta']?.toString() ?? '',
               categoria: resposta['categoria']?.toString() ?? '',
-              pontuacao: (resposta['nota'] ?? resposta['pontuacao'] ?? 0) as num,
+              pontuacao:
+                  (resposta['nota'] ?? resposta['pontuacao'] ?? 0) as num,
               feedback: resposta['feedback']?.toString() ?? '',
             ),
           ),
@@ -383,11 +676,13 @@ class RelatorioFinalTela extends StatelessWidget {
                 Expanded(
                   child: Text(
                     pergunta,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w600),
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: corCategoria.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
@@ -409,9 +704,7 @@ class RelatorioFinalTela extends StatelessWidget {
                 ...List.generate(
                   10,
                   (i) => Icon(
-                    i < pontuacao.round()
-                        ? Icons.star
-                        : Icons.star_border,
+                    i < pontuacao.round() ? Icons.star : Icons.star_border,
                     size: 18,
                     color: Colors.amber,
                   ),
@@ -453,10 +746,12 @@ class RelatorioFinalTela extends StatelessWidget {
   Color _corRecomendacao(String recomendacao) {
     switch (recomendacao.toLowerCase()) {
       case 'contratar':
+      case 'aprovar':
         return Colors.green;
       case 'considerar':
         return Colors.orange;
       case 'não_recomendado':
+      case 'não recomendar':
         return Colors.red;
       default:
         return Colors.grey;

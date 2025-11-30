@@ -35,6 +35,10 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
   List<Map<String, dynamic>> _respostas = const [];
   bool _gerandoPerguntas = false;
   bool _finalizando = false;
+  
+  // Controllers para respostas de cada pergunta
+  final Map<String, TextEditingController> _respostaControllers = {};
+  final Set<String> _salvandoResposta = {};
 
   @override
   void initState() {
@@ -46,7 +50,46 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
   void dispose() {
     _controlador.dispose();
     _scrollController.dispose();
+    for (final c in _respostaControllers.values) {
+      c.dispose();
+    }
     super.dispose();
+  }
+  
+  TextEditingController _getRespostaController(String perguntaId) {
+    return _respostaControllers.putIfAbsent(
+      perguntaId,
+      () => TextEditingController(),
+    );
+  }
+  
+  Future<void> _salvarResposta(String perguntaId) async {
+    final controller = _respostaControllers[perguntaId];
+    if (controller == null || controller.text.trim().isEmpty) return;
+    
+    setState(() => _salvandoResposta.add(perguntaId));
+    try {
+      final saved = await widget.api.responderPergunta(
+        widget.entrevistaId,
+        questionId: perguntaId,
+        texto: controller.text.trim(),
+      );
+      setState(() {
+        _respostas = List.from(_respostas)..add(saved);
+      });
+      controller.clear();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('✅ Resposta salva com sucesso!')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao salvar resposta: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _salvandoResposta.remove(perguntaId));
+    }
   }
 
   Future<void> _carregarMensagens() async {
@@ -155,6 +198,8 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                   (r) => r['question_id'] == perguntaId,
                   orElse: () => <String, dynamic>{},
                 );
+                final respostaController = _getRespostaController(perguntaId);
+                final salvando = _salvandoResposta.contains(perguntaId);
 
                 return Card(
                   margin: const EdgeInsets.only(bottom: 16),
@@ -204,33 +249,73 @@ class _EntrevistaAssistidaTelaState extends State<EntrevistaAssistidaTela> {
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Colors.grey.shade50,
+                              color: Colors.green.shade50,
                               borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.green.shade200),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  'Resposta:',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey.shade600,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                                Row(
+                                  children: [
+                                    Icon(Icons.check_circle, 
+                                      size: 16, color: Colors.green.shade600),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Resposta registrada:',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.green.shade700,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 8),
                                 Text(resposta['raw_text']?.toString() ?? ''),
                               ],
                             ),
                           ),
                         ] else ...[
+                          const SizedBox(height: 16),
+                          TextField(
+                            controller: respostaController,
+                            maxLines: 3,
+                            decoration: InputDecoration(
+                              hintText: 'Digite a resposta do candidato...',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              filled: true,
+                              fillColor: Colors.grey.shade50,
+                            ),
+                          ),
                           const SizedBox(height: 12),
-                          Text(
-                            'Aguardando resposta...',
-                            style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey.shade500,
-                                fontStyle: FontStyle.italic),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: salvando 
+                                ? null 
+                                : () => _salvarResposta(perguntaId),
+                              icon: salvando
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.save),
+                              label: Text(salvando 
+                                ? 'Salvando...' 
+                                : 'Salvar Resposta'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF4F46E5),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                            ),
                           ),
                         ],
                       ],

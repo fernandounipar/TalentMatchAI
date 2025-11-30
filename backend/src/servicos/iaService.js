@@ -393,26 +393,112 @@ Reqs: ${vagaRequisitos}
   }
 }
 
+// Função auxiliar para mapear categoria da IA para o enum do banco
+function mapCategoriaToBanco(categoria) {
+  const map = {
+    'técnica': 'TECNICA',
+    'tecnica': 'TECNICA',
+    'Técnica': 'TECNICA',
+    'Tecnica': 'TECNICA',
+    'TÉCNICA': 'TECNICA',
+    'TECNICA': 'TECNICA',
+    'comportamental': 'COMPORTAMENTAL',
+    'Comportamental': 'COMPORTAMENTAL',
+    'COMPORTAMENTAL': 'COMPORTAMENTAL',
+    'situacional': 'SITUACIONAL',
+    'Situacional': 'SITUACIONAL',
+    'SITUACIONAL': 'SITUACIONAL',
+    'cultural': 'COMPORTAMENTAL', // Cultural mapeia para comportamental
+    'Cultural': 'COMPORTAMENTAL',
+    'CULTURAL': 'COMPORTAMENTAL',
+  };
+  return map[categoria] || 'TECNICA'; // Default para TECNICA se não reconhecer
+}
+
 async function gerarPerguntasEntrevista({ resumo, skills = [], vaga = '', quantidade = 8 }) {
-  const client = await getOpenAIClientForCompany((arguments[0] && arguments[0].companyId) || null);
-  if (!client) return ['OPENAI não configurado'];
-  const prompt = `Gere ${quantidade} perguntas (técnicas e comportamentais) em português, como JSON array de strings. Resumo:${resumo}\nSkills:${skills.join(
-    ', ',
-  )}\nVaga:${vaga}`;
-  const resp = await client.chat.completions.create({
-    model: 'gpt-4o-mini',
-    messages: [
-      { role: 'system', content: 'Você é um entrevistador técnico sênior.' },
-      { role: 'user', content: prompt },
-    ],
-    temperature: 0.3,
-  });
-  const content = resp.choices?.[0]?.message?.content || '[]';
+  const companyId = (arguments[0] && arguments[0].companyId) || null;
+  const client = await getOpenAIClientForCompany(companyId);
+
+  // Função interna para tentar OpenRouter
+  const tryOpenRouter = async () => {
+    if (process.env.OPENROUTER_API_KEY) {
+      console.log('⚠️  OpenAI indisponível. Tentando OpenRouter para gerar perguntas...');
+      try {
+        const curriculoTexto = `Resumo: ${resumo}\nSkills: ${skills.join(', ')}`;
+        const vagaObj = { description: vaga }; // Adapta para objeto como esperado pelo service
+
+        // O service retorna array de objetos { texto, categoria, peso }
+        // Retornamos objetos com texto e kind mapeado para o enum do banco
+        const perguntasOpenRouter = await openRouterService.gerarPerguntasEntrevista(vagaObj, curriculoTexto);
+
+        if (Array.isArray(perguntasOpenRouter)) {
+          return perguntasOpenRouter.map(p => ({
+            texto: p.texto || p,
+            kind: mapCategoriaToBanco(p.categoria)
+          }));
+        }
+        return [];
+      } catch (orError) {
+        console.error('❌ Erro no OpenRouter (perguntas):', orError.message);
+        return [{ texto: 'Erro ao gerar perguntas via IA (OpenRouter falhou).', kind: 'TECNICA' }];
+      }
+    }
+    return [{ texto: 'OPENAI não configurado e OpenRouter indisponível.', kind: 'TECNICA' }];
+  };
+
+  if (!client) {
+    return await tryOpenRouter();
+  }
+
+  const prompt = `Gere ${quantidade} perguntas para entrevista em português, retornando um JSON array de objetos.
+Cada objeto deve ter:
+- "texto": a pergunta
+- "categoria": "Técnica", "Comportamental" ou "Situacional"
+
+Contexto:
+Resumo: ${resumo}
+Skills: ${skills.join(', ')}
+Vaga: ${vaga}
+
+Retorne APENAS o JSON array, sem texto adicional.`;
+
   try {
-    const arr = JSON.parse(content);
-    return Array.isArray(arr) ? arr : [String(content)];
-  } catch {
-    return [content];
+    const resp = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: 'Você é um entrevistador técnico sênior. Sempre retorne JSON válido.' },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.3,
+    });
+    const content = resp.choices?.[0]?.message?.content || '[]';
+    try {
+      let jsonText = content.trim();
+      // Remove possíveis marcadores de código
+      if (jsonText.startsWith('```json')) {
+        jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?$/g, '');
+      } else if (jsonText.startsWith('```')) {
+        jsonText = jsonText.replace(/```\n?/g, '');
+      }
+      const arr = JSON.parse(jsonText);
+      if (Array.isArray(arr)) {
+        return arr.map(item => {
+          if (typeof item === 'string') {
+            return { texto: item, kind: 'TECNICA' };
+          }
+          return {
+            texto: item.texto || item.pergunta || String(item),
+            kind: mapCategoriaToBanco(item.categoria)
+          };
+        });
+      }
+      return [{ texto: String(content), kind: 'TECNICA' }];
+    } catch {
+      return [{ texto: content, kind: 'TECNICA' }];
+    }
+  } catch (e) {
+    console.error('❌ Erro na OpenAI (perguntas):', e.message);
+    return await tryOpenRouter();
   }
 }
 
@@ -425,13 +511,6 @@ async function responderChatEntrevista({
   textoCurriculo = '',
   companyId = null,
 }) {
-  const client = await getOpenAIClientForCompany(companyId);
-
-  if (!client) {
-    // fallback simples
-    return 'OPENAI não configurado. (Resposta mock) Sugestão: aprofunde pedindo exemplos específicos e resultados mensuráveis.';
-  }
-
   const system = [
     'Você é um assistente de entrevistas técnicas que ajuda o recrutador.',
     'Responda em português, de forma objetiva e prática.',
@@ -459,13 +538,39 @@ async function responderChatEntrevista({
     { role: 'user', content: String(mensagemAtual) },
   ];
 
-  const resp = await client.chat.completions.create({
-    model: 'gpt-4o-mini',
-    messages: msgs,
-    temperature: 0.3,
-  });
-  const content = resp.choices?.[0]?.message?.content || '';
-  return content.trim();
+  // Função para tentar OpenRouter como fallback
+  const tryOpenRouter = async () => {
+    if (process.env.OPENROUTER_API_KEY) {
+      console.log('⚠️  OpenAI indisponível. Tentando OpenRouter para chat...');
+      try {
+        const response = await openRouterService.chamarOpenRouter(msgs, { temperature: 0.3, max_tokens: 1000 });
+        return response.content?.trim() || 'Resposta não disponível.';
+      } catch (orError) {
+        console.error('❌ Erro no OpenRouter (chat):', orError.message);
+        return 'Desculpe, não foi possível processar sua mensagem no momento. Tente novamente.';
+      }
+    }
+    return 'Serviço de IA temporariamente indisponível. Tente novamente em alguns instantes.';
+  };
+
+  const client = await getOpenAIClientForCompany(companyId);
+
+  if (!client) {
+    return await tryOpenRouter();
+  }
+
+  try {
+    const resp = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: msgs,
+      temperature: 0.3,
+    });
+    const content = resp.choices?.[0]?.message?.content || '';
+    return content.trim();
+  } catch (e) {
+    console.error('❌ Erro na OpenAI (chat):', e.message);
+    return await tryOpenRouter();
+  }
 }
 
 async function avaliarResposta({ pergunta, resposta, companyId = null }) {
@@ -497,37 +602,82 @@ async function gerarRelatorioEntrevista({ candidato, vaga, respostas = [], feedb
   // Fusão simples: sumariza com base nos feedbacks
   const client = await getOpenAIClientForCompany(companyId);
 
-  if (!client) {
+  const fallbackResult = () => {
     const strengths = feedbacks.filter(f => (f.verdict || '').toUpperCase() === 'FORTE').map(f => f.topic || 'Ponto forte');
     const risks = feedbacks.filter(f => (f.verdict || '').toUpperCase() === 'FRACO' || (f.verdict || '').toUpperCase() === 'INCONSISTENTE').map(f => f.topic || 'Risco');
     const score = Math.round((feedbacks.reduce((a, b) => a + (Number(b.score) || 60), 0) / Math.max(1, feedbacks.length)));
+    // Usar valores em português
     const recommendation = score >= 80 ? 'APROVAR' : (score >= 65 ? 'DÚVIDA' : 'REPROVAR');
     return {
       summary_text: `Resumo automático (sem IA): candidato ${candidato} para a vaga ${vaga}.`,
-      strengths,
-      risks,
+      strengths: strengths.length > 0 ? strengths : ['Disponibilidade para entrevista'],
+      risks: risks.length > 0 ? risks : ['Aguardando mais informações'],
       recommendation,
     };
+  };
+
+  if (!client) {
+    return fallbackResult();
   }
+
+  const systemPrompt = 'Você é um tech lead avaliando entrevistas. Responda apenas JSON válido.';
+  // Usar valores em português
   const prompt = `Com base nas respostas e feedbacks abaixo, gere um relatório de entrevista em JSON com campos: summary_text (string), strengths (array de strings), risks (array de strings), recommendation em ['APROVAR','DÚVIDA','REPROVAR'].\nRespostas: ${JSON.stringify(respostas).slice(0, 6000)}\nFeedbacks: ${JSON.stringify(feedbacks).slice(0, 6000)}`;
-  const resp = await client.chat.completions.create({
-    model: 'gpt-4o-mini',
-    messages: [
-      { role: 'system', content: 'Você é um tech lead avaliando entrevistas. Responda apenas JSON válido.' },
-      { role: 'user', content: prompt }
-    ],
-    temperature: 0.2,
-  });
-  const content = resp.choices?.[0]?.message?.content || '{}';
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: prompt }
+  ];
+
+  // Tenta OpenAI primeiro, se falhar usa OpenRouter
+  const tryOpenRouter = async () => {
+    if (!openRouterService) return null;
+    try {
+      const orResp = await openRouterService.chamarOpenRouter(messages, {
+        model: 'google/gemini-2.0-flash-001',
+        temperature: 0.2,
+        max_tokens: 2000
+      });
+      return orResp?.choices?.[0]?.message?.content || null;
+    } catch (e) {
+      console.error('OpenRouter também falhou para relatório:', e.message);
+      return null;
+    }
+  };
+
   try {
-    return JSON.parse(content);
-  } catch {
-    return {
-      summary_text: content,
-      strengths: [],
-      risks: [],
-      recommendation: 'DÚVIDA',
-    };
+    const resp = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages,
+      temperature: 0.2,
+    });
+    const content = resp.choices?.[0]?.message?.content || '{}';
+    try {
+      return JSON.parse(content);
+    } catch {
+      return {
+        summary_text: content,
+        strengths: [],
+        risks: [],
+        recommendation: 'DÚVIDA',
+      };
+    }
+  } catch (openaiError) {
+    console.error('OpenAI falhou para relatório, tentando OpenRouter:', openaiError.message);
+    const orContent = await tryOpenRouter();
+    if (orContent) {
+      try {
+        return JSON.parse(orContent);
+      } catch {
+        return {
+          summary_text: orContent,
+          strengths: [],
+          risks: [],
+          recommendation: 'DÚVIDA',
+        };
+      }
+    }
+    // Fallback sem IA
+    return fallbackResult();
   }
 }
 

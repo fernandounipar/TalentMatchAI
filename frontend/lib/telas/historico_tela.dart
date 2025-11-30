@@ -7,7 +7,7 @@ class HistoricoTela extends StatefulWidget {
   final ApiCliente api;
   final void Function(String entrevistaId, Map<String, dynamic> relatorio)?
       onAbrirRelatorio;
-  
+
   const HistoricoTela({
     super.key,
     required this.api,
@@ -124,8 +124,6 @@ class _HistoricoTelaState extends State<HistoricoTela> {
           _buildFilters(),
           const SizedBox(height: 24),
           ..._agrupadasPorDia.entries.map((e) => _diaSection(e.key, e.value)),
-          const SizedBox(height: 16),
-          _estatisticasCard(),
         ],
       ),
     );
@@ -405,89 +403,6 @@ class _HistoricoTelaState extends State<HistoricoTela> {
       child: Text(entidade,
           style:
               TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: fg)),
-    );
-  }
-
-  Widget _estatisticasCard() {
-    final counts = <String, int>{
-      'Upload': 0,
-      'Análise': 0,
-      'Entrevista': 0,
-      'Aprovação': 0,
-      'Reprovação': 0,
-      'Edição': 0,
-    };
-    for (final a in _filtradas) {
-      counts[a.tipo] = (counts[a.tipo] ?? 0) + 1;
-    }
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Estatísticas do Período',
-                style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: TMTokens.text)),
-            const SizedBox(height: 12),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final cols = constraints.maxWidth >= 1024
-                    ? 6
-                    : (constraints.maxWidth >= 640 ? 3 : 2);
-                return GridView.count(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: cols,
-                  childAspectRatio: 2.2,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  children: [
-                    _kpiTile(Icons.upload_file, 'Upload', counts['Upload'] ?? 0,
-                        TMTokens.info),
-                    _kpiTile(Icons.psychology, 'Análise',
-                        counts['Análise'] ?? 0, TMTokens.secondary),
-                    _kpiTile(Icons.calendar_today, 'Entrevista',
-                        counts['Entrevista'] ?? 0, TMTokens.warning),
-                    _kpiTile(Icons.check_circle, 'Aprovação',
-                        counts['Aprovação'] ?? 0, TMTokens.success),
-                    _kpiTile(Icons.cancel, 'Reprovação',
-                        counts['Reprovação'] ?? 0, TMTokens.error),
-                    _kpiTile(Icons.edit_square, 'Edição', counts['Edição'] ?? 0,
-                        TMTokens.textMuted),
-                  ],
-                );
-              },
-            )
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _kpiTile(IconData icon, String label, int valor, Color color) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(10)),
-          child: Icon(icon, color: color),
-        ),
-        const SizedBox(height: 6),
-        Text('$valor',
-            style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-                color: TMTokens.text)),
-        Text(label,
-            style: const TextStyle(fontSize: 12, color: TMTokens.textMuted)),
-      ],
     );
   }
 

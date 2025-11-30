@@ -679,48 +679,7 @@ class _CandidatosTelaState extends State<CandidatosTela> {
               onChanged: (value) => setState(() => _searchTerm = value),
             ),
             const SizedBox(height: 16),
-            isCompact
-                ? Column(
-                    children: [
-                      _buildStatusDropdown(),
-                      const SizedBox(height: 16),
-                      _buildSkillDropdown(),
-                    ],
-                  )
-                : Row(
-                    children: [
-                      Expanded(child: _buildStatusDropdown()),
-                      const SizedBox(width: 16),
-                      Expanded(child: _buildSkillDropdown()),
-                    ],
-                  ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                OutlinedButton(
-                  onPressed: _page > 1
-                      ? () {
-                          setState(() {
-                            _page -= 1;
-                          });
-                          _carregar();
-                        }
-                      : null,
-                  child: const Text('Anterior'),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: () {
-                    setState(() {
-                      _page += 1;
-                    });
-                    _carregar();
-                  },
-                  child: const Text('Próxima'),
-                ),
-              ],
-            ),
+            _buildStatusDropdown(),
           ],
         ),
       ),
@@ -870,15 +829,6 @@ class _CandidatosTelaState extends State<CandidatosTela> {
                           })
                         else
                           _buildStatusBadge(status),
-                        const SizedBox(width: 4),
-                        IconButton(
-                          tooltip: 'Candidatar',
-                          icon: const Icon(Icons.assignment_ind_outlined,
-                              size: 16, color: TMTokens.textMuted),
-                          onPressed: () => _criarCandidatura(candidato),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
                         const SizedBox(width: 8),
                         IconButton(
                           tooltip: 'Editar',

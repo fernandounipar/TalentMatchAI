@@ -16,6 +16,23 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD
 });
 
+// Função auxiliar para mapear categoria/tipo da IA para o enum do banco
+function mapKindToBanco(kind) {
+  if (!kind) return 'TECNICA';
+  const normalized = kind.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const map = {
+    'tecnica': 'TECNICA',
+    'technical': 'TECNICA',
+    'comportamental': 'COMPORTAMENTAL',
+    'behavioral': 'COMPORTAMENTAL',
+    'situacional': 'SITUACIONAL',
+    'situational': 'SITUACIONAL',
+    'cultural': 'COMPORTAMENTAL',
+    'general': 'TECNICA',
+  };
+  return map[normalized] || 'TECNICA';
+}
+
 // ============================================================================
 // 1. LISTAR CONJUNTOS DE PERGUNTAS (com filtros e paginação)
 // ============================================================================
@@ -336,8 +353,8 @@ router.post('/', authMiddleware, async (req, res) => {
           questionId,
           company_id,
           setId,
-          q.tipo || 'general',
-          q.pergunta,
+          mapKindToBanco(q.tipo || q.categoria),
+          q.pergunta || q.texto,
           i + 1,
           'ai_generated',
           q.pergunta
@@ -367,7 +384,7 @@ router.post('/', authMiddleware, async (req, res) => {
           questionId,
           company_id,
           setId,
-          q.type || 'general',
+          mapKindToBanco(q.type),
           q.text.trim(),
           q.order || i + 1,
           'manual',
@@ -518,7 +535,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
             questionId,
             company_id,
             id,
-            q.type || 'general',
+            mapKindToBanco(q.type),
             q.text,
             q.order || 999,
             'manual',

@@ -142,7 +142,14 @@ class ApiCliente {
       }
       throw Exception(r.body);
     }
-    return jsonDecode(r.body) as Map<String, dynamic>;
+    final result = jsonDecode(r.body) as Map<String, dynamic>;
+
+    // Se o backend retornou um novo token (após criar empresa), atualiza
+    if (result['access_token'] != null) {
+      _token = result['access_token'] as String;
+    }
+
+    return result;
   }
 
   /// Atualiza perfil do usuário (nome, cargo)
@@ -267,6 +274,11 @@ class ApiCliente {
               : 'closed',
       'seniority': vaga['nivel'],
       'location_type': vaga['regime'],
+      if (vaga['local'] != null) 'unit': vaga['local'],
+      if (vaga['salary_min'] != null) 'salary_min': vaga['salary_min'],
+      if (vaga['salary_max'] != null) 'salary_max': vaga['salary_max'],
+      if (vaga['skills_required'] != null)
+        'skills_required': vaga['skills_required'],
     };
     final r = await _execWithRefresh(() => http.post(
         Uri.parse('$baseUrl/api/jobs'),
@@ -288,6 +300,11 @@ class ApiCliente {
             : vaga['status'],
       if (vaga.containsKey('nivel')) 'seniority': vaga['nivel'],
       if (vaga.containsKey('regime')) 'location_type': vaga['regime'],
+      if (vaga.containsKey('local')) 'unit': vaga['local'],
+      if (vaga.containsKey('salary_min')) 'salary_min': vaga['salary_min'],
+      if (vaga.containsKey('salary_max')) 'salary_max': vaga['salary_max'],
+      if (vaga.containsKey('skills_required'))
+        'skills_required': vaga['skills_required'],
     };
     final r = await _execWithRefresh(() => http.put(
         Uri.parse('$baseUrl/api/jobs/$id'),
@@ -1016,6 +1033,34 @@ class ApiCliente {
     if (r.statusCode >= 400) throw Exception(r.body);
     final decoded = jsonDecode(r.body);
     return _asMap(decoded['data'] ?? decoded);
+  }
+
+  /// RF7 - Atualizar Relatório
+  Future<Map<String, dynamic>> atualizarRelatorio(
+      String reportId, Map<String, dynamic> dados) async {
+    final r = await _execWithRefresh(
+      () => http.put(
+        Uri.parse('$baseUrl/api/reports/$reportId'),
+        headers: _headers(),
+        body: jsonEncode(dados),
+      ),
+    );
+
+    if (r.statusCode >= 400) throw Exception(r.body);
+    final decoded = jsonDecode(r.body);
+    return _asMap(decoded['data'] ?? decoded);
+  }
+
+  /// RF7 - Deletar Relatório
+  Future<void> deletarRelatorio(String reportId) async {
+    final r = await _execWithRefresh(
+      () => http.delete(
+        Uri.parse('$baseUrl/api/reports/$reportId'),
+        headers: _headers(),
+      ),
+    );
+
+    if (r.statusCode >= 400) throw Exception(r.body);
   }
 
   Future<void> trocarSenha(String senhaAtual, String novaSenha) async {

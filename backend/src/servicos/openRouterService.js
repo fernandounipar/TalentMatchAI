@@ -33,7 +33,7 @@ async function chamarOpenRouter(mensagens, options = {}) {
         'X-Title': 'TalentMatchIA', // Opcional: nome da aplicação
         'Content-Length': Buffer.byteLength(payload)
       },
-      timeout: 60000 // 60 segundos (alguns modelos podem demorar mais)
+      timeout: 180000 // 180 segundos (alguns modelos podem demorar mais)
     };
 
     const req = https.request(reqOptions, (res) => {
@@ -48,7 +48,7 @@ async function chamarOpenRouter(mensagens, options = {}) {
           try {
             const response = JSON.parse(data);
             const message = response.choices[0].message;
-            
+
             // Retorna objeto com conteúdo e reasoning_details se disponível
             resolve({
               content: message.content,
@@ -81,7 +81,7 @@ async function chamarOpenRouter(mensagens, options = {}) {
 
     req.on('timeout', () => {
       req.destroy();
-      reject(new Error('Timeout na requisição para OpenRouter (60s)'));
+      reject(new Error('Timeout na requisição para OpenRouter (180s)'));
     });
 
     req.write(payload);
@@ -228,7 +228,7 @@ Instruções:
     }
 
     const resultado = JSON.parse(jsonText);
-    
+
     // Garante estrutura mínima
     return {
       candidato: resultado.candidato || null,
